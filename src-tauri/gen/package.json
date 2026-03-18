@@ -1,0 +1,14 @@
+{
+  "name": "mcp-manager",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build"
+  },
+  "dependencies": {
+    "tailwindcss": "^4.1.11",
+    "@tailwindcss/postcss": "^4.1.11"
+  }
+}

@@ -1,0 +1,43 @@
+# Node
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+
+# Frontend build
+/dist/
+/.vite/
+coverage/
+
+# Environment
+.env
+.env.*
+!.env.example
+
+# TypeScript
+*.tsbuildinfo
+
+# Logs
+*.log
+logs/
+
+# OS / Editor
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
+
+# Tauri / Rust
+/src-tauri/target/
+/src-tauri/.cargo/
+/src-tauri/Cargo.lock
+
+# Runtime artifacts
+backups/
+config/
+
+# Temp files
+*.tmp
+*.swp
+tmp
