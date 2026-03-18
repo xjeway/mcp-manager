@@ -39,12 +39,29 @@ The project is built as a desktop application with:
 | Client | Import | Apply |
 | --- | --- | --- |
 | Claude Code | ✅ | ✅ |
-| Claude Desktop | Planned | Planned |
+| Claude Desktop | ✅ | ✅ |
 | Codex | ✅ | ✅ |
-| Cline | Planned | Planned |
 | Cursor | ✅ | ✅ |
+| OpenCode | ✅ | ✅ |
+| GitHub Copilot | ✅ | ✅ |
+| Gemini CLI | ✅ | ✅ |
+| Antigravity | ✅ | ✅ |
+| iFlow | ✅ | ✅ |
 | VS Code | ✅ | ✅ |
 | Windsurf | Planned | Planned |
+| Cline | Planned | Planned |
+| RooCode | Planned | Planned |
+| Kilo Code | Planned | Planned |
+| Amazon Q | Planned | Planned |
+| Qoder | Planned | Planned |
+| Auggie CLI | Planned | Planned |
+| Qwen Code | Planned | Planned |
+| CodeBuddy | Planned | Planned |
+| CoStrict | Planned | Planned |
+| Crush | Planned | Planned |
+| Factory Droid | Planned | Planned |
+
+The current implementation ships import/apply adapters for VS Code, Cursor, Claude Code, Claude Desktop, Codex, OpenCode, GitHub Copilot CLI config, Gemini CLI, Antigravity, and iFlow. The remaining clients above are tracked as roadmap targets and are not yet wired into the Rust adapter layer.
 
 ## Screenshots
 

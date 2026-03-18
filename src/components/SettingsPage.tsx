@@ -1,6 +1,8 @@
 import { ArrowLeft, Monitor, Moon, RefreshCw, Search, SunMedium } from 'lucide-react'
 import { useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
+import { AppLogo } from './AppLogo'
+import { CLIENTS, PLANNED_CLIENTS } from './clientMeta'
 import { LanguageMenu } from './LanguageMenu'
 import { Tooltip } from './Tooltip'
 
@@ -150,7 +152,7 @@ export function SettingsPage({
             <section ref={sectionRefs.about} className="settings-card">
               <p className="settings-label">{t('settingsGroupAbout')}</p>
               <div className="settings-about-hero">
-                <div className="brand-mark settings-about-mark">M</div>
+                <AppLogo className="brand-logo settings-about-logo" alt={t('title')} />
                 <div className="settings-about-copy">
                   <div className="settings-about-topline">
                     <div className="settings-value">{t('title')}</div>
@@ -172,6 +174,26 @@ export function SettingsPage({
                 <div className="settings-item">
                   <span>{t('settingsVersion')}</span>
                   <strong>0.1.0</strong>
+                </div>
+                <div className="settings-item settings-item-stacked">
+                  <span>{t('settingsSupportedClients')}</span>
+                  <div className="settings-chip-row">
+                    {CLIENTS.map((client) => (
+                      <span key={client.id} className="settings-chip">
+                        {client.label}
+                      </span>
+                    ))}
+                  </div>
+                </div>
+                <div className="settings-item settings-item-stacked">
+                  <span>{t('settingsPlannedClients')}</span>
+                  <div className="settings-chip-row">
+                    {PLANNED_CLIENTS.map((client) => (
+                      <span key={client} className="settings-chip">
+                        {client}
+                      </span>
+                    ))}
+                  </div>
                 </div>
                 <div className="settings-item">
                   <span>{t('checkUpdates')}</span>

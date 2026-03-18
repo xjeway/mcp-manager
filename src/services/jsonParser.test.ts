@@ -74,7 +74,13 @@ describe('parseMcpJson', () => {
       vscode: false,
       cursor: false,
       claudeCode: false,
+      claudeDesktop: false,
       codex: false,
+      openCode: false,
+      githubCopilot: false,
+      geminiCli: false,
+      antigravity: false,
+      iFlow: false,
     } satisfies MCPServer['apps'])
   })
 })

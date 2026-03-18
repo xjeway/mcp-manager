@@ -1,4 +1,15 @@
-export const SUPPORTED_APPS = ['vscode', 'cursor', 'claudeCode', 'codex'] as const
+export const SUPPORTED_APPS = [
+  'vscode',
+  'cursor',
+  'claudeCode',
+  'claudeDesktop',
+  'codex',
+  'openCode',
+  'githubCopilot',
+  'geminiCli',
+  'antigravity',
+  'iFlow',
+] as const
 
 export type SupportedApp = (typeof SUPPORTED_APPS)[number]
 

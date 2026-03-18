@@ -39,12 +39,29 @@
 | 客户端 | 导入 | 应用 |
 | --- | --- | --- |
 | Claude Code | ✅ | ✅ |
-| Claude Desktop | 规划中 | 规划中 |
+| Claude Desktop | ✅ | ✅ |
 | Codex | ✅ | ✅ |
-| Cline | 规划中 | 规划中 |
 | Cursor | ✅ | ✅ |
+| OpenCode | ✅ | ✅ |
+| GitHub Copilot | ✅ | ✅ |
+| Gemini CLI | ✅ | ✅ |
+| Antigravity | ✅ | ✅ |
+| iFlow | ✅ | ✅ |
 | VS Code | ✅ | ✅ |
 | Windsurf | 规划中 | 规划中 |
+| Cline | 规划中 | 规划中 |
+| RooCode | 规划中 | 规划中 |
+| Kilo Code | 规划中 | 规划中 |
+| Amazon Q | 规划中 | 规划中 |
+| Qoder | 规划中 | 规划中 |
+| Auggie CLI | 规划中 | 规划中 |
+| Qwen Code | 规划中 | 规划中 |
+| CodeBuddy | 规划中 | 规划中 |
+| CoStrict | 规划中 | 规划中 |
+| Crush | 规划中 | 规划中 |
+| Factory Droid | 规划中 | 规划中 |
+
+当前实现已落地 VS Code、Cursor、Claude Code、Claude Desktop、Codex、OpenCode、GitHub Copilot CLI 配置、Gemini CLI、Antigravity、iFlow 的导入 / 应用适配器。其余客户端已加入路线图，但尚未接入 Rust 侧适配层。
 
 ## 界面预览
 

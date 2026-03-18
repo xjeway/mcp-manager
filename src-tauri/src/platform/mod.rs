@@ -71,7 +71,23 @@ impl PlatformContext {
                 _ => self.home_dir.join(".cursor/mcp.json"),
             },
             SupportedApp::ClaudeCode => self.home_dir.join(".claude.json"),
+            SupportedApp::ClaudeDesktop => match self.os {
+                PlatformOs::MacOS => self
+                    .home_dir
+                    .join("Library/Application Support/Claude/claude_desktop_config.json"),
+                PlatformOs::Windows => self
+                    .home_dir
+                    .join("AppData/Roaming/Claude/claude_desktop_config.json"),
+                _ => self
+                    .home_dir
+                    .join(".config/Claude/claude_desktop_config.json"),
+            },
             SupportedApp::Codex => self.home_dir.join(".codex/config.toml"),
+            SupportedApp::OpenCode => self.home_dir.join(".config/opencode/opencode.json"),
+            SupportedApp::GithubCopilot => self.home_dir.join(".copilot/mcp-config.json"),
+            SupportedApp::GeminiCli => self.home_dir.join(".gemini/settings.json"),
+            SupportedApp::Antigravity => self.home_dir.join(".gemini/antigravity/mcp_config.json"),
+            SupportedApp::IFlow => self.home_dir.join(".iflow/settings.json"),
         }
     }
 
@@ -139,6 +155,36 @@ mod tests {
                 .user_app_config_path(SupportedApp::Cursor)
                 .to_string_lossy(),
             "/Users/test/AppData/Roaming/Cursor/User/mcp.json"
+        );
+        assert_eq!(
+            ctx(PlatformOs::MacOS)
+                .user_app_config_path(SupportedApp::ClaudeDesktop)
+                .to_string_lossy(),
+            "/Users/test/Library/Application Support/Claude/claude_desktop_config.json"
+        );
+        assert_eq!(
+            ctx(PlatformOs::Windows)
+                .user_app_config_path(SupportedApp::ClaudeDesktop)
+                .to_string_lossy(),
+            "/Users/test/AppData/Roaming/Claude/claude_desktop_config.json"
+        );
+        assert_eq!(
+            ctx(PlatformOs::Linux)
+                .user_app_config_path(SupportedApp::GeminiCli)
+                .to_string_lossy(),
+            "/Users/test/.gemini/settings.json"
+        );
+        assert_eq!(
+            ctx(PlatformOs::Linux)
+                .user_app_config_path(SupportedApp::Antigravity)
+                .to_string_lossy(),
+            "/Users/test/.gemini/antigravity/mcp_config.json"
+        );
+        assert_eq!(
+            ctx(PlatformOs::Linux)
+                .user_app_config_path(SupportedApp::IFlow)
+                .to_string_lossy(),
+            "/Users/test/.iflow/settings.json"
         );
     }
 }

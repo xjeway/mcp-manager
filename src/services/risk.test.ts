@@ -9,7 +9,18 @@ describe('evaluateApplyRisks', () => {
         name: 'Bad URL',
         enabled: true,
         transport: { type: 'http', url: 'ftp://invalid' },
-        apps: { vscode: true, cursor: false, claudeCode: false, codex: false },
+        apps: {
+          vscode: true,
+          cursor: false,
+          claudeCode: false,
+          claudeDesktop: false,
+          codex: false,
+          openCode: false,
+          githubCopilot: false,
+          geminiCli: false,
+          antigravity: false,
+          iFlow: false,
+        },
       },
     ])
 

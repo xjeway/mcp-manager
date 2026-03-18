@@ -14,6 +14,71 @@ pub fn parse_yaml_config(content: &str) -> Result<MCPConfig, String> {
     serde_yaml_compat::from_str(content)
 }
 
+fn strip_json_comments(content: &str) -> String {
+    let mut out = String::with_capacity(content.len());
+    let mut chars = content.chars().peekable();
+    let mut in_string = false;
+    let mut escaped = false;
+
+    while let Some(ch) = chars.next() {
+        if in_string {
+            out.push(ch);
+            if escaped {
+                escaped = false;
+            } else if ch == '\\' {
+                escaped = true;
+            } else if ch == '"' {
+                in_string = false;
+            }
+            continue;
+        }
+
+        if ch == '"' {
+            in_string = true;
+            out.push(ch);
+            continue;
+        }
+
+        if ch == '/' {
+            match chars.peek() {
+                Some('/') => {
+                    chars.next();
+                    for next in chars.by_ref() {
+                        if next == '\n' {
+                            out.push('\n');
+                            break;
+                        }
+                    }
+                    continue;
+                }
+                Some('*') => {
+                    chars.next();
+                    let mut prev = '\0';
+                    for next in chars.by_ref() {
+                        if prev == '*' && next == '/' {
+                            break;
+                        }
+                        if next == '\n' {
+                            out.push('\n');
+                        }
+                        prev = next;
+                    }
+                    continue;
+                }
+                _ => {}
+            }
+        }
+
+        out.push(ch);
+    }
+
+    out
+}
+
+fn parse_jsonc_value(content: &str) -> Result<Value, String> {
+    serde_json::from_str(&strip_json_comments(content)).map_err(|e| e.to_string())
+}
+
 fn parse_server(id: &str, input: &Map<String, Value>) -> Result<MCPServer, String> {
     let command = input
         .get("command")
@@ -106,7 +171,7 @@ pub fn parse_mcp_json(content: &str) -> ParseOutput {
     let mut errors = Vec::new();
     let mut servers = Vec::new();
 
-    let parsed: Value = match serde_json::from_str(content) {
+    let parsed: Value = match parse_jsonc_value(content) {
         Ok(value) => value,
         Err(error) => {
             return ParseOutput {
@@ -207,7 +272,7 @@ pub fn extract_codex_mcp_json(content: &str) -> Result<String, String> {
 }
 
 pub fn extract_claude_mcp_json(content: &str, workspace_root: &str) -> Result<String, String> {
-    let parsed: Value = serde_json::from_str(content).map_err(|e| e.to_string())?;
+    let parsed: Value = parse_jsonc_value(content)?;
     let mut servers = Map::new();
 
     if let Some(global) = parsed.get("mcpServers").and_then(Value::as_object) {
@@ -236,6 +301,74 @@ pub fn extract_claude_mcp_json(content: &str, workspace_root: &str) -> Result<St
     .map_err(|e| e.to_string())
 }
 
+pub fn extract_json_field_mcp_json(content: &str, field: &str) -> Result<String, String> {
+    let parsed = parse_jsonc_value(content)?;
+    let servers = parsed
+        .as_object()
+        .and_then(|root| root.get(field))
+        .and_then(Value::as_object)
+        .cloned()
+        .unwrap_or_default();
+
+    serde_json::to_string(&Value::Object(Map::from_iter([(
+        "mcpServers".to_string(),
+        Value::Object(servers),
+    )])))
+    .map_err(|e| e.to_string())
+}
+
+pub fn extract_opencode_mcp_json(content: &str) -> Result<String, String> {
+    let parsed = parse_jsonc_value(content)?;
+    let Some(root) = parsed.as_object() else {
+        return Err("OpenCode config 顶层必须是对象".to_string());
+    };
+    let Some(mcp) = root.get("mcp").and_then(Value::as_object) else {
+        return Ok("{\"mcpServers\":{}}".to_string());
+    };
+
+    let mut servers = Map::new();
+    for (server_id, config) in mcp {
+        let Some(config) = config.as_object() else {
+            continue;
+        };
+
+        let mut server = Map::new();
+        match config.get("type").and_then(Value::as_str) {
+            Some("local") => {
+                let command = config
+                    .get("command")
+                    .and_then(Value::as_array)
+                    .cloned()
+                    .unwrap_or_default();
+                if let Some(program) = command.first().and_then(Value::as_str) {
+                    server.insert("command".to_string(), Value::String(program.to_string()));
+                    server.insert(
+                        "args".to_string(),
+                        Value::Array(command.into_iter().skip(1).collect()),
+                    );
+                }
+                if let Some(env) = config.get("environment").and_then(Value::as_object) {
+                    server.insert("env".to_string(), Value::Object(env.clone()));
+                }
+            }
+            Some("remote") => {
+                if let Some(url) = config.get("url").and_then(Value::as_str) {
+                    server.insert("url".to_string(), Value::String(url.to_string()));
+                    server.insert("type".to_string(), Value::String("http".to_string()));
+                }
+            }
+            _ => continue,
+        }
+        servers.insert(server_id.clone(), Value::Object(server));
+    }
+
+    serde_json::to_string(&Value::Object(Map::from_iter([(
+        "mcpServers".to_string(),
+        Value::Object(servers),
+    )])))
+    .map_err(|e| e.to_string())
+}
+
 pub fn enable_servers_for_app(mut servers: Vec<MCPServer>, app: SupportedApp) -> Vec<MCPServer> {
     for server in &mut servers {
         server.apps.insert(app, true);
@@ -253,7 +386,10 @@ mod serde_yaml_compat {
 
 #[cfg(test)]
 mod tests {
-    use super::{extract_claude_mcp_json, extract_codex_mcp_json, parse_mcp_json};
+    use super::{
+        extract_claude_mcp_json, extract_codex_mcp_json, extract_json_field_mcp_json,
+        extract_opencode_mcp_json, parse_mcp_json,
+    };
     use serde_json::Value;
 
     #[test]
@@ -290,5 +426,40 @@ args = ["@playwright/mcp@latest"]
         let value: Value = serde_json::from_str(&json).expect("json");
         assert_eq!(value["mcpServers"]["linear"]["url"], "https://mcp.linear.app/mcp");
         assert_eq!(value["mcpServers"]["playwright"]["command"], "npx");
+    }
+
+    #[test]
+    fn extracts_json_field_servers() {
+        let json = extract_json_field_mcp_json(
+            r#"{"theme":"dark","mcpServers":{"linear":{"url":"https://mcp.linear.app/mcp"}}}"#,
+            "mcpServers",
+        )
+        .expect("extract field");
+        let value: Value = serde_json::from_str(&json).expect("json");
+        assert_eq!(value["mcpServers"]["linear"]["url"], "https://mcp.linear.app/mcp");
+    }
+
+    #[test]
+    fn extracts_opencode_servers() {
+        let json = extract_opencode_mcp_json(
+            r#"{
+  // comment
+  "mcp": {
+    "playwright": {
+      "type": "local",
+      "command": ["npx", "@playwright/mcp@latest"],
+      "environment": { "FOO": "bar" }
+    }
+  }
+}"#,
+        )
+        .expect("extract opencode");
+        let value: Value = serde_json::from_str(&json).expect("json");
+        assert_eq!(value["mcpServers"]["playwright"]["command"], "npx");
+        assert_eq!(
+            value["mcpServers"]["playwright"]["args"][0],
+            "@playwright/mcp@latest"
+        );
+        assert_eq!(value["mcpServers"]["playwright"]["env"]["FOO"], "bar");
     }
 }

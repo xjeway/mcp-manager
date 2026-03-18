@@ -112,6 +112,8 @@ mod tests {
             &MCPConfig {
                 version: 1,
                 servers: vec![MCPServer {
+                    description: None,
+                    homepage: None,
                     id: "github".to_string(),
                     name: "GitHub".to_string(),
                     enabled: true,

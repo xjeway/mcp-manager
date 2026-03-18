@@ -243,15 +243,16 @@ button {
 }
 
 .shell-flat {
-  width: min(1480px, 100%);
-  max-width: 1380px;
-  margin: 0 auto;
+  width: 100%;
+  max-width: none;
+  margin: 0;
 }
 
 .dashboard-shell,
 .editor-shell,
 .settings-shell {
-  width: min(1480px, 100%);
+  width: 100%;
+  min-width: 0;
 }
 
 .top-chrome {
@@ -316,16 +317,27 @@ button {
   gap: 12px;
 }
 
-.brand-mark {
+.brand-mark,
+.brand-logo {
   width: 38px;
   height: 38px;
   border-radius: 12px;
+  display: block;
+  flex: none;
+}
+
+.brand-mark {
   display: grid;
   place-items: center;
   background: linear-gradient(180deg, var(--accent), var(--accent-strong));
   color: white;
   font-weight: 800;
   box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.2);
+}
+
+.brand-logo {
+  object-fit: cover;
+  box-shadow: 0 10px 22px rgba(10, 132, 255, 0.12);
 }
 
 .eyebrow {
@@ -1314,7 +1326,8 @@ button {
   background: color-mix(in srgb, var(--panel-strong) 88%, var(--bg) 12%);
 }
 
-.settings-about-mark {
+.settings-about-mark,
+.settings-about-logo {
   width: 52px;
   height: 52px;
   border-radius: 16px;

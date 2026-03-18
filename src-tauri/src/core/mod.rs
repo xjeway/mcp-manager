@@ -7,15 +7,27 @@ pub enum SupportedApp {
     Vscode,
     Cursor,
     ClaudeCode,
+    ClaudeDesktop,
     Codex,
+    OpenCode,
+    GithubCopilot,
+    GeminiCli,
+    Antigravity,
+    IFlow,
 }
 
 impl SupportedApp {
-    pub const ALL: [SupportedApp; 4] = [
+    pub const ALL: [SupportedApp; 10] = [
         SupportedApp::Vscode,
         SupportedApp::Cursor,
         SupportedApp::ClaudeCode,
+        SupportedApp::ClaudeDesktop,
         SupportedApp::Codex,
+        SupportedApp::OpenCode,
+        SupportedApp::GithubCopilot,
+        SupportedApp::GeminiCli,
+        SupportedApp::Antigravity,
+        SupportedApp::IFlow,
     ];
 
     pub fn as_str(self) -> &'static str {
@@ -23,7 +35,13 @@ impl SupportedApp {
             SupportedApp::Vscode => "vscode",
             SupportedApp::Cursor => "cursor",
             SupportedApp::ClaudeCode => "claudeCode",
+            SupportedApp::ClaudeDesktop => "claudeDesktop",
             SupportedApp::Codex => "codex",
+            SupportedApp::OpenCode => "openCode",
+            SupportedApp::GithubCopilot => "githubCopilot",
+            SupportedApp::GeminiCli => "geminiCli",
+            SupportedApp::Antigravity => "antigravity",
+            SupportedApp::IFlow => "iFlow",
         }
     }
 }
@@ -110,7 +128,13 @@ pub fn empty_apps() -> HashMap<SupportedApp, bool> {
         (SupportedApp::Vscode, false),
         (SupportedApp::Cursor, false),
         (SupportedApp::ClaudeCode, false),
+        (SupportedApp::ClaudeDesktop, false),
         (SupportedApp::Codex, false),
+        (SupportedApp::OpenCode, false),
+        (SupportedApp::GithubCopilot, false),
+        (SupportedApp::GeminiCli, false),
+        (SupportedApp::Antigravity, false),
+        (SupportedApp::IFlow, false),
     ])
 }
 

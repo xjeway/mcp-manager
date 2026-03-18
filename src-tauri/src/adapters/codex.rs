@@ -144,6 +144,8 @@ args = ["@playwright/mcp@latest"]
             &MCPConfig {
                 version: 1,
                 servers: vec![MCPServer {
+                    description: None,
+                    homepage: None,
                     id: "playwright".to_string(),
                     name: "Playwright".to_string(),
                     enabled: true,

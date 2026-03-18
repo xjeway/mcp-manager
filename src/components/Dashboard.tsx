@@ -1,6 +1,7 @@
 import { Copy, LoaderCircle, PenSquare, Plus, RefreshCw, RotateCcw, SendHorizontal, Settings, Trash2 } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import { CLIENTS } from './clientMeta'
+import { AppLogo } from './AppLogo'
 import { Tooltip } from './Tooltip'
 import type { WorkspaceViewModel } from '../view-models/workspace'
 import type { SupportedApp } from '../types/config'
@@ -55,7 +56,7 @@ export function Dashboard({
       <div className="top-chrome">
         <div className="page-header">
           <div className="brand-block brand-block-compact">
-            <div className="brand-mark">M</div>
+            <AppLogo className="brand-logo" alt={t('title')} />
             <div>
               <h1 className="shell-title">{t('title')}</h1>
             </div>
