@@ -77,6 +77,17 @@ Arch 选择说明：
 open ~/Downloads/MCP-Manager*.dmg
 ```
 
+当前公开发布的 macOS 安装包在 Apple 签名与公证接入完成前，可能仍会以未签名形式分发。如果 Gatekeeper 阻止打开 `MCP Manager.app`，请按下面的绕过流程处理：
+
+1. 先将 `MCP Manager.app` 拖到 `/Applications`。
+2. 在 Finder 中对应用执行一次“右键 -> 打开”。
+3. 如果 macOS 仍提示无法打开、已损坏或来源不明，可移除 quarantine 标记后重试：
+
+```bash
+xattr -dr com.apple.quarantine "/Applications/MCP Manager.app"
+open "/Applications/MCP Manager.app"
+```
+
 ### Windows
 
 #### 手动下载

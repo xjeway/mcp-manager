@@ -63,6 +63,8 @@ Notes:
 - Without these, macOS artifacts can still be built, but users will see stronger security warnings.
 - If only the signing secrets are set, the workflow signs macOS apps but skips notarization.
 - If the signing secrets are not set, the workflow falls back to unsigned macOS builds instead of attempting `security import`.
+- If you intentionally ship unsigned macOS builds for now, keep the README and release body aligned with an explicit workaround. The current recommended command is: `xattr -dr com.apple.quarantine "/Applications/MCP Manager.app"`
+- Until notarization is enabled, tell users to try Finder `Open` once before falling back to the `xattr` command.
 
 ### Windows code signing
 

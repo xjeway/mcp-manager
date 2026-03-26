@@ -77,6 +77,17 @@ After downloading the correct macOS asset, open it locally:
 open ~/Downloads/MCP-Manager*.dmg
 ```
 
+Current public macOS releases may still be unsigned while Apple signing and notarization are being prepared. If Gatekeeper blocks `MCP Manager.app`, use this fallback flow:
+
+1. Drag `MCP Manager.app` into `/Applications`.
+2. In Finder, right-click the app once and choose `Open`.
+3. If macOS still says the app cannot be opened or is damaged, remove the quarantine flag and try again:
+
+```bash
+xattr -dr com.apple.quarantine "/Applications/MCP Manager.app"
+open "/Applications/MCP Manager.app"
+```
+
 ### Windows
 
 #### Manual Download

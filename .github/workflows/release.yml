@@ -108,6 +108,8 @@ jobs:
             Automated release for ${{ github.ref_name }}.
 
             Download the installer or archive that matches your platform from the assets below.
+
+            macOS note: public macOS builds may still be unsigned while Apple signing is being prepared. If Gatekeeper blocks `MCP Manager.app`, move it to `/Applications`, try Finder `Open` once, or run `xattr -dr com.apple.quarantine "/Applications/MCP Manager.app"` and open it again.
           args: ${{ steps.release_args.outputs.args }}
           releaseDraft: true
           prerelease: ${{ contains(github.ref_name, '-') }}
@@ -129,6 +131,8 @@ jobs:
             Automated release for ${{ github.ref_name }}.
 
             Download the installer or archive that matches your platform from the assets below.
+
+            macOS note: public macOS builds may still be unsigned while Apple signing is being prepared. If Gatekeeper blocks `MCP Manager.app`, move it to `/Applications`, try Finder `Open` once, or run `xattr -dr com.apple.quarantine "/Applications/MCP Manager.app"` and open it again.
           args: ${{ steps.release_args.outputs.args }}
           releaseDraft: true
           prerelease: ${{ contains(github.ref_name, '-') }}
@@ -147,6 +151,8 @@ jobs:
             Automated release for ${{ github.ref_name }}.
 
             Download the installer or archive that matches your platform from the assets below.
+
+            macOS note: public macOS builds may still be unsigned while Apple signing is being prepared. If Gatekeeper blocks `MCP Manager.app`, move it to `/Applications`, try Finder `Open` once, or run `xattr -dr com.apple.quarantine "/Applications/MCP Manager.app"` and open it again.
           args: ${{ steps.release_args.outputs.args }}
           releaseDraft: true
           prerelease: ${{ contains(github.ref_name, '-') }}
@@ -167,6 +173,8 @@ jobs:
             Automated release for ${{ github.ref_name }}.
 
             Download the installer or archive that matches your platform from the assets below.
+
+            macOS note: public macOS builds may still be unsigned while Apple signing is being prepared. If Gatekeeper blocks `MCP Manager.app`, move it to `/Applications`, try Finder `Open` once, or run `xattr -dr com.apple.quarantine "/Applications/MCP Manager.app"` and open it again.
           args: ${{ steps.release_args.outputs.args }}
           releaseDraft: true
           prerelease: ${{ contains(github.ref_name, '-') }}
@@ -185,6 +193,8 @@ jobs:
             Automated release for ${{ github.ref_name }}.
 
             Download the installer or archive that matches your platform from the assets below.
+
+            macOS note: public macOS builds may still be unsigned while Apple signing is being prepared. If Gatekeeper blocks `MCP Manager.app`, move it to `/Applications`, try Finder `Open` once, or run `xattr -dr com.apple.quarantine "/Applications/MCP Manager.app"` and open it again.
           args: ${{ steps.release_args.outputs.args }}
           releaseDraft: true
           prerelease: ${{ contains(github.ref_name, '-') }}
@@ -203,6 +213,8 @@ jobs:
             Automated release for ${{ github.ref_name }}.
 
             Download the installer or archive that matches your platform from the assets below.
+
+            macOS note: public macOS builds may still be unsigned while Apple signing is being prepared. If Gatekeeper blocks `MCP Manager.app`, move it to `/Applications`, try Finder `Open` once, or run `xattr -dr com.apple.quarantine "/Applications/MCP Manager.app"` and open it again.
           args: ${{ steps.release_args.outputs.args }}
           releaseDraft: true
           prerelease: ${{ contains(github.ref_name, '-') }}
