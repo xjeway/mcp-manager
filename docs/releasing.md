@@ -58,8 +58,11 @@ Add these when you want a smoother installation experience on macOS:
 
 Notes:
 
-- `APPLE_CERTIFICATE` is typically the base64-encoded `.p12` signing certificate.
+- `APPLE_CERTIFICATE` must be the base64-encoded contents of a `.p12` file exported from Keychain Access under `My Certificates`, including the private key.
+- Use a single-line base64 string when creating the secret, for example: `openssl base64 -A -in certificate.p12 -out certificate-base64.txt`
 - Without these, macOS artifacts can still be built, but users will see stronger security warnings.
+- If only the signing secrets are set, the workflow signs macOS apps but skips notarization.
+- If the signing secrets are not set, the workflow falls back to unsigned macOS builds instead of attempting `security import`.
 
 ### Windows code signing
 
@@ -72,6 +75,7 @@ Notes:
 
 - `WINDOWS_CERTIFICATE` is typically the base64-encoded `.pfx` certificate.
 - Without code signing, Windows packages still build, but reputation warnings are more likely.
+- If the Windows signing secrets are not set, the workflow falls back to unsigned Windows builds.
 
 ### Windows ARM runners
 
