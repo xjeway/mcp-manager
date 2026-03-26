@@ -7,7 +7,7 @@ use std::path::PathBuf;
 use toml::Table;
 
 fn base_dir() -> PathBuf {
-    std::env::current_dir().unwrap_or_else(|_| PathBuf::from("."))
+    PlatformContext::current().app_data_dir()
 }
 
 pub fn resolve_path(path: &str) -> PathBuf {
@@ -15,7 +15,12 @@ pub fn resolve_path(path: &str) -> PathBuf {
 }
 
 pub fn resolve_relative_path(relative_path: &str) -> PathBuf {
-    resolve_path(relative_path)
+    let candidate = PathBuf::from(relative_path);
+    if candidate.is_absolute() {
+        return candidate;
+    }
+
+    base_dir().join(candidate)
 }
 
 pub fn ensure_parent(path: &PathBuf) -> Result<(), String> {
@@ -209,14 +214,65 @@ pub fn rollback(backups: Vec<String>) -> Result<(), String> {
 
 #[cfg(test)]
 mod tests {
-    use super::apply_operations;
+    use super::{apply_operations, backup_file, resolve_relative_path};
     use crate::core::WriteOperation;
     use std::fs;
+    use std::ffi::OsString;
+    use std::path::{Path, PathBuf};
+    use std::sync::{Mutex, OnceLock};
+
+    fn env_lock() -> &'static Mutex<()> {
+        static LOCK: OnceLock<Mutex<()>> = OnceLock::new();
+        LOCK.get_or_init(|| Mutex::new(()))
+    }
+
+    #[cfg(target_os = "windows")]
+    const HOME_ENV_VAR: &str = "USERPROFILE";
+
+    #[cfg(not(target_os = "windows"))]
+    const HOME_ENV_VAR: &str = "HOME";
+
+    fn expected_app_data_dir(home: &Path) -> PathBuf {
+        #[cfg(target_os = "macos")]
+        {
+            return home.join("Library/Application Support/mcp-manager");
+        }
+
+        #[cfg(target_os = "windows")]
+        {
+            return home.join("AppData/Roaming/mcp-manager");
+        }
+
+        #[cfg(not(any(target_os = "macos", target_os = "windows")))]
+        {
+            home.join(".config/mcp-manager")
+        }
+    }
+
+    fn set_test_runtime(home: &Path, current_dir: &Path) -> (Option<OsString>, PathBuf) {
+        let previous_home = std::env::var_os(HOME_ENV_VAR);
+        let previous_dir = std::env::current_dir().expect("current dir");
+        std::env::set_var(HOME_ENV_VAR, home);
+        std::env::set_current_dir(current_dir).expect("set current dir");
+        (previous_home, previous_dir)
+    }
+
+    fn restore_test_runtime(previous_home: Option<OsString>, previous_dir: PathBuf) {
+        std::env::set_current_dir(previous_dir).expect("restore current dir");
+        match previous_home {
+            Some(value) => std::env::set_var(HOME_ENV_VAR, value),
+            None => std::env::remove_var(HOME_ENV_VAR),
+        }
+    }
 
     #[test]
     fn preserves_unrelated_json_fields_when_merging() {
+        let _guard = env_lock().lock().unwrap_or_else(|poisoned| poisoned.into_inner());
         let dir = tempfile::tempdir().expect("tmpdir");
+        let home = dir.path().join("home");
+        fs::create_dir_all(&home).expect("create home");
         let path = dir.path().join("claude.json");
+        let (previous_home, previous_dir) = set_test_runtime(&home, dir.path());
         fs::write(
             &path,
             r#"{"theme":"dark","mcpServers":{"old":{"command":"old"}}}"#,
@@ -230,6 +286,7 @@ mod tests {
             content: r#"{"new":{"command":"npx"}}"#.to_string(),
         }])
         .expect("apply");
+        restore_test_runtime(previous_home, previous_dir);
 
         let next = fs::read_to_string(&path).expect("read");
         assert!(next.contains("\"theme\": \"dark\""));
@@ -238,8 +295,12 @@ mod tests {
 
     #[test]
     fn preserves_unrelated_toml_fields_when_merging() {
+        let _guard = env_lock().lock().unwrap_or_else(|poisoned| poisoned.into_inner());
         let dir = tempfile::tempdir().expect("tmpdir");
+        let home = dir.path().join("home");
+        fs::create_dir_all(&home).expect("create home");
         let path = dir.path().join("config.toml");
+        let (previous_home, previous_dir) = set_test_runtime(&home, dir.path());
         fs::write(&path, "model = \"gpt-5.4\"\n").expect("seed");
 
         apply_operations(vec![WriteOperation {
@@ -250,9 +311,55 @@ mod tests {
                 .to_string(),
         }])
         .expect("apply");
+        restore_test_runtime(previous_home, previous_dir);
 
         let next = fs::read_to_string(&path).expect("read");
         assert!(next.contains("model = \"gpt-5.4\""));
         assert!(next.contains("[mcp_servers.playwright]"));
+    }
+
+    #[test]
+    fn resolves_relative_paths_inside_app_data_dir() {
+        let _guard = env_lock().lock().unwrap_or_else(|poisoned| poisoned.into_inner());
+        let temp = tempfile::tempdir().expect("tmpdir");
+        let home = temp.path().join("home");
+        let workspace = temp.path().join("workspace");
+        fs::create_dir_all(&home).expect("create home");
+        fs::create_dir_all(&workspace).expect("create workspace");
+
+        let (previous_home, previous_dir) = set_test_runtime(&home, &workspace);
+
+        let resolved = resolve_relative_path("config/servers.yaml");
+
+        restore_test_runtime(previous_home, previous_dir);
+
+        assert_eq!(
+            resolved,
+            expected_app_data_dir(&home).join("config/servers.yaml")
+        );
+    }
+
+    #[test]
+    fn writes_backups_inside_app_data_dir() {
+        let _guard = env_lock().lock().unwrap_or_else(|poisoned| poisoned.into_inner());
+        let temp = tempfile::tempdir().expect("tmpdir");
+        let home = temp.path().join("home");
+        let workspace = temp.path().join("workspace");
+        fs::create_dir_all(&home).expect("create home");
+        fs::create_dir_all(&workspace).expect("create workspace");
+
+        let target = workspace.join("client.json");
+        fs::write(&target, "{}").expect("seed file");
+
+        let (previous_home, previous_dir) = set_test_runtime(&home, &workspace);
+
+        let backup = backup_file(&target)
+            .expect("backup result")
+            .expect("backup path should exist");
+
+        restore_test_runtime(previous_home, previous_dir);
+
+        let expected_root = expected_app_data_dir(&home).join("backups");
+        assert!(PathBuf::from(backup).starts_with(&expected_root));
     }
 }

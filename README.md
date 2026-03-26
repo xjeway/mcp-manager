@@ -205,7 +205,6 @@ make dev
 
 ## How It Works
 
-- Canonical data is stored in `config/servers.yaml`
 - The app reads local client configuration and converts it into the internal model
 - Apply writes client-specific output with atomic updates, backup, and rollback support
 

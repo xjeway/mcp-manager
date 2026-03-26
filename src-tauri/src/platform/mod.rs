@@ -55,6 +55,14 @@ impl PlatformContext {
         self.workspace_root.join(relative)
     }
 
+    pub fn app_data_dir(&self) -> PathBuf {
+        match self.os {
+            PlatformOs::MacOS => self.home_dir.join("Library/Application Support/mcp-manager"),
+            PlatformOs::Windows => self.home_dir.join("AppData/Roaming/mcp-manager"),
+            PlatformOs::Linux | PlatformOs::Unknown => self.home_dir.join(".config/mcp-manager"),
+        }
+    }
+
     pub fn user_app_config_path(&self, app: SupportedApp) -> PathBuf {
         match app {
             SupportedApp::Vscode => match self.os {
@@ -325,6 +333,18 @@ mod tests {
                 .user_app_config_path(SupportedApp::Kiro)
                 .to_string_lossy(),
             "/Users/test/.kiro/settings/mcp.json"
+        );
+        assert_eq!(
+            ctx(PlatformOs::MacOS).app_data_dir().to_string_lossy(),
+            "/Users/test/Library/Application Support/mcp-manager"
+        );
+        assert_eq!(
+            ctx(PlatformOs::Windows).app_data_dir().to_string_lossy(),
+            "/Users/test/AppData/Roaming/mcp-manager"
+        );
+        assert_eq!(
+            ctx(PlatformOs::Linux).app_data_dir().to_string_lossy(),
+            "/Users/test/.config/mcp-manager"
         );
     }
 
