@@ -18,27 +18,21 @@ jobs:
           - name: macOS arm64
             platform: macos-latest
             target: aarch64-apple-darwin
-            args: --target aarch64-apple-darwin --bundles app,dmg
           - name: macOS x64
             platform: macos-latest
             target: x86_64-apple-darwin
-            args: --target x86_64-apple-darwin --bundles app,dmg
           - name: Linux x64
             platform: ubuntu-22.04
             target: x86_64-unknown-linux-gnu
-            args: --target x86_64-unknown-linux-gnu --bundles appimage,deb,rpm
           - name: Linux arm64
             platform: ubuntu-24.04-arm
             target: aarch64-unknown-linux-gnu
-            args: --target aarch64-unknown-linux-gnu --bundles appimage,deb,rpm
           - name: Windows x64
             platform: windows-latest
             target: x86_64-pc-windows-msvc
-            args: --target x86_64-pc-windows-msvc --bundles nsis,msi
           - name: Windows arm64
             platform: windows-11-arm
             target: aarch64-pc-windows-msvc
-            args: --target aarch64-pc-windows-msvc --bundles nsis
 
     runs-on: ${{ matrix.platform }}
     env:
@@ -48,7 +42,7 @@ jobs:
 
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
 
       - name: Install Linux dependencies
         if: startsWith(matrix.platform, 'ubuntu-')
@@ -69,7 +63,7 @@ jobs:
             wget
 
       - name: Setup Node.js
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v5
         with:
           node-version: 20
           cache: npm
@@ -87,6 +81,12 @@ jobs:
 
       - name: Install frontend dependencies
         run: npm ci
+
+      - name: Resolve release args
+        id: release_args
+        shell: bash
+        run: |
+          echo "args=$(node scripts/release-args.mjs "${{ matrix.target }}" "${{ github.ref_name }}")" >> "$GITHUB_OUTPUT"
 
       - name: Run Tauri release (macOS signed + notarized)
         if: startsWith(matrix.platform, 'macos-') && env.HAS_APPLE_SIGNING == 'true' && env.HAS_APPLE_NOTARIZATION == 'true'
@@ -108,7 +108,7 @@ jobs:
             Automated release for ${{ github.ref_name }}.
 
             Download the installer or archive that matches your platform from the assets below.
-          args: ${{ matrix.args }}
+          args: ${{ steps.release_args.outputs.args }}
           releaseDraft: true
           prerelease: ${{ contains(github.ref_name, '-') }}
 
@@ -129,7 +129,7 @@ jobs:
             Automated release for ${{ github.ref_name }}.
 
             Download the installer or archive that matches your platform from the assets below.
-          args: ${{ matrix.args }}
+          args: ${{ steps.release_args.outputs.args }}
           releaseDraft: true
           prerelease: ${{ contains(github.ref_name, '-') }}
 
@@ -147,7 +147,7 @@ jobs:
             Automated release for ${{ github.ref_name }}.
 
             Download the installer or archive that matches your platform from the assets below.
-          args: ${{ matrix.args }}
+          args: ${{ steps.release_args.outputs.args }}
           releaseDraft: true
           prerelease: ${{ contains(github.ref_name, '-') }}
 
@@ -167,7 +167,7 @@ jobs:
             Automated release for ${{ github.ref_name }}.
 
             Download the installer or archive that matches your platform from the assets below.
-          args: ${{ matrix.args }}
+          args: ${{ steps.release_args.outputs.args }}
           releaseDraft: true
           prerelease: ${{ contains(github.ref_name, '-') }}
 
@@ -185,7 +185,7 @@ jobs:
             Automated release for ${{ github.ref_name }}.
 
             Download the installer or archive that matches your platform from the assets below.
-          args: ${{ matrix.args }}
+          args: ${{ steps.release_args.outputs.args }}
           releaseDraft: true
           prerelease: ${{ contains(github.ref_name, '-') }}
 
@@ -203,6 +203,6 @@ jobs:
             Automated release for ${{ github.ref_name }}.
 
             Download the installer or archive that matches your platform from the assets below.
-          args: ${{ matrix.args }}
+          args: ${{ steps.release_args.outputs.args }}
           releaseDraft: true
           prerelease: ${{ contains(github.ref_name, '-') }}

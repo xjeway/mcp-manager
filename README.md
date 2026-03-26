@@ -98,7 +98,7 @@ Arch guide:
 Package guide:
 
 - `setup.exe`: available for both Windows x64 and Windows arm64
-- `.msi`: currently published for Windows x64
+- `.msi`: published for stable Windows x64 releases
 
 Choose the asset that matches your arch, then run it locally:
 

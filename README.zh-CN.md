@@ -98,7 +98,7 @@ Arch 选择说明：
 安装包说明：
 
 - `setup.exe`：同时提供 Windows x64 和 Windows arm64 版本
-- `.msi`：当前提供 Windows x64 版本
+- `.msi`：在稳定版发布时提供 Windows x64 版本
 
 选择与你的 arch 匹配的安装包后，在本地运行：
 

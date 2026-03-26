@@ -13,7 +13,7 @@ When you push a tag like `v0.1.0`, GitHub Actions builds release artifacts on:
 
 - macOS arm64: `.app`, `.dmg`, and updater artifacts
 - macOS x64: `.app`, `.dmg`, and updater artifacts
-- Windows x64: `.msi`, NSIS `setup.exe`, and updater artifacts
+- Windows x64: NSIS `setup.exe`, updater artifacts, and `.msi` on stable releases
 - Windows arm64: NSIS `setup.exe` and updater artifacts
 - Linux x64: `.AppImage`, `.deb`, `.rpm`, and updater artifacts
 - Linux arm64: `.AppImage`, `.deb`, `.rpm`, and updater artifacts
@@ -26,7 +26,7 @@ The generated assets are uploaded to a draft GitHub Release automatically. Tauri
   Runs frontend tests, frontend build, and `cargo check` on pull requests and pushes to `main`.
 - `.github/workflows/release.yml`
   Runs on tags matching `v*` and publishes the desktop bundles to GitHub Releases.
-  The workflow explicitly builds `app,dmg` on macOS, `nsis,msi` for Windows x64, `nsis` for Windows arm64, and `appimage,deb,rpm` on Linux.
+  The workflow explicitly builds `app,dmg` on macOS, `nsis,msi` for stable Windows x64 tags, `nsis` for Windows prerelease x64 and Windows arm64 tags, and `appimage,deb,rpm` on Linux.
 
 ## Required Repository Secrets
 
@@ -183,6 +183,7 @@ Notes:
 - `release:tag` requires a clean git working tree.
 - The script validates semver and refuses to tag if versions are not aligned.
 - Prerelease tags such as `v0.1.0-rc.1` are supported and will become GitHub prereleases in the workflow.
+- Windows x64 prerelease tags publish NSIS installers only because MSI bundling requires numeric-only prerelease identifiers.
 
 ## First Production Rollout Checklist
 
