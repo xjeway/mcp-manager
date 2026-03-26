@@ -19,7 +19,9 @@ impl AppAdapter for GeminiCliAdapter {
                 10,
             ),
             (
-                ctx.user_app_config_path(self.app()).to_string_lossy().to_string(),
+                ctx.user_app_config_path(self.app())
+                    .to_string_lossy()
+                    .to_string(),
                 20,
             ),
         ]
@@ -130,7 +132,10 @@ mod tests {
                     },
                     command: Some(crate::core::CommandSpec {
                         program: "npx".to_string(),
-                        args: vec!["-y".to_string(), "@modelcontextprotocol/server-filesystem".to_string()],
+                        args: vec![
+                            "-y".to_string(),
+                            "@modelcontextprotocol/server-filesystem".to_string(),
+                        ],
                         env: HashMap::new(),
                     }),
                     apps,

@@ -3,6 +3,9 @@ use crate::core::{build_import_result, ApplyResult, DetectedServer, ImportResult
 use crate::platform::PlatformContext;
 use crate::storage::{apply_operations, resolve_relative_path, rollback};
 use std::fs;
+use std::process::Command;
+
+const REPOSITORY_URL: &str = "https://github.com/xjeway/mcp-manager";
 
 #[tauri::command]
 pub fn load_yaml_config(relative_path: String) -> Result<String, String> {
@@ -20,6 +23,28 @@ pub fn save_yaml_config(relative_path: String, content: String) -> Result<(), St
         fs::create_dir_all(parent).map_err(|e| e.to_string())?;
     }
     fs::write(path, content).map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+pub fn open_repository_link() -> Result<(), String> {
+    #[cfg(target_os = "macos")]
+    let status = Command::new("open").arg(REPOSITORY_URL).status();
+
+    #[cfg(target_os = "windows")]
+    let status = Command::new("cmd")
+        .args(["/C", "start", "", REPOSITORY_URL])
+        .status();
+
+    #[cfg(all(unix, not(target_os = "macos")))]
+    let status = Command::new("xdg-open").arg(REPOSITORY_URL).status();
+
+    status.map_err(|e| e.to_string()).and_then(|status| {
+        if status.success() {
+            Ok(())
+        } else {
+            Err(format!("failed to open {}", REPOSITORY_URL))
+        }
+    })
 }
 
 #[tauri::command]
@@ -44,7 +69,10 @@ pub fn import_detected_configs() -> Result<ImportResult, String> {
                     content: Some(content),
                 });
                 for server in config.servers {
-                    detected_servers.push(DetectedServer { server, priority: 0 });
+                    detected_servers.push(DetectedServer {
+                        server,
+                        priority: 0,
+                    });
                 }
             }
             Err(error) => errors.push(format!("{}: {}", yaml_path.to_string_lossy(), error)),
@@ -76,12 +104,8 @@ pub fn import_detected_configs() -> Result<ImportResult, String> {
             }
 
             let content = fs::read_to_string(&resolved).map_err(|e| e.to_string())?;
-            let parsed = adapter.parse_source(
-                &ctx,
-                &resolved.to_string_lossy(),
-                priority,
-                &content,
-            );
+            let parsed =
+                adapter.parse_source(&ctx, &resolved.to_string_lossy(), priority, &content);
             sources.extend(parsed.sources);
             warnings.extend(parsed.warnings);
             errors.extend(parsed.errors);
@@ -94,7 +118,22 @@ pub fn import_detected_configs() -> Result<ImportResult, String> {
         }
     }
 
-    Ok(build_import_result(sources, detected_servers, warnings, errors))
+    Ok(build_import_result(
+        sources,
+        detected_servers,
+        warnings,
+        errors,
+    ))
+}
+
+#[tauri::command]
+pub fn detect_installed_apps() -> Result<Vec<String>, String> {
+    let ctx = PlatformContext::current();
+    Ok(ctx
+        .detect_installed_apps()
+        .into_iter()
+        .map(|app| app.as_str().to_string())
+        .collect())
 }
 
 #[tauri::command]

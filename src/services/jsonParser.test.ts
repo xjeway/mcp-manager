@@ -81,6 +81,29 @@ describe('parseMcpJson', () => {
       geminiCli: false,
       antigravity: false,
       iFlow: false,
+      qwenCode: false,
+      cline: false,
+      windsurf: false,
+      kiro: false,
     } satisfies MCPServer['apps'])
+  })
+
+  it('parses http aliases and disabled flags', () => {
+    const result = parseMcpJson(
+      JSON.stringify({
+        mcpServers: {
+          linear: {
+            serverUrl: 'https://mcp.linear.app/sse',
+            type: 'sse',
+            disabled: true,
+          },
+        },
+      }),
+    )
+
+    expect(result.errors).toHaveLength(0)
+    expect(result.servers[0].transport.type).toBe('http')
+    expect(result.servers[0].transport.url).toBe('https://mcp.linear.app/sse')
+    expect(result.servers[0].enabled).toBe(false)
   })
 })

@@ -8,5 +8,5 @@ interface AppLogoProps {
 export function AppLogo({ className = '', alt = 'MCP Manager logo' }: AppLogoProps) {
   const classes = ['app-logo', className].filter(Boolean).join(' ')
 
-  return <img src={appLogo} alt={alt} className={classes} loading="eager" decoding="async" />
+  return <img src={appLogo} alt={alt} className={classes} loading="eager" decoding="async" draggable={false} />
 }

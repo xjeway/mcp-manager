@@ -107,9 +107,13 @@ fn apply_merge_json_field(path: &PathBuf, field: &str, content: &str) -> Result<
     } else {
         "{}".to_string()
     };
-    let mut host = serde_json::from_str::<Value>(&existing).unwrap_or_else(|_| Value::Object(Map::new()));
+    let mut host =
+        serde_json::from_str::<Value>(&existing).unwrap_or_else(|_| Value::Object(Map::new()));
     let Some(host_map) = host.as_object_mut() else {
-        return Err(format!("{} does not contain a JSON object", path.to_string_lossy()));
+        return Err(format!(
+            "{} does not contain a JSON object",
+            path.to_string_lossy()
+        ));
     };
     host_map.insert(field.to_string(), field_value);
     let pretty = serde_json::to_string_pretty(&host).map_err(|e| e.to_string())?;
@@ -145,12 +149,16 @@ pub fn apply_operations(artifacts: Vec<WriteOperation>) -> Result<Vec<String>, S
             "replace_json" => apply_replace_json(&path, &item.content)?,
             "merge_json_field" => apply_merge_json_field(
                 &path,
-                item.field.as_deref().ok_or_else(|| "missing JSON merge field".to_string())?,
+                item.field
+                    .as_deref()
+                    .ok_or_else(|| "missing JSON merge field".to_string())?,
                 &item.content,
             )?,
             "merge_toml_field" => apply_merge_toml_field(
                 &path,
-                item.field.as_deref().ok_or_else(|| "missing TOML merge field".to_string())?,
+                item.field
+                    .as_deref()
+                    .ok_or_else(|| "missing TOML merge field".to_string())?,
                 &item.content,
             )?,
             other => return Err(format!("unsupported artifact mode: {other}")),
@@ -186,7 +194,11 @@ pub fn rollback(backups: Vec<String>) -> Result<(), String> {
             .ok_or_else(|| "invalid backup name format".to_string())?;
 
         let target = PathBuf::from("/")
-            .join(relative.parent().unwrap_or_else(|| std::path::Path::new("")))
+            .join(
+                relative
+                    .parent()
+                    .unwrap_or_else(|| std::path::Path::new("")),
+            )
             .join(original_name);
         ensure_parent(&target)?;
         fs::copy(src, target).map_err(|e| e.to_string())?;
@@ -205,7 +217,11 @@ mod tests {
     fn preserves_unrelated_json_fields_when_merging() {
         let dir = tempfile::tempdir().expect("tmpdir");
         let path = dir.path().join("claude.json");
-        fs::write(&path, r#"{"theme":"dark","mcpServers":{"old":{"command":"old"}}}"#).expect("seed");
+        fs::write(
+            &path,
+            r#"{"theme":"dark","mcpServers":{"old":{"command":"old"}}}"#,
+        )
+        .expect("seed");
 
         apply_operations(vec![WriteOperation {
             path: path.to_string_lossy().to_string(),
@@ -230,7 +246,8 @@ mod tests {
             path: path.to_string_lossy().to_string(),
             mode: "merge_toml_field".to_string(),
             field: Some("mcp_servers".to_string()),
-            content: r#"{"playwright":{"command":"npx","args":["@playwright/mcp@latest"]}}"#.to_string(),
+            content: r#"{"playwright":{"command":"npx","args":["@playwright/mcp@latest"]}}"#
+                .to_string(),
         }])
         .expect("apply");
 

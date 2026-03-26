@@ -10,7 +10,18 @@ pub struct ParseOutput {
     pub errors: Vec<String>,
 }
 
+fn empty_config() -> MCPConfig {
+    MCPConfig {
+        version: 1,
+        servers: vec![],
+    }
+}
+
 pub fn parse_yaml_config(content: &str) -> Result<MCPConfig, String> {
+    if content.trim().is_empty() {
+        return Ok(empty_config());
+    }
+
     serde_yaml_compat::from_str(content)
 }
 
@@ -76,59 +87,69 @@ fn strip_json_comments(content: &str) -> String {
 }
 
 fn parse_jsonc_value(content: &str) -> Result<Value, String> {
-    serde_json::from_str(&strip_json_comments(content)).map_err(|e| e.to_string())
+    let normalized = strip_json_comments(content);
+    if normalized.trim().is_empty() {
+        return Ok(Value::Object(Map::new()));
+    }
+
+    serde_json::from_str(&normalized).map_err(|e| e.to_string())
 }
 
 fn parse_server(id: &str, input: &Map<String, Value>) -> Result<MCPServer, String> {
-    let command = input
-        .get("command")
-        .and_then(Value::as_str)
-        .map(|program| crate::core::CommandSpec {
-            program: program.to_string(),
-            args: input
-                .get("args")
-                .and_then(Value::as_array)
-                .map(|items| {
-                    items.iter()
-                        .filter_map(Value::as_str)
-                        .map(ToString::to_string)
-                        .collect()
-                })
-                .unwrap_or_default(),
-            env: input
-                .get("env")
-                .and_then(Value::as_object)
-                .map(|env| {
-                    env.iter()
-                        .map(|(key, value)| {
-                            (
-                                key.clone(),
-                                value
-                                    .as_str()
-                                    .map(ToString::to_string)
-                                    .unwrap_or_else(|| value.to_string()),
-                            )
-                        })
-                        .collect::<HashMap<_, _>>()
-                })
-                .unwrap_or_default(),
-        });
+    let command =
+        input
+            .get("command")
+            .and_then(Value::as_str)
+            .map(|program| crate::core::CommandSpec {
+                program: program.to_string(),
+                args: input
+                    .get("args")
+                    .and_then(Value::as_array)
+                    .map(|items| {
+                        items
+                            .iter()
+                            .filter_map(Value::as_str)
+                            .map(ToString::to_string)
+                            .collect()
+                    })
+                    .unwrap_or_default(),
+                env: input
+                    .get("env")
+                    .and_then(Value::as_object)
+                    .map(|env| {
+                        env.iter()
+                            .map(|(key, value)| {
+                                (
+                                    key.clone(),
+                                    value
+                                        .as_str()
+                                        .map(ToString::to_string)
+                                        .unwrap_or_else(|| value.to_string()),
+                                )
+                            })
+                            .collect::<HashMap<_, _>>()
+                    })
+                    .unwrap_or_default(),
+            });
 
-    let transport = if let Some(url) = input.get("url").and_then(Value::as_str) {
+    let http_url = input
+        .get("url")
+        .and_then(Value::as_str)
+        .or_else(|| input.get("httpUrl").and_then(Value::as_str))
+        .or_else(|| input.get("serverUrl").and_then(Value::as_str));
+
+    let transport = if let Some(url) = http_url {
         TransportSpec {
             kind: "http".to_string(),
             url: Some(url.to_string()),
         }
     } else if matches!(
         input.get("type").and_then(Value::as_str),
-        Some("http") | Some("sse")
+        Some("http") | Some("sse") | Some("streamable-http")
     ) {
         TransportSpec {
             kind: "http".to_string(),
-            url: input
-                .get("url")
-                .and_then(Value::as_str)
-                .map(ToString::to_string),
+            url: http_url.map(ToString::to_string),
         }
     } else {
         TransportSpec {
@@ -159,7 +180,18 @@ fn parse_server(id: &str, input: &Map<String, Value>) -> Result<MCPServer, Strin
             .filter(|value| !value.trim().is_empty())
             .unwrap_or(id)
             .to_string(),
-        enabled: input.get("enabled").and_then(Value::as_bool).unwrap_or(true),
+        enabled: if input
+            .get("disabled")
+            .and_then(Value::as_bool)
+            .unwrap_or(false)
+        {
+            false
+        } else {
+            input
+                .get("enabled")
+                .and_then(Value::as_bool)
+                .unwrap_or(true)
+        },
         transport,
         command,
         apps: empty_apps(),
@@ -189,6 +221,14 @@ pub fn parse_mcp_json(content: &str) -> ParseOutput {
             errors: vec!["JSON 顶层必须是对象".to_string()],
         };
     };
+
+    if root.is_empty() {
+        return ParseOutput {
+            servers,
+            warnings,
+            errors,
+        };
+    }
 
     let container = root
         .get("mcpServers")
@@ -246,6 +286,10 @@ fn toml_value_to_json(value: &toml::Value) -> Value {
 }
 
 pub fn extract_codex_mcp_json(content: &str) -> Result<String, String> {
+    if content.trim().is_empty() {
+        return Ok("{\"mcpServers\":{}}".to_string());
+    }
+
     let parsed: Table = toml::from_str(content).map_err(|e| e.to_string())?;
     let Some(mcp_servers) = parsed.get("mcp_servers").and_then(|value| value.as_table()) else {
         return Ok("{\"mcpServers\":{}}".to_string());
@@ -388,7 +432,7 @@ mod serde_yaml_compat {
 mod tests {
     use super::{
         extract_claude_mcp_json, extract_codex_mcp_json, extract_json_field_mcp_json,
-        extract_opencode_mcp_json, parse_mcp_json,
+        extract_opencode_mcp_json, parse_mcp_json, parse_yaml_config,
     };
     use serde_json::Value;
 
@@ -400,6 +444,13 @@ mod tests {
         assert!(parsed.errors.is_empty());
         assert_eq!(parsed.servers.len(), 1);
         assert_eq!(parsed.servers[0].id, "github");
+    }
+
+    #[test]
+    fn parses_empty_json_as_empty_config() {
+        let parsed = parse_mcp_json("");
+        assert!(parsed.errors.is_empty());
+        assert!(parsed.servers.is_empty());
     }
 
     #[test]
@@ -416,6 +467,15 @@ args = ["@playwright/mcp@latest"]
     }
 
     #[test]
+    fn extracts_empty_codex_config_as_empty_servers() {
+        let json = extract_codex_mcp_json("").expect("extract empty codex");
+        let value: Value = serde_json::from_str(&json).expect("json");
+        assert!(value["mcpServers"]
+            .as_object()
+            .is_some_and(|servers| servers.is_empty()));
+    }
+
+    #[test]
     fn extracts_claude_project_and_global_servers() {
         let workspace = "/workspace/project";
         let json = extract_claude_mcp_json(
@@ -424,7 +484,10 @@ args = ["@playwright/mcp@latest"]
         )
         .expect("extract claude");
         let value: Value = serde_json::from_str(&json).expect("json");
-        assert_eq!(value["mcpServers"]["linear"]["url"], "https://mcp.linear.app/mcp");
+        assert_eq!(
+            value["mcpServers"]["linear"]["url"],
+            "https://mcp.linear.app/mcp"
+        );
         assert_eq!(value["mcpServers"]["playwright"]["command"], "npx");
     }
 
@@ -436,7 +499,10 @@ args = ["@playwright/mcp@latest"]
         )
         .expect("extract field");
         let value: Value = serde_json::from_str(&json).expect("json");
-        assert_eq!(value["mcpServers"]["linear"]["url"], "https://mcp.linear.app/mcp");
+        assert_eq!(
+            value["mcpServers"]["linear"]["url"],
+            "https://mcp.linear.app/mcp"
+        );
     }
 
     #[test]
@@ -461,5 +527,25 @@ args = ["@playwright/mcp@latest"]
             "@playwright/mcp@latest"
         );
         assert_eq!(value["mcpServers"]["playwright"]["env"]["FOO"], "bar");
+    }
+
+    #[test]
+    fn parses_empty_yaml_as_empty_config() {
+        let parsed = parse_yaml_config("").expect("parse yaml");
+        assert_eq!(parsed.version, 1);
+        assert!(parsed.servers.is_empty());
+    }
+
+    #[test]
+    fn parses_server_url_alias_and_disabled() {
+        let parsed = parse_mcp_json(
+            r#"{"mcpServers":{"linear":{"serverUrl":"https://mcp.linear.app/sse","type":"sse","disabled":true}}}"#,
+        );
+        assert!(parsed.errors.is_empty());
+        assert_eq!(
+            parsed.servers[0].transport.url.as_deref(),
+            Some("https://mcp.linear.app/sse")
+        );
+        assert!(!parsed.servers[0].enabled);
     }
 }

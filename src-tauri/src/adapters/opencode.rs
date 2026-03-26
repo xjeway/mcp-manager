@@ -12,7 +12,12 @@ impl AppAdapter for OpenCodeAdapter {
 
     fn detect_sources(&self, ctx: &PlatformContext) -> Vec<(String, u32)> {
         vec![
-            (ctx.workspace_file("opencode.json").to_string_lossy().to_string(), 10),
+            (
+                ctx.workspace_file("opencode.json")
+                    .to_string_lossy()
+                    .to_string(),
+                10,
+            ),
             (
                 ctx.workspace_file(".opencode/opencode.jsonc")
                     .to_string_lossy()
@@ -20,7 +25,9 @@ impl AppAdapter for OpenCodeAdapter {
                 12,
             ),
             (
-                ctx.user_app_config_path(self.app()).to_string_lossy().to_string(),
+                ctx.user_app_config_path(self.app())
+                    .to_string_lossy()
+                    .to_string(),
                 20,
             ),
         ]

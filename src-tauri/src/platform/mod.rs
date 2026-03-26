@@ -61,9 +61,7 @@ impl PlatformContext {
                 PlatformOs::MacOS => self
                     .home_dir
                     .join("Library/Application Support/Code/User/mcp.json"),
-                PlatformOs::Windows => self
-                    .home_dir
-                    .join("AppData/Roaming/Code/User/mcp.json"),
+                PlatformOs::Windows => self.home_dir.join("AppData/Roaming/Code/User/mcp.json"),
                 _ => self.home_dir.join(".config/Code/User/mcp.json"),
             },
             SupportedApp::Cursor => match self.os {
@@ -88,6 +86,12 @@ impl PlatformContext {
             SupportedApp::GeminiCli => self.home_dir.join(".gemini/settings.json"),
             SupportedApp::Antigravity => self.home_dir.join(".gemini/antigravity/mcp_config.json"),
             SupportedApp::IFlow => self.home_dir.join(".iflow/settings.json"),
+            SupportedApp::QwenCode => self.home_dir.join(".qwen/settings.json"),
+            SupportedApp::Cline => self
+                .home_dir
+                .join(".cline/data/settings/cline_mcp_settings.json"),
+            SupportedApp::Windsurf => self.home_dir.join(".codeium/windsurf/mcp_config.json"),
+            SupportedApp::Kiro => self.home_dir.join(".kiro/settings/mcp.json"),
         }
     }
 
@@ -100,6 +104,108 @@ impl PlatformContext {
                 .unwrap_or(false)
         }
     }
+
+    pub fn detect_installed_apps(&self) -> Vec<SupportedApp> {
+        SupportedApp::ALL
+            .into_iter()
+            .filter(|app| self.is_app_installed(*app))
+            .collect()
+    }
+
+    fn is_app_installed(&self, app: SupportedApp) -> bool {
+        let (commands, macos_bundles, windows_paths) = match app {
+            SupportedApp::Vscode => (
+                &["code"][..],
+                &["Visual Studio Code.app"][..],
+                &[
+                    "AppData/Local/Programs/Microsoft VS Code/Code.exe",
+                    "AppData/Local/Programs/Code/Code.exe",
+                ][..],
+            ),
+            SupportedApp::Cursor => (
+                &["cursor"][..],
+                &["Cursor.app"][..],
+                &["AppData/Local/Programs/Cursor/Cursor.exe"][..],
+            ),
+            SupportedApp::ClaudeCode => (&["claude", "claude-code"][..], &[][..], &[][..]),
+            SupportedApp::ClaudeDesktop => (
+                &[][..],
+                &["Claude.app"][..],
+                &[
+                    "AppData/Local/AnthropicClaude/Claude.exe",
+                    "AppData/Local/Programs/Claude/Claude.exe",
+                ][..],
+            ),
+            SupportedApp::Codex => (&["codex"][..], &[][..], &[][..]),
+            SupportedApp::OpenCode => (&["opencode"][..], &[][..], &[][..]),
+            SupportedApp::GithubCopilot => (
+                &["github-copilot", "copilot", "gh-copilot"][..],
+                &[][..],
+                &[][..],
+            ),
+            SupportedApp::GeminiCli => (&["gemini"][..], &[][..], &[][..]),
+            SupportedApp::Antigravity => (&["antigravity"][..], &[][..], &[][..]),
+            SupportedApp::IFlow => (&["iflow"][..], &["iFlow.app"][..], &[][..]),
+            SupportedApp::QwenCode => (&["qwen", "qwen-code"][..], &[][..], &[][..]),
+            SupportedApp::Cline => (&["cline"][..], &[][..], &[][..]),
+            SupportedApp::Windsurf => (
+                &["windsurf"][..],
+                &["Windsurf.app"][..],
+                &["AppData/Local/Programs/Windsurf/Windsurf.exe"][..],
+            ),
+            SupportedApp::Kiro => (
+                &["kiro"][..],
+                &["Kiro.app"][..],
+                &["AppData/Local/Programs/Kiro/Kiro.exe"][..],
+            ),
+        };
+
+        self.command_exists(commands)
+            || self.macos_app_bundle_exists(macos_bundles)
+            || self.windows_install_exists(windows_paths)
+    }
+
+    fn command_exists(&self, commands: &[&str]) -> bool {
+        let Some(path_var) = std::env::var_os("PATH") else {
+            return false;
+        };
+
+        std::env::split_paths(&path_var).any(|dir| {
+            commands.iter().any(|command| {
+                let candidate = dir.join(command);
+                if candidate.is_file() {
+                    return true;
+                }
+
+                if self.os == PlatformOs::Windows {
+                    return dir.join(format!("{command}.exe")).is_file();
+                }
+
+                false
+            })
+        })
+    }
+
+    fn macos_app_bundle_exists(&self, bundles: &[&str]) -> bool {
+        if self.os != PlatformOs::MacOS {
+            return false;
+        }
+
+        bundles.iter().any(|bundle| {
+            self.home_dir.join("Applications").join(bundle).exists()
+                || PathBuf::from("/Applications").join(bundle).exists()
+        })
+    }
+
+    fn windows_install_exists(&self, candidates: &[&str]) -> bool {
+        if self.os != PlatformOs::Windows {
+            return false;
+        }
+
+        candidates
+            .iter()
+            .any(|relative| self.home_dir.join(relative).is_file())
+    }
 }
 
 #[cfg(test)]
@@ -107,6 +213,8 @@ mod tests {
     use super::{PlatformContext, PlatformOs};
     use crate::core::SupportedApp;
     use std::path::PathBuf;
+    use std::sync::{Mutex, OnceLock};
+    use tempfile::tempdir;
 
     fn ctx(os: PlatformOs) -> PlatformContext {
         PlatformContext {
@@ -116,10 +224,18 @@ mod tests {
         }
     }
 
+    fn env_lock() -> &'static Mutex<()> {
+        static LOCK: OnceLock<Mutex<()>> = OnceLock::new();
+        LOCK.get_or_init(|| Mutex::new(()))
+    }
+
     #[test]
     fn resolves_home_and_workspace_paths() {
         let ctx = ctx(PlatformOs::MacOS);
-        assert_eq!(ctx.resolve_path("~/foo").to_string_lossy(), "/Users/test/foo");
+        assert_eq!(
+            ctx.resolve_path("~/foo").to_string_lossy(),
+            "/Users/test/foo"
+        );
         assert_eq!(
             ctx.resolve_path(".vscode/mcp.json").to_string_lossy(),
             "/workspace/project/.vscode/mcp.json"
@@ -186,5 +302,97 @@ mod tests {
                 .to_string_lossy(),
             "/Users/test/.iflow/settings.json"
         );
+        assert_eq!(
+            ctx(PlatformOs::Linux)
+                .user_app_config_path(SupportedApp::QwenCode)
+                .to_string_lossy(),
+            "/Users/test/.qwen/settings.json"
+        );
+        assert_eq!(
+            ctx(PlatformOs::Linux)
+                .user_app_config_path(SupportedApp::Cline)
+                .to_string_lossy(),
+            "/Users/test/.cline/data/settings/cline_mcp_settings.json"
+        );
+        assert_eq!(
+            ctx(PlatformOs::Linux)
+                .user_app_config_path(SupportedApp::Windsurf)
+                .to_string_lossy(),
+            "/Users/test/.codeium/windsurf/mcp_config.json"
+        );
+        assert_eq!(
+            ctx(PlatformOs::Linux)
+                .user_app_config_path(SupportedApp::Kiro)
+                .to_string_lossy(),
+            "/Users/test/.kiro/settings/mcp.json"
+        );
+    }
+
+    #[test]
+    fn detect_installed_apps_ignores_leftover_config_files() {
+        let _guard = env_lock().lock().expect("lock env");
+        let temp = tempdir().expect("tempdir");
+        let home = temp.path().join("home");
+        let workspace = temp.path().join("workspace");
+        std::fs::create_dir_all(home.join(".cursor")).expect("create cursor config dir");
+        std::fs::create_dir_all(&workspace).expect("create workspace");
+        std::fs::write(home.join(".cursor/mcp.json"), "{}").expect("write leftover config");
+        std::env::set_var("PATH", "");
+
+        let ctx = PlatformContext {
+            os: PlatformOs::Linux,
+            home_dir: home,
+            workspace_root: workspace,
+        };
+
+        let installed = ctx.detect_installed_apps();
+
+        assert!(!installed.contains(&SupportedApp::Cursor));
+    }
+
+    #[test]
+    fn detect_installed_apps_finds_cli_tools_on_path() {
+        let _guard = env_lock().lock().expect("lock env");
+        let temp = tempdir().expect("tempdir");
+        let home = temp.path().join("home");
+        let workspace = temp.path().join("workspace");
+        let bin = temp.path().join("bin");
+        std::fs::create_dir_all(&home).expect("create home");
+        std::fs::create_dir_all(&workspace).expect("create workspace");
+        std::fs::create_dir_all(&bin).expect("create bin");
+        std::fs::write(bin.join("codex"), "").expect("write codex stub");
+        std::env::set_var("PATH", &bin);
+
+        let ctx = PlatformContext {
+            os: PlatformOs::Linux,
+            home_dir: home,
+            workspace_root: workspace,
+        };
+
+        let installed = ctx.detect_installed_apps();
+
+        assert!(installed.contains(&SupportedApp::Codex));
+    }
+
+    #[test]
+    fn detect_installed_apps_finds_macos_app_bundles() {
+        let _guard = env_lock().lock().expect("lock env");
+        let temp = tempdir().expect("tempdir");
+        let home = temp.path().join("home");
+        let workspace = temp.path().join("workspace");
+        std::fs::create_dir_all(home.join("Applications/Cursor.app"))
+            .expect("create cursor bundle");
+        std::fs::create_dir_all(&workspace).expect("create workspace");
+        std::env::set_var("PATH", "");
+
+        let ctx = PlatformContext {
+            os: PlatformOs::MacOS,
+            home_dir: home,
+            workspace_root: workspace,
+        };
+
+        let installed = ctx.detect_installed_apps();
+
+        assert!(installed.contains(&SupportedApp::Cursor));
     }
 }

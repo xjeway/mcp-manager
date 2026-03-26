@@ -13,7 +13,10 @@ impl AppAdapter for CodexAdapter {
     fn detect_sources(&self, ctx: &PlatformContext) -> Vec<(String, u32)> {
         vec![
             (
-                ctx.home_dir.join(".codex/mcp.json").to_string_lossy().to_string(),
+                ctx.home_dir
+                    .join(".codex/mcp.json")
+                    .to_string_lossy()
+                    .to_string(),
                 30,
             ),
             (
@@ -76,7 +79,13 @@ impl AppAdapter for CodexAdapter {
     fn plan_apply(&self, ctx: &PlatformContext, config: &MCPConfig) -> WriteOperation {
         let mut servers = serde_json::Map::new();
         for server in &config.servers {
-            if server.enabled && server.apps.get(&SupportedApp::Codex).copied().unwrap_or(false) {
+            if server.enabled
+                && server
+                    .apps
+                    .get(&SupportedApp::Codex)
+                    .copied()
+                    .unwrap_or(false)
+            {
                 let value = if server.transport.kind == "stdio" {
                     serde_json::json!({
                         "command": server.command.as_ref().map(|c| c.program.clone()).unwrap_or_default(),

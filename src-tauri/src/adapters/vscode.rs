@@ -12,7 +12,12 @@ impl AppAdapter for VSCodeAdapter {
 
     fn detect_sources(&self, ctx: &PlatformContext) -> Vec<(String, u32)> {
         vec![
-            (ctx.workspace_file(".vscode/mcp.json").to_string_lossy().to_string(), 10),
+            (
+                ctx.workspace_file(".vscode/mcp.json")
+                    .to_string_lossy()
+                    .to_string(),
+                10,
+            ),
             (
                 ctx.user_app_config_path(SupportedApp::Vscode)
                     .to_string_lossy()
@@ -51,7 +56,13 @@ impl AppAdapter for VSCodeAdapter {
     fn plan_apply(&self, ctx: &PlatformContext, config: &MCPConfig) -> WriteOperation {
         let mut servers = serde_json::Map::new();
         for server in &config.servers {
-            if server.enabled && server.apps.get(&SupportedApp::Vscode).copied().unwrap_or(false) {
+            if server.enabled
+                && server
+                    .apps
+                    .get(&SupportedApp::Vscode)
+                    .copied()
+                    .unwrap_or(false)
+            {
                 let value = if server.transport.kind == "stdio" {
                     serde_json::json!({
                         "command": server.command.as_ref().map(|c| c.program.clone()).unwrap_or_default(),

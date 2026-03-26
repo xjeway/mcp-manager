@@ -12,7 +12,9 @@ impl AppAdapter for AntigravityAdapter {
 
     fn detect_sources(&self, ctx: &PlatformContext) -> Vec<(String, u32)> {
         vec![(
-            ctx.user_app_config_path(self.app()).to_string_lossy().to_string(),
+            ctx.user_app_config_path(self.app())
+                .to_string_lossy()
+                .to_string(),
             20,
         )]
     }

@@ -14,10 +14,14 @@ pub enum SupportedApp {
     GeminiCli,
     Antigravity,
     IFlow,
+    QwenCode,
+    Cline,
+    Windsurf,
+    Kiro,
 }
 
 impl SupportedApp {
-    pub const ALL: [SupportedApp; 10] = [
+    pub const ALL: [SupportedApp; 14] = [
         SupportedApp::Vscode,
         SupportedApp::Cursor,
         SupportedApp::ClaudeCode,
@@ -28,6 +32,10 @@ impl SupportedApp {
         SupportedApp::GeminiCli,
         SupportedApp::Antigravity,
         SupportedApp::IFlow,
+        SupportedApp::QwenCode,
+        SupportedApp::Cline,
+        SupportedApp::Windsurf,
+        SupportedApp::Kiro,
     ];
 
     pub fn as_str(self) -> &'static str {
@@ -42,6 +50,10 @@ impl SupportedApp {
             SupportedApp::GeminiCli => "geminiCli",
             SupportedApp::Antigravity => "antigravity",
             SupportedApp::IFlow => "iFlow",
+            SupportedApp::QwenCode => "qwenCode",
+            SupportedApp::Cline => "cline",
+            SupportedApp::Windsurf => "windsurf",
+            SupportedApp::Kiro => "kiro",
         }
     }
 }
@@ -135,6 +147,10 @@ pub fn empty_apps() -> HashMap<SupportedApp, bool> {
         (SupportedApp::GeminiCli, false),
         (SupportedApp::Antigravity, false),
         (SupportedApp::IFlow, false),
+        (SupportedApp::QwenCode, false),
+        (SupportedApp::Cline, false),
+        (SupportedApp::Windsurf, false),
+        (SupportedApp::Kiro, false),
     ])
 }
 

@@ -1,4 +1,4 @@
-import { Copy, LoaderCircle, PenSquare, Plus, RefreshCw, RotateCcw, SendHorizontal, Settings, Trash2 } from 'lucide-react'
+import { Copy, LoaderCircle, PenSquare, Plus, RefreshCw, RotateCcw, Settings, Trash2 } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import { CLIENTS } from './clientMeta'
 import { AppLogo } from './AppLogo'
@@ -7,20 +7,17 @@ import type { WorkspaceViewModel } from '../view-models/workspace'
 import type { SupportedApp } from '../types/config'
 
 interface DashboardProps {
-  busy: 'idle' | 'loading' | 'saving' | 'importing' | 'applying' | 'rolling-back' | 'checking-updates'
+  busy: 'idle' | 'loading' | 'saving' | 'importing' | 'rolling-back' | 'checking-updates'
   canRollback: boolean
-  lastRiskSummary: string[]
-  unsaved: boolean
+  visibleApps: SupportedApp[]
   workspace: WorkspaceViewModel
   onAdd: () => void
-  onApply: () => void
+  onOpenRepository: () => void
   onSyncLocalConfig: () => void
   onOpenSettings: () => void
-  onReset: () => void
   onDelete: (serverId: string) => void
   onEdit: (serverId: string) => void
   onRollback: () => void
-  onSave: () => void
   onToggleApp: (serverId: string, app: SupportedApp) => void
   onCopyCommand: (serverId: string) => void
 }
@@ -32,33 +29,40 @@ function BusyIcon({ spinning }: { spinning: boolean }) {
 export function Dashboard({
   busy,
   canRollback,
-  lastRiskSummary,
-  unsaved,
+  visibleApps,
   workspace,
   onAdd,
-  onApply,
+  onOpenRepository,
   onSyncLocalConfig,
   onOpenSettings,
-  onReset,
   onDelete,
   onEdit,
   onRollback,
-  onSave,
   onToggleApp,
   onCopyCommand,
 }: DashboardProps) {
   const { t } = useTranslation()
   const loading = busy === 'loading'
+  const visibleClients = CLIENTS.filter((client) => visibleApps.includes(client.id))
 
   return (
     <div className="app-shell shell-flat dashboard-shell">
       <div className="mac-window-drag-region" data-tauri-drag-region aria-hidden="true" />
       <div className="top-chrome">
-        <div className="page-header">
-          <div className="brand-block brand-block-compact">
-            <AppLogo className="brand-logo" alt={t('title')} />
-            <div>
+        <div className="page-header page-header-dashboard">
+          <div className="brand-block brand-block-dashboard">
+            <button
+              type="button"
+              className="brand-logo-button"
+              onClick={onOpenRepository}
+              aria-label={t('settingsRepositoryAction')}
+              title={t('settingsRepositoryAction')}
+            >
+              <AppLogo className="brand-logo" alt={t('title')} />
+            </button>
+            <div className="brand-copy">
               <h1 className="shell-title">{t('title')}</h1>
+              <p className="brand-subtitle">{t('surfaceSubtitle')}</p>
             </div>
           </div>
 
@@ -93,18 +97,6 @@ export function Dashboard({
               </button>
             </Tooltip>
 
-            <Tooltip content={t('apply')}>
-              <button
-                type="button"
-                className="icon-button toolbar-icon toolbar-accent"
-                onClick={onApply}
-                disabled={busy !== 'idle' && busy !== 'applying'}
-                aria-label={t('apply')}
-              >
-                {busy === 'applying' ? <BusyIcon spinning /> : <SendHorizontal size={14} />}
-              </button>
-            </Tooltip>
-
             <Tooltip content={t('add')}>
               <button
                 type="button"
@@ -131,9 +123,6 @@ export function Dashboard({
           ))}
         </section>
       </div>
-
-      {unsaved ? <div className="callout callout-warning">{t('unsaved')}</div> : null}
-      {lastRiskSummary.length > 0 ? <div className="callout callout-info">{`${t('riskSummary')}: ${lastRiskSummary.join(' | ')}`}</div> : null}
 
       <section className="list-panel">
         {loading ? (
@@ -163,7 +152,7 @@ export function Dashboard({
                 </div>
                 <div className="server-cell">
                   <div className="client-pills client-pills-reference">
-                    {CLIENTS.map((client) => {
+                    {visibleClients.map((client) => {
                       const enabled = row.enabledApps.includes(client.id)
                       return (
                         <Tooltip key={client.id} content={client.label}>
@@ -171,6 +160,7 @@ export function Dashboard({
                             type="button"
                             className={`client-pill client-pill-reference ${client.accent} ${enabled ? 'is-enabled' : 'is-muted'}`}
                             onClick={() => onToggleApp(row.id, client.id)}
+                            disabled={busy !== 'idle'}
                           >
                             {client.icon}
                             <span className="sr-only">{client.label}</span>
@@ -182,17 +172,35 @@ export function Dashboard({
                 </div>
                 <div className="row-actions">
                   <Tooltip content={t('copyCommand')}>
-                    <button type="button" className="icon-button compact-icon" onClick={() => onCopyCommand(row.id)} aria-label={t('copyCommand')}>
+                    <button
+                      type="button"
+                      className="icon-button compact-icon server-row-action"
+                      onClick={() => onCopyCommand(row.id)}
+                      aria-label={t('copyCommand')}
+                      disabled={busy !== 'idle'}
+                    >
                       <Copy size={14} />
                     </button>
                   </Tooltip>
                   <Tooltip content={t('edit')}>
-                    <button type="button" className="icon-button compact-icon" onClick={() => onEdit(row.id)} aria-label={t('edit')}>
+                    <button
+                      type="button"
+                      className="icon-button compact-icon server-row-action"
+                      onClick={() => onEdit(row.id)}
+                      aria-label={t('edit')}
+                      disabled={busy !== 'idle'}
+                    >
                       <PenSquare size={14} />
                     </button>
                   </Tooltip>
                   <Tooltip content={t('delete')}>
-                    <button type="button" className="icon-button compact-icon danger" onClick={() => onDelete(row.id)} aria-label={t('delete')}>
+                    <button
+                      type="button"
+                      className="icon-button compact-icon server-row-action server-row-action-danger"
+                      onClick={() => onDelete(row.id)}
+                      aria-label={t('delete')}
+                      disabled={busy !== 'idle'}
+                    >
                       <Trash2 size={14} />
                     </button>
                   </Tooltip>
@@ -202,28 +210,6 @@ export function Dashboard({
           </div>
         )}
       </section>
-
-      {unsaved ? (
-        <div className="dashboard-floating-save-wrap">
-          <button
-            type="button"
-            className="ghost-button dashboard-floating-reset"
-            onClick={onReset}
-            disabled={busy !== 'idle'}
-          >
-            {t('reset')}
-          </button>
-          <button
-            type="button"
-            className="dashboard-floating-save-button"
-            onClick={onSave}
-            disabled={busy !== 'idle' && busy !== 'saving'}
-          >
-            {busy === 'saving' ? <BusyIcon spinning /> : null}
-            {t('saveChanges')}
-          </button>
-        </div>
-      ) : null}
     </div>
   )
 }

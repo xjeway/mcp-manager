@@ -8,7 +8,11 @@
     "build": "tsc && vite build",
     "preview": "vite preview",
     "test": "vitest run",
-    "tauri": "tauri"
+    "tauri": "tauri",
+    "release:current": "node scripts/release.mjs current",
+    "release:sync": "node scripts/release.mjs sync",
+    "release:verify": "node scripts/release.mjs verify",
+    "release:tag": "node scripts/release.mjs tag"
   },
   "dependencies": {
     "@tauri-apps/api": "^2.10.1",

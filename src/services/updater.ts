@@ -1,20 +1,8 @@
 import { check } from '@tauri-apps/plugin-updater'
-
-function isTauriRuntime(): boolean {
-  if (typeof window === 'undefined') {
-    return false
-  }
-
-  const tauriWindow = window as {
-    __TAURI__?: { invoke?: unknown }
-    __TAURI_INTERNALS__?: { invoke?: unknown }
-  }
-
-  return typeof tauriWindow.__TAURI__?.invoke === 'function' || typeof tauriWindow.__TAURI_INTERNALS__?.invoke === 'function'
-}
+import { isDesktopRuntime } from './runtime'
 
 export async function checkForUpdatesAndPrompt(options?: { silentIfNoUpdate?: boolean }): Promise<void> {
-  if (!isTauriRuntime()) {
+  if (!isDesktopRuntime()) {
     if (!options?.silentIfNoUpdate) {
       window.alert('Update checks are only available in the desktop app.')
     }
@@ -36,6 +24,8 @@ export async function checkForUpdatesAndPrompt(options?: { silentIfNoUpdate?: bo
     await update.downloadAndInstall()
     window.alert('Update installed. Please restart app.')
   } catch (error) {
-    window.alert(`Update check failed: ${String(error)}`)
+    if (!options?.silentIfNoUpdate) {
+      window.alert(`Update check failed: ${String(error)}`)
+    }
   }
 }

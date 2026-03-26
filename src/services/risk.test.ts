@@ -20,6 +20,10 @@ describe('evaluateApplyRisks', () => {
           geminiCli: false,
           antigravity: false,
           iFlow: false,
+          qwenCode: false,
+          cline: false,
+          windsurf: false,
+          kiro: false,
         },
       },
     ])

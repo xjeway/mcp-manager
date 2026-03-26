@@ -58,6 +58,10 @@ function emptyApps(): MCPServer['apps'] {
     geminiCli: false,
     antigravity: false,
     iFlow: false,
+    qwenCode: false,
+    cline: false,
+    windsurf: false,
+    kiro: false,
   }
 }
 
@@ -74,9 +78,14 @@ function commandSummary(server: MCPServer, t: TFunction): string {
   return args ? `${server.command.program} ${args}` : server.command.program
 }
 
-export function mapConfigToWorkspaceView(config: MCPConfig, t: TFunction): WorkspaceViewModel {
+export function mapConfigToWorkspaceView(
+  config: MCPConfig,
+  visibleApps: SupportedApp[],
+  t: TFunction,
+): WorkspaceViewModel {
+  const visibleClients = CLIENTS.filter((client) => visibleApps.includes(client.id))
   return {
-    stats: CLIENTS.map((client) => ({
+    stats: visibleClients.map((client) => ({
       ...client,
       count: config.servers.filter((server) => server.enabled && server.apps[client.id]).length,
     })),
@@ -85,7 +94,7 @@ export function mapConfigToWorkspaceView(config: MCPConfig, t: TFunction): Works
       name: server.name,
       transportLabel: server.transport.type === 'http' ? t('transportHttp') : t('transportStdio'),
       copyValue: commandSummary(server, t),
-      enabledApps: CLIENTS.filter((client) => server.apps[client.id]).map((client) => client.id),
+      enabledApps: visibleClients.filter((client) => server.apps[client.id]).map((client) => client.id),
     })),
   }
 }

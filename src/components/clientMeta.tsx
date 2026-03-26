@@ -73,16 +73,38 @@ export const CLIENTS: ClientMeta[] = [
     accent: 'client-vscode',
     icon: <ClientLogo src="/logos/apps/iflow.svg" alt="iFlow" />,
   },
+  {
+    id: 'qwenCode',
+    label: 'Qwen Code',
+    accent: 'client-codex',
+    icon: <ClientLogo src="/logos/apps/qwen.svg" alt="Qwen Code" />,
+  },
+  {
+    id: 'cline',
+    label: 'Cline',
+    accent: 'client-cursor',
+    icon: <ClientLogo src="/logos/apps/cline.svg" alt="Cline" />,
+  },
+  {
+    id: 'windsurf',
+    label: 'Windsurf',
+    accent: 'client-vscode',
+    icon: <ClientLogo src="/logos/apps/windsurf.svg" alt="Windsurf" />,
+  },
+  {
+    id: 'kiro',
+    label: 'Kiro',
+    accent: 'client-codex',
+    icon: <ClientLogo src="/logos/apps/kiro.svg" alt="Kiro" />,
+  },
 ]
 
 export const PLANNED_CLIENTS = [
-  'Cline',
   'RooCode',
   'Kilo Code',
   'Amazon Q',
   'Qoder',
   'Auggie CLI',
-  'Qwen Code',
   'CodeBuddy',
   'CoStrict',
   'Crush',

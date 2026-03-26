@@ -18,6 +18,10 @@ export function useAppStats(config: MCPConfig): Record<SupportedApp, number> {
       geminiCli: 0,
       antigravity: 0,
       iFlow: 0,
+      qwenCode: 0,
+      cline: 0,
+      windsurf: 0,
+      kiro: 0,
     })
   }, [config.servers])
 }

@@ -12,7 +12,12 @@ impl AppAdapter for ClaudeCodeAdapter {
 
     fn detect_sources(&self, ctx: &PlatformContext) -> Vec<(String, u32)> {
         vec![
-            (ctx.workspace_file(".mcp.json").to_string_lossy().to_string(), 10),
+            (
+                ctx.workspace_file(".mcp.json")
+                    .to_string_lossy()
+                    .to_string(),
+                10,
+            ),
             (
                 ctx.user_app_config_path(SupportedApp::ClaudeCode)
                     .to_string_lossy()
@@ -74,7 +79,12 @@ impl AppAdapter for ClaudeCodeAdapter {
     fn plan_apply(&self, ctx: &PlatformContext, config: &MCPConfig) -> WriteOperation {
         let mut servers = serde_json::Map::new();
         for server in &config.servers {
-            if server.enabled && server.apps.get(&SupportedApp::ClaudeCode).copied().unwrap_or(false)
+            if server.enabled
+                && server
+                    .apps
+                    .get(&SupportedApp::ClaudeCode)
+                    .copied()
+                    .unwrap_or(false)
             {
                 let value = if server.transport.kind == "stdio" {
                     serde_json::json!({

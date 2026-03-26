@@ -13,6 +13,10 @@ function defaultApps(): MCPServer['apps'] {
     geminiCli: false,
     antigravity: false,
     iFlow: false,
+    qwenCode: false,
+    cline: false,
+    windsurf: false,
+    kiro: false,
   }
 }
 
@@ -27,9 +31,17 @@ function normalizeServer(id: string, input: Record<string, unknown>): MCPServer 
   }
 
   const type = typeof input.type === 'string' ? input.type : undefined
-  const url = typeof input.url === 'string' ? input.url : undefined
+  const url =
+    typeof input.url === 'string'
+      ? input.url
+      : typeof input.httpUrl === 'string'
+        ? input.httpUrl
+        : typeof input.serverUrl === 'string'
+          ? input.serverUrl
+          : undefined
+  const disabled = input.disabled === true
   const transport =
-    type === 'http' || type === 'sse' || url
+    type === 'http' || type === 'sse' || type === 'streamable-http' || url
       ? { type: 'http' as const, url }
       : { type: 'stdio' as const }
 
@@ -38,7 +50,7 @@ function normalizeServer(id: string, input: Record<string, unknown>): MCPServer 
     homepage: typeof input.homepage === 'string' && input.homepage.trim() ? input.homepage : undefined,
     id,
     name: typeof input.name === 'string' && input.name.trim() ? input.name : id,
-    enabled: input.enabled === undefined ? true : Boolean(input.enabled),
+    enabled: disabled ? false : input.enabled === undefined ? true : Boolean(input.enabled),
     transport,
     apps,
   }

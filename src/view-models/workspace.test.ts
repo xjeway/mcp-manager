@@ -24,14 +24,21 @@ describe('workspace view-models', () => {
               geminiCli: false,
               antigravity: false,
               iFlow: false,
+              qwenCode: false,
+              cline: false,
+              windsurf: false,
+              kiro: false,
             },
           },
         ],
       },
+      ['vscode', 'cursor'],
       ((key: string) => key) as never,
     )
 
     expect(view.rows[0].copyValue).toContain('uvx')
+    expect(view.rows[0].enabledApps).toEqual(['vscode'])
+    expect(view.stats.map((stat) => stat.id)).toEqual(['vscode', 'cursor'])
     expect(view.stats.find((stat) => stat.id === 'vscode')?.count).toBe(1)
     expect(view.stats.find((stat) => stat.id === 'cursor')?.count).toBe(0)
   })
@@ -53,6 +60,10 @@ describe('workspace view-models', () => {
         geminiCli: false,
         antigravity: false,
         iFlow: false,
+        qwenCode: false,
+        cline: false,
+        windsurf: false,
+        kiro: true,
       },
     })
 
@@ -61,5 +72,6 @@ describe('workspace view-models', () => {
     expect(restored.transport.url).toBe('https://example.com/mcp')
     expect(restored.apps.cursor).toBe(true)
     expect(restored.apps.codex).toBe(true)
+    expect(restored.apps.kiro).toBe(true)
   })
 })

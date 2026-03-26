@@ -1,6 +1,6 @@
 import type { ReactNode } from 'react'
 import { useEffect, useState } from 'react'
-import { ArrowLeft, Code, LayoutTemplate, Plus, Save, Trash2 } from 'lucide-react'
+import { ArrowLeft, Check, Code, LayoutTemplate, Plus, Trash2 } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import { CLIENTS } from './clientMeta'
 import { parseMcpJson } from '../services/jsonParser'
@@ -18,7 +18,9 @@ interface ServerEditorProps {
   busy: boolean
   server: MCPServer | null
   onCancel: () => void
+  onDraftChange: (draft: EditorDraft, dirty: boolean) => void
   onSave: (server: MCPServer) => void
+  visibleApps: Array<keyof MCPServer['apps']>
 }
 
 function normalizeEntries(entries: EditorDraft['envEntries']): EditorDraft['envEntries'] {
@@ -74,7 +76,9 @@ export function ServerEditor({
   busy,
   server,
   onCancel,
+  onDraftChange,
   onSave,
+  visibleApps,
 }: ServerEditorProps) {
   const { t } = useTranslation()
   const [mode, setMode] = useState<EditorMode>('form')
@@ -82,6 +86,7 @@ export function ServerEditor({
   const [jsonText, setJsonText] = useState(() => serverToJsonText(server))
   const [warnings, setWarnings] = useState<string[]>([])
   const [errors, setErrors] = useState<string[]>([])
+  const visibleClients = CLIENTS.filter((client) => visibleApps.includes(client.id))
 
   useEffect(() => {
     const nextDraft = server ? serverToEditorDraft(server) : createEmptyEditorDraft()
@@ -103,6 +108,14 @@ export function ServerEditor({
     !draft.url.trim() &&
     draft.args.every((arg) => !arg.trim()) &&
     draft.envEntries.every((entry) => !entry.key.trim() && !entry.value.trim())
+
+  const initialSerialized = server ? JSON.stringify(editorDraftToServer(serverToEditorDraft(server))) : ''
+  const currentSerialized = !server && isDraftEffectivelyEmpty ? '' : JSON.stringify(editorDraftToServer(draft))
+  const isDirty = currentSerialized !== initialSerialized
+
+  useEffect(() => {
+    onDraftChange(draft, isDirty)
+  }, [draft, isDirty, onDraftChange])
 
   const syncJsonFromDraft = () => {
     try {
@@ -194,7 +207,7 @@ export function ServerEditor({
 
         <div className="editor-reference-toolbar" data-tauri-no-drag>
           <button type="button" className="primary-button" onClick={submit} disabled={busy}>
-            <Save size={14} />
+            <Check size={14} />
             {t('confirm')}
           </button>
         </div>
@@ -247,7 +260,7 @@ export function ServerEditor({
               <div>
                 <label className="editor-reference-label">{t('appScope')}</label>
                 <div className="editor-reference-client-tags">
-                  {CLIENTS.map((client) => {
+                  {visibleClients.map((client) => {
                     const enabled = draft.apps[client.id]
                     return (
                       <label

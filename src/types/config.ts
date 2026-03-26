@@ -9,6 +9,10 @@ export const SUPPORTED_APPS = [
   'geminiCli',
   'antigravity',
   'iFlow',
+  'qwenCode',
+  'cline',
+  'windsurf',
+  'kiro',
 ] as const
 
 export type SupportedApp = (typeof SUPPORTED_APPS)[number]

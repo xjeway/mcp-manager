@@ -1,28 +1,36 @@
 mod antigravity;
-mod claude_desktop;
 mod claude_code;
+mod claude_desktop;
+mod cline;
 mod codex;
 mod cursor;
 mod gemini_cli;
 mod github_copilot;
 mod iflow;
+mod kiro;
 mod opencode;
+mod qwen_code;
 mod vscode;
+mod windsurf;
 
 use crate::core::{LocalConfigSource, MCPConfig, MCPServer, SupportedApp, WriteOperation};
 use crate::platform::PlatformContext;
 use serde_json::{Map, Value};
 
 pub use antigravity::AntigravityAdapter;
-pub use claude_desktop::ClaudeDesktopAdapter;
 pub use claude_code::ClaudeCodeAdapter;
+pub use claude_desktop::ClaudeDesktopAdapter;
+pub use cline::ClineAdapter;
 pub use codex::CodexAdapter;
 pub use cursor::CursorAdapter;
 pub use gemini_cli::GeminiCliAdapter;
 pub use github_copilot::GithubCopilotAdapter;
 pub use iflow::IFlowAdapter;
+pub use kiro::KiroAdapter;
 pub use opencode::OpenCodeAdapter;
+pub use qwen_code::QwenCodeAdapter;
 pub use vscode::VSCodeAdapter;
+pub use windsurf::WindsurfAdapter;
 
 pub struct ParsedSources {
     pub sources: Vec<LocalConfigSource>,
@@ -119,5 +127,9 @@ pub fn adapters() -> Vec<Box<dyn AppAdapter>> {
         Box::new(GeminiCliAdapter),
         Box::new(AntigravityAdapter),
         Box::new(IFlowAdapter),
+        Box::new(QwenCodeAdapter),
+        Box::new(ClineAdapter),
+        Box::new(WindsurfAdapter),
+        Box::new(KiroAdapter),
     ]
 }

@@ -1,4 +1,5 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
+import { getCurrentWindow } from '@tauri-apps/api/window'
 import { useTranslation } from 'react-i18next'
 import { Dashboard } from './components/Dashboard'
 import { SettingsPage } from './components/SettingsPage'
@@ -6,10 +7,23 @@ import { ServerEditor } from './components/ServerEditor'
 import { ToastViewport } from './components/ToastViewport'
 import { mapConfigToWorkspaceView, type FeedbackItem } from './view-models/workspace'
 import './i18n'
-import type { MCPConfig, MCPServer, SupportedApp } from './types/config'
-import { applyConfig, importDetectedConfigs, loadConfig, rollback, saveConfig } from './services/configService'
+import { SUPPORTED_APPS, type ImportDetectedResult, type MCPConfig, type MCPServer, type SupportedApp } from './types/config'
+import { readAutoSyncOnLaunchPreference, saveAutoSyncOnLaunchPreference } from './services/appPreferences'
+import { applyConfig, detectInstalledApps, importDetectedConfigs, loadConfig, rollback, saveConfig } from './services/configService'
+import { areConfigsEquivalent } from './services/configSync'
+import { openRepositoryLink } from './services/externalLinks'
+import { confirmDialog } from './services/nativeDialogs'
+import { mergeServerIntoConfig, shouldPromptForPendingChanges } from './services/pendingChanges'
 import { evaluateApplyRisks } from './services/risk'
+import { isDesktopRuntime } from './services/runtime'
 import { checkForUpdatesAndPrompt } from './services/updater'
+import { deriveVisibleApps } from './services/visibleApps'
+import {
+  deleteServerFromConfig,
+  persistImportedConfig,
+  saveAndSyncConfig,
+  toggleServerAppInConfig,
+} from './services/workspacePersistence'
 
 type View = 'dashboard' | 'editor' | 'settings'
 type ThemeMode = 'light' | 'dark' | 'system'
@@ -18,7 +32,6 @@ type ActionState =
   | 'loading'
   | 'saving'
   | 'importing'
-  | 'applying'
   | 'rolling-back'
   | 'checking-updates'
 
@@ -59,18 +72,19 @@ function detectPlatform(): 'macos' | 'windows' | 'linux' | 'unknown' {
 
 export default function App() {
   const { t, i18n } = useTranslation()
+  const [autoSyncOnLaunch, setAutoSyncOnLaunch] = useState(readAutoSyncOnLaunchPreference)
   const [theme, setTheme] = useState<ThemeMode>(readThemePreference)
   const [systemTheme, setSystemTheme] = useState<'light' | 'dark'>(readSystemTheme)
   const [platform] = useState(detectPlatform)
   const [view, setView] = useState<View>('dashboard')
   const [actionState, setActionState] = useState<ActionState>('loading')
   const [config, setConfig] = useState<MCPConfig>({ version: 1, servers: [] })
-  const [savedConfigSnapshot, setSavedConfigSnapshot] = useState<MCPConfig>({ version: 1, servers: [] })
   const [editingServer, setEditingServer] = useState<MCPServer | null>(null)
   const [feedbacks, setFeedbacks] = useState<FeedbackItem[]>([])
-  const [unsaved, setUnsaved] = useState(false)
   const [backups, setBackups] = useState<string[]>([])
-  const [lastRiskSummary, setLastRiskSummary] = useState<string[]>([])
+  const [visibleApps, setVisibleApps] = useState<SupportedApp[]>([...SUPPORTED_APPS])
+  const [editorDirty, setEditorDirty] = useState(false)
+  const closeConfirmedRef = useRef(false)
 
   useEffect(() => {
     if (typeof window === 'undefined') {
@@ -91,19 +105,118 @@ export default function App() {
     window.localStorage.setItem('ui-theme', theme)
   }, [platform, theme, systemTheme])
 
+  const pushFeedback = (kind: FeedbackItem['kind'], message: string) => {
+    setFeedbacks((current) => [
+      { id: `${Date.now()}-${Math.random().toString(36).slice(2)}`, kind, message },
+      ...current,
+    ].slice(0, 4))
+  }
+
+  const dismissFeedback = (id: string) => {
+    setFeedbacks((current) => current.filter((item) => item.id !== id))
+  }
+
+  const clearEditorState = () => {
+    setEditingServer(null)
+    setEditorDirty(false)
+  }
+
+  const navigateToView = (nextView: View) => {
+    if (nextView !== 'editor') {
+      clearEditorState()
+    }
+    setView(nextView)
+  }
+
+  const applyImportResult = async (
+    result: ImportDetectedResult,
+    baselineConfig: MCPConfig,
+    mode: 'manual' | 'startup',
+  ) => {
+    const detectedCount = result.sources.filter((source) => source.exists).length
+    const hasImportableServers = result.config.servers.length > 0
+    const hasChanged = hasImportableServers && !areConfigsEquivalent(result.config, baselineConfig)
+    const shouldCollapseErrors = mode === 'manual' && !hasImportableServers && result.errors.length > 0
+
+    if (hasChanged) {
+      try {
+        await persistImportedConfig(result.config, saveConfig)
+        setConfig(result.config)
+        pushFeedback(
+          mode === 'manual' ? 'success' : 'info',
+          t(mode === 'manual' ? 'importSummary' : 'autoImportSummary', {
+            count: detectedCount,
+            servers: result.config.servers.length,
+          }),
+        )
+      } catch (error) {
+        pushFeedback('error', t('saveFailedDetail', { error: String(error) }))
+      }
+    } else if (mode === 'manual') {
+      pushFeedback(
+        result.errors.length > 0 ? 'error' : 'info',
+        hasImportableServers
+          ? t('importUpToDate')
+          : result.errors.length > 0
+            ? `${t('importFailed')}: ${result.errors.join(' | ')}`
+            : t('importEmpty'),
+      )
+    }
+
+    for (const warning of result.warnings) {
+      pushFeedback('warning', warning)
+    }
+    if (!shouldCollapseErrors) {
+      for (const error of result.errors) {
+        pushFeedback('error', error)
+      }
+    }
+  }
+
   useEffect(() => {
     let alive = true
+
+    const refreshVisibleApps = async () => {
+      try {
+        const detected = await detectInstalledApps()
+        if (!alive) {
+          return
+        }
+        setVisibleApps(deriveVisibleApps(detected))
+      } catch (error) {
+        if (!alive) {
+          return
+        }
+        setVisibleApps([...SUPPORTED_APPS])
+        pushFeedback('warning', t('detectInstalledAppsFailedDetail', { error: String(error) }))
+      }
+    }
 
     const bootstrap = async () => {
       setActionState('loading')
       try {
+        await refreshVisibleApps()
         const loaded = await loadConfig()
         if (!alive) {
           return
         }
         setConfig(loaded)
-        setSavedConfigSnapshot(loaded)
         setFeedbacks([])
+
+        if (readAutoSyncOnLaunchPreference()) {
+          try {
+            const result = await importDetectedConfigs()
+            if (!alive) {
+              return
+            }
+            await applyImportResult(result, loaded, 'startup')
+          } catch (error) {
+            if (!alive) {
+              return
+            }
+            pushFeedback('error', t('importFailedDetail', { error: String(error) }))
+          }
+        }
       } catch (error) {
         if (!alive) {
           return
@@ -123,23 +236,126 @@ export default function App() {
     return () => {
       alive = false
     }
-  }, [t])
+  }, [])
 
-  const pushFeedback = (kind: FeedbackItem['kind'], message: string) => {
-    setFeedbacks((current) => [
-      { id: `${Date.now()}-${Math.random().toString(36).slice(2)}`, kind, message },
-      ...current,
-    ].slice(0, 4))
+  useEffect(() => {
+    if (typeof window === 'undefined') {
+      return
+    }
+
+    const handleBeforeUnload = (event: BeforeUnloadEvent) => {
+      if (!editorDirty) {
+        return
+      }
+
+      event.preventDefault()
+      event.returnValue = ''
+    }
+
+    window.addEventListener('beforeunload', handleBeforeUnload)
+    return () => window.removeEventListener('beforeunload', handleBeforeUnload)
+  }, [editorDirty])
+
+  useEffect(() => {
+    if (!isDesktopRuntime()) {
+      return
+    }
+
+    let disposed = false
+    let unlisten: (() => void) | undefined
+
+    void getCurrentWindow()
+      .onCloseRequested(async (event) => {
+        if (closeConfirmedRef.current) {
+          return
+        }
+
+        if (
+          !shouldPromptForPendingChanges({
+            currentView: view,
+            nextAction: { kind: 'close' },
+            workspaceDirty: false,
+            editorDirty,
+          })
+        ) {
+          return
+        }
+
+        event.preventDefault()
+
+        const shouldDiscard = await confirmDialog({
+          cancelLabel: t('pendingChangesKeepEditing'),
+          kind: 'warning',
+          message: t('discardEditorChangesDescription'),
+          okLabel: t('pendingChangesDiscard'),
+          title: t('discardEditorChangesTitle'),
+        })
+
+        if (!shouldDiscard || disposed) {
+          return
+        }
+
+        closeConfirmedRef.current = true
+        await getCurrentWindow().destroy()
+      })
+      .then((cleanup) => {
+        if (disposed) {
+          cleanup()
+          return
+        }
+        unlisten = cleanup
+      })
+
+    return () => {
+      disposed = true
+      unlisten?.()
+    }
+  }, [editorDirty, t, view])
+
+  const workspace = useMemo(() => mapConfigToWorkspaceView(config, visibleApps, t), [config, t, visibleApps])
+
+  const commitConfigChange = async ({
+    nextConfig,
+    successKind = 'success',
+    successMessage,
+  }: {
+    nextConfig: MCPConfig
+    successKind?: FeedbackItem['kind']
+    successMessage?: string
+  }): Promise<boolean> => {
+    const summary = evaluateApplyRisks(nextConfig.servers)
+    if (summary.blockingErrors.length > 0) {
+      for (const error of summary.blockingErrors) {
+        pushFeedback('error', error)
+      }
+      return false
+    }
+
+    setActionState('saving')
+    try {
+      const result = await saveAndSyncConfig({
+        applyConfig,
+        nextConfig,
+        previousConfig: config,
+        saveConfig,
+      })
+      setConfig(nextConfig)
+      setBackups(result.backups)
+      if (successMessage) {
+        pushFeedback(successKind, successMessage)
+      }
+      return true
+    } catch (error) {
+      pushFeedback('error', t('syncFailedDetail', { error: String(error) }))
+      return false
+    } finally {
+      setActionState('idle')
+    }
   }
-
-  const dismissFeedback = (id: string) => {
-    setFeedbacks((current) => current.filter((item) => item.id !== id))
-  }
-
-  const workspace = useMemo(() => mapConfigToWorkspaceView(config, t), [config, t])
 
   const openCreate = () => {
     setEditingServer(null)
+    setEditorDirty(false)
     setView('editor')
   }
 
@@ -149,124 +365,57 @@ export default function App() {
       return
     }
     setEditingServer(server)
+    setEditorDirty(false)
     setView('editor')
   }
 
-  const handleDelete = (serverId: string) => {
+  const handleDelete = async (serverId: string) => {
     const row = workspace.rows.find((item) => item.id === serverId)
     if (!row) {
       return
     }
 
-    const confirmed = window.confirm(t('deleteConfirm', { name: row.name }))
+    const confirmed = await confirmDialog({
+      cancelLabel: t('cancel'),
+      kind: 'warning',
+      message: t('deleteConfirm', { name: row.name }),
+      okLabel: t('delete'),
+      title: t('delete'),
+    })
     if (!confirmed) {
       return
     }
 
-    setConfig((current) => ({
-      ...current,
-      servers: current.servers.filter((server) => server.id !== serverId),
-    }))
-    setUnsaved(true)
-    pushFeedback('warning', t('serverDeleted', { name: row.name }))
-  }
-
-  const handleToggleApp = (serverId: string, app: SupportedApp) => {
-    setConfig((current) => ({
-      ...current,
-      servers: current.servers.map((server) =>
-        server.id === serverId
-          ? { ...server, apps: { ...server.apps, [app]: !server.apps[app] } }
-          : server,
-      ),
-    }))
-    setUnsaved(true)
-  }
-
-  const handlePersist = async () => {
-    setActionState('saving')
-    try {
-      await saveConfig(config)
-      setUnsaved(false)
-      setSavedConfigSnapshot(config)
-      pushFeedback('success', t('saveSuccess'))
-    } catch (error) {
-      pushFeedback('error', t('saveFailedDetail', { error: String(error) }))
-    } finally {
-      setActionState('idle')
+    const saved = await commitConfigChange({
+      nextConfig: deleteServerFromConfig(config, serverId),
+      successMessage: t('serverDeleted', { name: row.name }),
+    })
+    if (saved) {
+      clearEditorState()
     }
+  }
+
+  const handleToggleApp = async (serverId: string, app: SupportedApp) => {
+    await commitConfigChange({
+      nextConfig: toggleServerAppInConfig(config, serverId, app),
+    })
   }
 
   const handleImport = async () => {
     setActionState('importing')
     try {
+      try {
+        const detected = await detectInstalledApps()
+        setVisibleApps(deriveVisibleApps(detected))
+      } catch (error) {
+        setVisibleApps([...SUPPORTED_APPS])
+        pushFeedback('warning', t('detectInstalledAppsFailedDetail', { error: String(error) }))
+      }
+
       const result = await importDetectedConfigs()
-      const detectedCount = result.sources.filter((source) => source.exists).length
-
-      if (result.config.servers.length === 0) {
-        pushFeedback(
-          result.errors.length > 0 ? 'error' : 'info',
-          result.errors.length > 0
-            ? `${t('importFailed')}: ${result.errors.join(' | ')}`
-            : t('importEmpty'),
-        )
-        return
-      }
-
-      setConfig(result.config)
-      setUnsaved(true)
-      setLastRiskSummary([])
-
-      pushFeedback(
-        'success',
-        t('importSummary', {
-          count: detectedCount,
-          servers: result.config.servers.length,
-        }),
-      )
-
-      for (const warning of result.warnings) {
-        pushFeedback('warning', warning)
-      }
-      for (const error of result.errors) {
-        pushFeedback('error', error)
-      }
+      await applyImportResult(result, config, 'manual')
     } catch (error) {
       pushFeedback('error', t('importFailedDetail', { error: String(error) }))
-    } finally {
-      setActionState('idle')
-    }
-  }
-
-  const handleApply = async () => {
-    const summary = evaluateApplyRisks(config.servers)
-    const riskLines = [...summary.warnings, ...summary.blockingErrors]
-    setLastRiskSummary(riskLines)
-
-    if (summary.blockingErrors.length > 0) {
-      for (const error of summary.blockingErrors) {
-        pushFeedback('error', error)
-      }
-      return
-    }
-
-    if (summary.warnings.length > 0) {
-      const confirmed = window.confirm(summary.warnings.join('\n'))
-      if (!confirmed) {
-        return
-      }
-    }
-
-    setActionState('applying')
-    try {
-      const result = await applyConfig(config)
-      await saveConfig(config)
-      setBackups(result.backups)
-      setUnsaved(false)
-      setSavedConfigSnapshot(config)
-      pushFeedback('success', t('applySuccess'))
-    } catch (error) {
-      pushFeedback('error', t('applyFailedDetail', { error: String(error) }))
     } finally {
       setActionState('idle')
     }
@@ -298,6 +447,14 @@ export default function App() {
     }
   }
 
+  const handleOpenRepository = async () => {
+    try {
+      await openRepositoryLink()
+    } catch (error) {
+      pushFeedback('error', t('openRepositoryFailedDetail', { error: String(error) }))
+    }
+  }
+
   const handleCopyCommand = async (serverId: string) => {
     const row = workspace.rows.find((item) => item.id === serverId)
     if (!row) {
@@ -312,27 +469,52 @@ export default function App() {
     }
   }
 
-  const handleSaveServer = (server: MCPServer) => {
-    setConfig((current) => {
-      const editingId = editingServer?.id
-      const exists = current.servers.some((item) => item.id === (editingId ?? server.id))
-      return {
-        ...current,
-        servers: exists
-          ? current.servers.map((item) => (item.id === (editingId ?? server.id) ? server : item))
-          : [...current.servers, server],
-      }
+  const handleSaveServer = async (server: MCPServer) => {
+    const nextConfig = mergeServerIntoConfig(config, editingServer?.id, server)
+    const saved = await commitConfigChange({
+      nextConfig,
+      successMessage: t(editingServer ? 'serverUpdated' : 'serverCreated', { name: server.name }),
     })
-    setUnsaved(true)
+
+    if (!saved) {
+      return
+    }
+
+    clearEditorState()
     setView('dashboard')
-    setEditingServer(null)
-    pushFeedback('success', t(editingServer ? 'serverUpdated' : 'serverCreated', { name: server.name }))
   }
 
-  const handleReset = () => {
-    setConfig(savedConfigSnapshot)
-    setUnsaved(false)
-    setLastRiskSummary([])
+  const handleEditorCancel = async () => {
+    if (
+      !shouldPromptForPendingChanges({
+        currentView: view,
+        nextAction: { kind: 'view', view: 'dashboard' },
+        workspaceDirty: false,
+        editorDirty,
+      })
+    ) {
+      navigateToView('dashboard')
+      return
+    }
+
+    const shouldDiscard = await confirmDialog({
+      cancelLabel: t('pendingChangesKeepEditing'),
+      kind: 'warning',
+      message: t('discardEditorChangesDescription'),
+      okLabel: t('pendingChangesDiscard'),
+      title: t('discardEditorChangesTitle'),
+    })
+
+    if (!shouldDiscard) {
+      return
+    }
+
+    navigateToView('dashboard')
+  }
+
+  const handleAutoSyncOnLaunchChange = (enabled: boolean) => {
+    setAutoSyncOnLaunch(enabled)
+    saveAutoSyncOnLaunchPreference(enabled)
   }
 
   const isBusy = actionState !== 'idle'
@@ -344,18 +526,20 @@ export default function App() {
         <ServerEditor
           server={editingServer}
           busy={isBusy}
-          onSave={handleSaveServer}
-          onCancel={() => {
-            setView('dashboard')
-            setEditingServer(null)
-          }}
+          visibleApps={visibleApps}
+          onDraftChange={(_draft, dirty) => setEditorDirty(dirty)}
+          onSave={(server) => void handleSaveServer(server)}
+          onCancel={() => void handleEditorCancel()}
         />
       ) : view === 'settings' ? (
         <SettingsPage
+          autoSyncOnLaunch={autoSyncOnLaunch}
           busy={isBusy}
           language={i18n.language}
+          onOpenRepository={() => void handleOpenRepository()}
+          onAutoSyncOnLaunchChange={handleAutoSyncOnLaunchChange}
           theme={theme}
-          onBack={() => setView('dashboard')}
+          onBack={() => navigateToView('dashboard')}
           onCheckUpdates={() => void handleCheckUpdates()}
           onLanguageChange={(language) => void i18n.changeLanguage(language)}
           onThemeChange={setTheme}
@@ -363,20 +547,17 @@ export default function App() {
       ) : (
         <Dashboard
           workspace={workspace}
-          unsaved={unsaved}
-          lastRiskSummary={lastRiskSummary}
           busy={actionState}
           canRollback={backups.length > 0}
+          visibleApps={visibleApps}
+          onOpenRepository={() => void handleOpenRepository()}
           onSyncLocalConfig={() => void handleImport()}
-          onOpenSettings={() => setView('settings')}
-          onReset={handleReset}
+          onOpenSettings={() => navigateToView('settings')}
           onCopyCommand={(serverId) => void handleCopyCommand(serverId)}
           onAdd={openCreate}
           onEdit={openEdit}
-          onDelete={handleDelete}
-          onToggleApp={handleToggleApp}
-          onSave={() => void handlePersist()}
-          onApply={() => void handleApply()}
+          onDelete={(serverId) => void handleDelete(serverId)}
+          onToggleApp={(serverId, app) => void handleToggleApp(serverId, app)}
           onRollback={() => void handleRollback()}
         />
       )}

@@ -1,14 +1,16 @@
-import { ArrowLeft, Monitor, Moon, RefreshCw, Search, SunMedium } from 'lucide-react'
+import { ArrowLeft, ExternalLink, Monitor, Moon, RefreshCw, Search, SunMedium } from 'lucide-react'
 import { useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { AppLogo } from './AppLogo'
-import { CLIENTS, PLANNED_CLIENTS } from './clientMeta'
 import { LanguageMenu } from './LanguageMenu'
 import { Tooltip } from './Tooltip'
 
 interface SettingsPageProps {
+  autoSyncOnLaunch: boolean
   busy: boolean
   language: string
+  onOpenRepository: () => void
+  onAutoSyncOnLaunchChange: (enabled: boolean) => void
   theme: 'light' | 'dark' | 'system'
   onBack: () => void
   onCheckUpdates: () => void
@@ -17,8 +19,11 @@ interface SettingsPageProps {
 }
 
 export function SettingsPage({
+  autoSyncOnLaunch,
   busy,
   language,
+  onOpenRepository,
+  onAutoSyncOnLaunchChange,
   theme,
   onBack,
   onCheckUpdates,
@@ -38,12 +43,14 @@ export function SettingsPage({
       {
         id: 'basic' as const,
         title: t('settingsGroupGeneral'),
-        keywords: [t('language'), t('theme')].join(' ').toLowerCase(),
+        keywords: [t('language'), t('theme'), t('settingsAutoSyncOnLaunch'), t('syncLocalConfig')]
+          .join(' ')
+          .toLowerCase(),
       },
       {
         id: 'about' as const,
         title: t('settingsGroupAbout'),
-        keywords: [t('settingsVersion'), t('settingsStack'), t('settingsAboutHelp'), t('checkUpdates')]
+        keywords: [t('settingsVersion'), t('settingsStack'), t('settingsAboutHelp'), t('checkUpdates'), t('settingsRepository')]
           .join(' ')
           .toLowerCase(),
       },
@@ -144,6 +151,18 @@ export function SettingsPage({
                     ))}
                   </div>
                 </div>
+                <div className="settings-item">
+                  <span>{t('settingsAutoSyncOnLaunch')}</span>
+                  <button
+                    type="button"
+                    className={autoSyncOnLaunch ? 'switch-control checked' : 'switch-control'}
+                    onClick={() => onAutoSyncOnLaunchChange(!autoSyncOnLaunch)}
+                    aria-pressed={autoSyncOnLaunch}
+                    aria-label={t('settingsAutoSyncOnLaunch')}
+                  >
+                    <span className="switch-thumb" />
+                  </button>
+                </div>
               </div>
             </section>
           ) : null}
@@ -152,7 +171,15 @@ export function SettingsPage({
             <section ref={sectionRefs.about} className="settings-card">
               <p className="settings-label">{t('settingsGroupAbout')}</p>
               <div className="settings-about-hero">
-                <AppLogo className="brand-logo settings-about-logo" alt={t('title')} />
+                <button
+                  type="button"
+                  className="settings-about-logo-button"
+                  onClick={onOpenRepository}
+                  aria-label={t('settingsRepositoryAction')}
+                  title={t('settingsRepositoryAction')}
+                >
+                  <AppLogo className="brand-logo settings-about-logo" alt={t('title')} />
+                </button>
                 <div className="settings-about-copy">
                   <div className="settings-about-topline">
                     <div className="settings-value">{t('title')}</div>
@@ -175,25 +202,16 @@ export function SettingsPage({
                   <span>{t('settingsVersion')}</span>
                   <strong>0.1.0</strong>
                 </div>
-                <div className="settings-item settings-item-stacked">
-                  <span>{t('settingsSupportedClients')}</span>
-                  <div className="settings-chip-row">
-                    {CLIENTS.map((client) => (
-                      <span key={client.id} className="settings-chip">
-                        {client.label}
-                      </span>
-                    ))}
-                  </div>
-                </div>
-                <div className="settings-item settings-item-stacked">
-                  <span>{t('settingsPlannedClients')}</span>
-                  <div className="settings-chip-row">
-                    {PLANNED_CLIENTS.map((client) => (
-                      <span key={client} className="settings-chip">
-                        {client}
-                      </span>
-                    ))}
-                  </div>
+                <div className="settings-item">
+                  <span>{t('settingsRepository')}</span>
+                  <button
+                    type="button"
+                    className="ghost-button compact settings-link-button"
+                    onClick={onOpenRepository}
+                  >
+                    <ExternalLink size={14} />
+                    {t('settingsRepositoryAction')}
+                  </button>
                 </div>
                 <div className="settings-item">
                   <span>{t('checkUpdates')}</span>

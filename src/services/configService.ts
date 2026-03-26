@@ -1,22 +1,11 @@
 import { invoke } from '@tauri-apps/api/core'
 import YAML from 'yaml'
-import type { ImportDetectedResult, MCPConfig } from '../types/config'
+import type { ImportDetectedResult, MCPConfig, SupportedApp } from '../types/config'
+import { SUPPORTED_APPS } from '../types/config'
+import { isDesktopRuntime } from './runtime'
 
 const CONFIG_PATH = 'config/servers.yaml'
 const BROWSER_CONFIG_KEY = 'mcp-manager-browser-config'
-
-function isTauriRuntime(): boolean {
-  if (typeof window === 'undefined') {
-    return false
-  }
-
-  const tauriWindow = window as {
-    __TAURI__?: { invoke?: unknown }
-    __TAURI_INTERNALS__?: { invoke?: unknown }
-  }
-
-  return typeof tauriWindow.__TAURI__?.invoke === 'function' || typeof tauriWindow.__TAURI_INTERNALS__?.invoke === 'function'
-}
 
 function defaultConfig(): MCPConfig {
   return {
@@ -43,6 +32,10 @@ function defaultConfig(): MCPConfig {
           geminiCli: true,
           antigravity: true,
           iFlow: true,
+          qwenCode: true,
+          cline: true,
+          windsurf: true,
+          kiro: true,
         },
       },
       {
@@ -61,6 +54,10 @@ function defaultConfig(): MCPConfig {
           geminiCli: true,
           antigravity: true,
           iFlow: true,
+          qwenCode: true,
+          cline: true,
+          windsurf: true,
+          kiro: true,
         },
       },
       {
@@ -84,6 +81,10 @@ function defaultConfig(): MCPConfig {
           geminiCli: true,
           antigravity: true,
           iFlow: true,
+          qwenCode: true,
+          cline: true,
+          windsurf: true,
+          kiro: true,
         },
       },
     ],
@@ -107,7 +108,7 @@ function loadBrowserConfig(): MCPConfig {
 }
 
 export async function loadConfig(): Promise<MCPConfig> {
-  if (!isTauriRuntime()) {
+  if (!isDesktopRuntime()) {
     return loadBrowserConfig()
   }
 
@@ -121,7 +122,7 @@ export async function loadConfig(): Promise<MCPConfig> {
 }
 
 export async function saveConfig(config: MCPConfig): Promise<void> {
-  if (!isTauriRuntime()) {
+  if (!isDesktopRuntime()) {
     window.localStorage.setItem(BROWSER_CONFIG_KEY, JSON.stringify(config))
     return
   }
@@ -135,7 +136,7 @@ export interface ApplyResult {
 }
 
 export async function applyConfig(config: MCPConfig): Promise<ApplyResult> {
-  if (!isTauriRuntime()) {
+  if (!isDesktopRuntime()) {
     window.localStorage.setItem(BROWSER_CONFIG_KEY, JSON.stringify(config))
     return { backups: ['browser-preview-backup'] }
   }
@@ -144,7 +145,7 @@ export async function applyConfig(config: MCPConfig): Promise<ApplyResult> {
 }
 
 export async function rollback(backups: string[]): Promise<void> {
-  if (!isTauriRuntime()) {
+  if (!isDesktopRuntime()) {
     if (backups.length > 0) {
       window.localStorage.setItem(BROWSER_CONFIG_KEY, JSON.stringify(defaultConfig()))
     }
@@ -155,7 +156,7 @@ export async function rollback(backups: string[]): Promise<void> {
 }
 
 export async function importDetectedConfigs(): Promise<ImportDetectedResult> {
-  if (!isTauriRuntime()) {
+  if (!isDesktopRuntime()) {
     const config = defaultConfig()
     window.localStorage.setItem(BROWSER_CONFIG_KEY, JSON.stringify(config))
     return {
@@ -170,4 +171,12 @@ export async function importDetectedConfigs(): Promise<ImportDetectedResult> {
   }
 
   return invoke<ImportDetectedResult>('import_detected_configs')
+}
+
+export async function detectInstalledApps(): Promise<SupportedApp[]> {
+  if (!isDesktopRuntime()) {
+    return [...SUPPORTED_APPS]
+  }
+
+  return invoke<SupportedApp[]>('detect_installed_apps')
 }
