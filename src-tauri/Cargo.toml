@@ -1,6 +1,6 @@
 [package]
 name = "mcp-manager"
-version = "0.1.2-rc.2"
+version = "0.1.2"
 description = "MCP Manager"
 authors = ["xJeway"]
 license = "MIT"
