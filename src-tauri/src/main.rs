@@ -8,7 +8,7 @@ mod storage;
 
 use commands::{
     apply_config, detect_installed_apps, import_detected_configs, load_yaml_config,
-    open_repository_link, rollback_from_backups, save_yaml_config,
+    open_releases_link, open_repository_link, rollback_from_backups, save_yaml_config,
 };
 
 fn main() {
@@ -19,6 +19,7 @@ fn main() {
         .invoke_handler(tauri::generate_handler![
             load_yaml_config,
             save_yaml_config,
+            open_releases_link,
             open_repository_link,
             import_detected_configs,
             detect_installed_apps,

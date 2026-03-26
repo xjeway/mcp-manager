@@ -186,6 +186,7 @@ Notes:
 - The script validates semver and refuses to tag if versions are not aligned.
 - Prerelease tags such as `v0.1.0-rc.1` are supported and will become GitHub prereleases in the workflow.
 - Windows x64 prerelease tags publish NSIS installers only because MSI bundling requires numeric-only prerelease identifiers.
+- The updater endpoint stays unavailable until the GitHub Release is published. While a release is still a draft, `releases/latest/download/latest.json` returns `404`.
 
 ## First Production Rollout Checklist
 

@@ -6,6 +6,7 @@ use std::fs;
 use std::process::Command;
 
 const REPOSITORY_URL: &str = "https://github.com/xjeway/mcp-manager";
+const RELEASES_URL: &str = "https://github.com/xjeway/mcp-manager/releases";
 
 #[tauri::command]
 pub fn load_yaml_config(relative_path: String) -> Result<String, String> {
@@ -43,6 +44,28 @@ pub fn open_repository_link() -> Result<(), String> {
             Ok(())
         } else {
             Err(format!("failed to open {}", REPOSITORY_URL))
+        }
+    })
+}
+
+#[tauri::command]
+pub fn open_releases_link() -> Result<(), String> {
+    #[cfg(target_os = "macos")]
+    let status = Command::new("open").arg(RELEASES_URL).status();
+
+    #[cfg(target_os = "windows")]
+    let status = Command::new("cmd")
+        .args(["/C", "start", "", RELEASES_URL])
+        .status();
+
+    #[cfg(all(unix, not(target_os = "macos")))]
+    let status = Command::new("xdg-open").arg(RELEASES_URL).status();
+
+    status.map_err(|e| e.to_string()).and_then(|status| {
+        if status.success() {
+            Ok(())
+        } else {
+            Err(format!("failed to open {}", RELEASES_URL))
         }
     })
 }
