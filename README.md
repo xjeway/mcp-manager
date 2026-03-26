@@ -33,6 +33,10 @@
 - Use light mode, dark mode, or system theme
 - Work in English or Simplified Chinese
 
+## Screenshots
+
+![MCP Manager interface in English](./docs/page-en.png)
+
 ## Download & Installation
 
 ### System Requirements
