@@ -1,6 +1,6 @@
 import { Copy, LoaderCircle, PenSquare, Plus, RefreshCw, RotateCcw, Settings, Trash2 } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
-import { CLIENTS } from './clientMeta'
+import { getVisibleClients } from './clientMeta'
 import { AppLogo } from './AppLogo'
 import { Tooltip } from './Tooltip'
 import type { WorkspaceViewModel } from '../view-models/workspace'
@@ -43,7 +43,7 @@ export function Dashboard({
 }: DashboardProps) {
   const { t } = useTranslation()
   const loading = busy === 'loading'
-  const visibleClients = CLIENTS.filter((client) => visibleApps.includes(client.id))
+  const visibleClients = getVisibleClients(visibleApps)
 
   return (
     <div className="app-shell shell-flat dashboard-shell">

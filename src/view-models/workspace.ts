@@ -1,6 +1,6 @@
 import type { TFunction } from 'i18next'
 import type { ReactNode } from 'react'
-import { CLIENTS } from '../components/clientMeta'
+import { getVisibleClients } from '../components/clientMeta'
 import type { MCPConfig, MCPServer, SupportedApp } from '../types/config'
 
 export interface FeedbackItem {
@@ -83,7 +83,7 @@ export function mapConfigToWorkspaceView(
   visibleApps: SupportedApp[],
   t: TFunction,
 ): WorkspaceViewModel {
-  const visibleClients = CLIENTS.filter((client) => visibleApps.includes(client.id))
+  const visibleClients = getVisibleClients(visibleApps)
   return {
     stats: visibleClients.map((client) => ({
       ...client,

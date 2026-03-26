@@ -99,6 +99,14 @@ export const CLIENTS: ClientMeta[] = [
   },
 ]
 
+export const CLIENTS_BY_LABEL = [...CLIENTS].sort((left, right) =>
+  left.label.localeCompare(right.label, 'en', { sensitivity: 'base' }),
+)
+
+export function getVisibleClients(visibleApps: readonly SupportedApp[]): ClientMeta[] {
+  return CLIENTS_BY_LABEL.filter((client) => visibleApps.includes(client.id))
+}
+
 export const PLANNED_CLIENTS = [
   'RooCode',
   'Kilo Code',

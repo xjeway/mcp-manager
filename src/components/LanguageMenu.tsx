@@ -3,15 +3,16 @@ import { useTranslation } from 'react-i18next'
 interface LanguageMenuProps {
   language: string
   onChange: (language: 'zh-CN' | 'en-US') => void
+  selectClassName?: string
 }
 
-export function LanguageMenu({ language, onChange }: LanguageMenuProps) {
+export function LanguageMenu({ language, onChange, selectClassName }: LanguageMenuProps) {
   const { t } = useTranslation()
 
   return (
     <label className="settings-select-wrap" aria-label={t('language')}>
       <select
-        className="settings-select"
+        className={selectClassName ? `settings-select ${selectClassName}` : 'settings-select'}
         value={language}
         onChange={(event) => onChange(event.target.value as 'zh-CN' | 'en-US')}
       >

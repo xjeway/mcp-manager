@@ -1308,6 +1308,7 @@ button {
   width: 100%;
   display: flex;
   align-items: center;
+  gap: 10px;
   padding: 10px 12px;
   border: 1px solid transparent;
   border-radius: 12px;
@@ -1316,6 +1317,22 @@ button {
   font-size: 0.86rem;
   font-weight: 600;
   text-align: left;
+}
+
+.settings-nav-item-copy {
+  min-width: 0;
+}
+
+.settings-nav-item-icon {
+  width: 22px;
+  height: 22px;
+  border-radius: 8px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex: none;
+  color: var(--muted);
+  background: color-mix(in srgb, var(--panel-muted) 82%, transparent);
 }
 
 .settings-nav-item:hover {
@@ -1329,6 +1346,11 @@ button {
   border-color: color-mix(in srgb, var(--accent) 26%, var(--line));
   background: color-mix(in srgb, var(--accent) 12%, var(--panel-muted));
   box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.03);
+}
+
+.settings-nav-item.active .settings-nav-item-icon {
+  color: var(--accent);
+  background: color-mix(in srgb, var(--accent) 14%, var(--panel-muted));
 }
 
 .settings-content {
@@ -1355,9 +1377,25 @@ button {
   font-size: 0.9rem;
 }
 
-.settings-item-stacked {
-  align-items: flex-start;
-  flex-direction: column;
+.settings-item-label {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  flex: 1;
+  min-width: 0;
+  font-weight: 600;
+}
+
+.settings-item-icon {
+  width: 24px;
+  height: 24px;
+  border-radius: 9px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex: none;
+  color: var(--accent);
+  background: color-mix(in srgb, var(--accent) 10%, var(--panel-muted));
 }
 
 .settings-item-copy {
@@ -1484,6 +1522,13 @@ button {
 .settings-action-slot {
   display: inline-flex;
   align-items: center;
+  justify-content: flex-end;
+  flex: none;
+  min-width: 0;
+}
+
+.settings-action-slot-theme {
+  max-width: 100%;
 }
 
 .settings-header-hint {
@@ -1517,6 +1562,14 @@ button {
   pointer-events: none;
 }
 
+.settings-select-compact {
+  min-width: 104px;
+  height: 28px;
+  padding: 0 24px 0 9px;
+  border-radius: 8px;
+  font-size: 0.76rem;
+}
+
 .settings-segment-control {
   padding: 4px;
   border-radius: 12px;
@@ -1528,6 +1581,43 @@ button {
 .settings-segment-control .segment-button {
   min-width: 74px;
   justify-content: center;
+}
+
+.settings-segment-control-compact {
+  padding: 2px;
+  border-radius: 9px;
+}
+
+.settings-segment-control-compact .segment-button {
+  min-width: 56px;
+  padding: 5px 8px;
+  gap: 5px;
+  border-radius: 8px;
+  font-size: 0.7rem;
+}
+
+.settings-switch-compact {
+  width: 34px;
+  height: 20px;
+}
+
+.settings-switch-compact .switch-thumb {
+  width: 14px;
+  height: 14px;
+}
+
+.settings-button-compact {
+  min-height: 28px;
+  padding: 5px 9px;
+  border-radius: 9px;
+  font-size: 0.74rem;
+}
+
+.settings-item-value-compact {
+  font-size: 0.78rem;
+  font-weight: 600;
+  line-height: 1.35;
+  white-space: nowrap;
 }
 
 .dashboard-floating-save-wrap {

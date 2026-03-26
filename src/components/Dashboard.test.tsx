@@ -95,4 +95,38 @@ describe('Dashboard', () => {
     expect(html).not.toContain('aria-label="apply"')
     expect(html).not.toContain('riskSummary')
   })
+
+  it('renders visible client pills in alphabetical order by name', () => {
+    const html = renderToStaticMarkup(
+      <Dashboard
+        busy="idle"
+        canRollback={false}
+        visibleApps={['vscode', 'kiro', 'cursor']}
+        workspace={{
+          stats: [],
+          rows: [
+            {
+              id: 'server-1',
+              name: 'Server 1',
+              transportLabel: 'STDIO',
+              copyValue: 'npx example',
+              enabledApps: ['cursor', 'kiro', 'vscode'],
+            },
+          ],
+        }}
+        onAdd={() => {}}
+        onOpenRepository={() => {}}
+        onSyncLocalConfig={() => {}}
+        onOpenSettings={() => {}}
+        onDelete={() => {}}
+        onEdit={() => {}}
+        onRollback={() => {}}
+        onToggleApp={() => {}}
+        onCopyCommand={() => {}}
+      />,
+    )
+
+    expect(html.indexOf('alt="Cursor"')).toBeLessThan(html.indexOf('alt="Kiro"'))
+    expect(html.indexOf('alt="Kiro"')).toBeLessThan(html.indexOf('alt="VS Code"'))
+  })
 })

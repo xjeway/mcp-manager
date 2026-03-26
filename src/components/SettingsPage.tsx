@@ -1,5 +1,5 @@
-import { ArrowLeft, ExternalLink, Monitor, Moon, RefreshCw, Search, SunMedium } from 'lucide-react'
-import { useMemo, useRef, useState } from 'react'
+import { ArrowLeft, BadgeInfo, Boxes, ExternalLink, FolderGit2, Languages, Monitor, Moon, Palette, RefreshCw, Search, SunMedium } from 'lucide-react'
+import { type ReactNode, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { AppLogo } from './AppLogo'
 import { LanguageMenu } from './LanguageMenu'
@@ -16,6 +16,17 @@ interface SettingsPageProps {
   onCheckUpdates: () => void
   onLanguageChange: (language: 'zh-CN' | 'en-US') => void
   onThemeChange: (theme: 'light' | 'dark' | 'system') => void
+}
+
+function SettingsItemLabel({ icon, label }: { icon: ReactNode; label: string }) {
+  return (
+    <div className="settings-item-label">
+      <span className="settings-item-icon" aria-hidden="true">
+        {icon}
+      </span>
+      <span>{label}</span>
+    </div>
+  )
 }
 
 export function SettingsPage({
@@ -43,6 +54,7 @@ export function SettingsPage({
       {
         id: 'basic' as const,
         title: t('settingsGroupGeneral'),
+        icon: <Boxes size={14} />,
         keywords: [t('language'), t('theme'), t('settingsAutoSyncOnLaunch'), t('syncLocalConfig')]
           .join(' ')
           .toLowerCase(),
@@ -50,6 +62,7 @@ export function SettingsPage({
       {
         id: 'about' as const,
         title: t('settingsGroupAbout'),
+        icon: <BadgeInfo size={14} />,
         keywords: [t('settingsVersion'), t('settingsStack'), t('settingsAboutHelp'), t('checkUpdates'), t('settingsRepository')]
           .join(' ')
           .toLowerCase(),
@@ -108,7 +121,10 @@ export function SettingsPage({
                 className={activeSection === section.id ? 'settings-nav-item active' : 'settings-nav-item'}
                 onClick={() => scrollToSection(section.id)}
               >
-                {section.title}
+                <span className="settings-nav-item-icon" aria-hidden="true">
+                  {section.icon}
+                </span>
+                <span className="settings-nav-item-copy">{section.title}</span>
               </button>
             ))}
           </nav>
@@ -126,36 +142,38 @@ export function SettingsPage({
               <p className="settings-label">{t('settingsGroupGeneral')}</p>
               <div className="settings-list">
                 <div className="settings-item">
-                  <span>{t('language')}</span>
+                  <SettingsItemLabel icon={<Languages size={14} />} label={t('language')} />
                   <div className="settings-action-slot">
-                    <LanguageMenu language={language} onChange={onLanguageChange} />
-                  </div>
-                </div>
-                <div className="settings-item settings-item-stacked">
-                  <span>{t('theme')}</span>
-                  <div className="segment-control settings-segment-control">
-                    {([
-                      { icon: <SunMedium size={14} />, label: t('light'), value: 'light' as const },
-                      { icon: <Moon size={14} />, label: t('dark'), value: 'dark' as const },
-                      { icon: <Monitor size={14} />, label: t('system'), value: 'system' as const },
-                    ]).map((option) => (
-                      <button
-                        key={option.value}
-                        type="button"
-                        className={theme === option.value ? 'segment-button active' : 'segment-button'}
-                        onClick={() => onThemeChange(option.value)}
-                      >
-                        {option.icon}
-                        <span>{option.label}</span>
-                      </button>
-                    ))}
+                    <LanguageMenu language={language} onChange={onLanguageChange} selectClassName="settings-select-compact" />
                   </div>
                 </div>
                 <div className="settings-item">
-                  <span>{t('settingsAutoSyncOnLaunch')}</span>
+                  <SettingsItemLabel icon={<Palette size={14} />} label={t('theme')} />
+                  <div className="settings-action-slot settings-action-slot-theme">
+                    <div className="segment-control settings-segment-control settings-segment-control-compact">
+                      {([
+                        { icon: <SunMedium size={14} />, label: t('light'), value: 'light' as const },
+                        { icon: <Moon size={14} />, label: t('dark'), value: 'dark' as const },
+                        { icon: <Monitor size={14} />, label: t('system'), value: 'system' as const },
+                      ]).map((option) => (
+                        <button
+                          key={option.value}
+                          type="button"
+                          className={theme === option.value ? 'segment-button active' : 'segment-button'}
+                          onClick={() => onThemeChange(option.value)}
+                        >
+                          {option.icon}
+                          <span>{option.label}</span>
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                </div>
+                <div className="settings-item">
+                  <SettingsItemLabel icon={<RefreshCw size={14} />} label={t('settingsAutoSyncOnLaunch')} />
                   <button
                     type="button"
-                    className={autoSyncOnLaunch ? 'switch-control checked' : 'switch-control'}
+                    className={autoSyncOnLaunch ? 'switch-control settings-switch-compact checked' : 'switch-control settings-switch-compact'}
                     onClick={() => onAutoSyncOnLaunchChange(!autoSyncOnLaunch)}
                     aria-pressed={autoSyncOnLaunch}
                     aria-label={t('settingsAutoSyncOnLaunch')}
@@ -195,18 +213,18 @@ export function SettingsPage({
               </div>
               <div className="settings-list">
                 <div className="settings-item">
-                  <span>{t('settingsStack')}</span>
-                  <strong>Tauri 2 / React / Rust</strong>
+                  <SettingsItemLabel icon={<Boxes size={14} />} label={t('settingsStack')} />
+                  <strong className="settings-item-value-compact">Tauri 2 / React / Rust</strong>
                 </div>
                 <div className="settings-item">
-                  <span>{t('settingsVersion')}</span>
-                  <strong>0.1.0</strong>
+                  <SettingsItemLabel icon={<BadgeInfo size={14} />} label={t('settingsVersion')} />
+                  <strong className="settings-item-value-compact">0.1.0</strong>
                 </div>
                 <div className="settings-item">
-                  <span>{t('settingsRepository')}</span>
+                  <SettingsItemLabel icon={<FolderGit2 size={14} />} label={t('settingsRepository')} />
                   <button
                     type="button"
-                    className="ghost-button compact settings-link-button"
+                    className="ghost-button compact settings-link-button settings-button-compact"
                     onClick={onOpenRepository}
                   >
                     <ExternalLink size={14} />
@@ -214,8 +232,13 @@ export function SettingsPage({
                   </button>
                 </div>
                 <div className="settings-item">
-                  <span>{t('checkUpdates')}</span>
-                  <button type="button" className="ghost-button compact settings-update-button" onClick={onCheckUpdates} disabled={busy}>
+                  <SettingsItemLabel icon={<Monitor size={14} />} label={t('checkUpdates')} />
+                  <button
+                    type="button"
+                    className="ghost-button compact settings-update-button settings-button-compact"
+                    onClick={onCheckUpdates}
+                    disabled={busy}
+                  >
                     <RefreshCw size={14} />
                     {t('checkUpdates')}
                   </button>

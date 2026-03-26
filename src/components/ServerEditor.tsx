@@ -2,7 +2,7 @@ import type { ReactNode } from 'react'
 import { useEffect, useState } from 'react'
 import { ArrowLeft, Check, Code, LayoutTemplate, Plus, Trash2 } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
-import { CLIENTS } from './clientMeta'
+import { getVisibleClients } from './clientMeta'
 import { parseMcpJson } from '../services/jsonParser'
 import type { MCPServer } from '../types/config'
 import {
@@ -86,7 +86,7 @@ export function ServerEditor({
   const [jsonText, setJsonText] = useState(() => serverToJsonText(server))
   const [warnings, setWarnings] = useState<string[]>([])
   const [errors, setErrors] = useState<string[]>([])
-  const visibleClients = CLIENTS.filter((client) => visibleApps.includes(client.id))
+  const visibleClients = getVisibleClients(visibleApps)
 
   useEffect(() => {
     const nextDraft = server ? serverToEditorDraft(server) : createEmptyEditorDraft()
