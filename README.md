@@ -1,40 +1,175 @@
-# MCP Manager
-
 <p align="center">
   <img src="./src-tauri/icons/app-icon-rounded.png" alt="MCP Manager logo" width="160" height="160" />
 </p>
 
+<h1 align="center">MCP Manager</h1>
+
 <p align="center">
-  A desktop app for managing MCP server configuration with one unified workspace.
+  A cross-platform desktop app for managing MCP server configs across Claude Code, Codex, Cursor, VS Code, OpenCode, Gemini CLI, and more.
 </p>
 
 <p align="center">
-  English | <a href="./README.zh-CN.md">简体中文</a>
+  <a href="./LICENSE"><img src="https://img.shields.io/badge/license-MIT-0f172a.svg" alt="MIT License" /></a>
+  <img src="https://img.shields.io/badge/Tauri-2-24c8db.svg" alt="Tauri 2" />
+  <img src="https://img.shields.io/badge/React-19-61dafb.svg" alt="React 19" />
+  <img src="https://img.shields.io/badge/Rust-stable-f74c00.svg" alt="Rust stable" />
+  <img src="https://img.shields.io/badge/platform-macOS%20%7C%20Windows%20%7C%20Linux-16a34a.svg" alt="Cross-platform" />
 </p>
 
-## Overview
+<p align="center">
+  English | <a href="./README.zh-CN.md">简体中文</a> | <a href="https://github.com/xjeway/mcp-manager/releases/latest">Latest Release</a> | <a href="./docs/releasing.md">Release Guide</a>
+</p>
 
-`MCP Manager` helps you maintain MCP server definitions in one place, then render and apply them to different clients such as VS Code, Cursor, Claude Code, and Codex.
+## Why MCP Manager
 
-The project is built as a desktop application with:
+`MCP Manager` is a cross-platform desktop app for people who do not want to hand-edit multiple MCP client configs.
 
-- Tauri 2 + Rust backend
-- React + TypeScript frontend
-- YAML as the source of truth
-- Multi-client import / apply workflow
-
-## Features
-
-- Unified MCP workspace for all configured servers
-- Create and edit servers in form mode or JSON mode
+- Keep a unified MCP workspace for all configured servers
 - Import existing entries from local client configuration
+- Edit servers in form mode or raw JSON mode
 - Apply generated configuration to multiple supported clients
-- Backup and rollback support during apply
-- Warnings for risky changes before write
-- Light mode, dark mode, and system theme support
-- English and Simplified Chinese UI
+- Review risky writes before files change
+- Keep backups and rollback support during apply
+- Use light mode, dark mode, or system theme
+- Work in English or Simplified Chinese
+
+## Download & Installation
+
+### System Requirements
+
+- Desktop packages are published for macOS, Windows, and Linux
+- Building from source requires Node.js 20+, npm 10+, Rust stable, and Tauri system dependencies for your platform
+
+### macOS
+
+#### Homebrew
+
+```bash
+# Coming soon
+brew tap xjeway/tap
+brew install --cask mcp-manager
+brew update
+brew upgrade --cask mcp-manager
+```
+
+#### Manual Download
+
+Download from:
+
+- <https://github.com/xjeway/mcp-manager/releases/latest>
+
+Example macOS asset names:
+
+- `MCP-Manager-<version>-<arch>.dmg`
+
+Arch guide:
+
+- Apple Silicon Macs: choose `arm64` or `aarch64` assets
+- Intel Macs: choose `x64` or `x86_64` assets
+
+After downloading the correct macOS asset, open it locally:
+
+```bash
+open ~/Downloads/MCP-Manager*.dmg
+```
+
+### Windows
+
+#### Manual Download
+
+Download from:
+
+- <https://github.com/xjeway/mcp-manager/releases/latest>
+
+Example Windows asset names:
+
+- `MCP-Manager-<version>-<arch>-setup.exe`
+- `MCP-Manager-<version>-x64.msi`
+
+Arch guide:
+
+- Windows on ARM devices: choose the `arm64` installer asset
+- Intel / AMD PCs: choose the `x64` or `x86_64` installer asset
+
+Package guide:
+
+- `setup.exe`: available for both Windows x64 and Windows arm64
+- `.msi`: currently published for Windows x64
+
+Choose the asset that matches your arch, then run it locally:
+
+```powershell
+Start-Process "C:\Path\To\MCP-Manager-Setup.exe"
+# or
+msiexec /i "C:\Path\To\MCP-Manager.msi"
+```
+
+### Linux Users
+
+Download the latest Linux build from the [Releases](https://github.com/xjeway/mcp-manager/releases/latest) page:
+
+Example Linux asset names:
+
+- `mcp-manager_<version>_<arch>.deb` (Debian/Ubuntu)
+- `mcp-manager-<version>.<arch>.rpm` (Fedora/RHEL/openSUSE)
+- `MCP-Manager-<version>-<arch>.AppImage` (Universal)
+
+Expanded distro guide:
+
+- `.deb`: Debian, Ubuntu, Linux Mint, Pop!_OS, elementary OS, and other Debian-based distributions
+- `.rpm`: Fedora, RHEL, Rocky Linux, AlmaLinux, openSUSE, and other RPM-based distributions
+- `.AppImage`: portable option for desktop Linux when you do not want a system package
+
+Arch guide:
+
+- `x86_64` or `amd64` for most Intel and AMD 64-bit PCs
+- `arm64` or `aarch64` for ARM64 Linux devices, when that asset is published in the release
+
+Install with the matching command:
+
+```bash
+# Debian / Ubuntu
+sudo dpkg -i ./mcp-manager_<version>_amd64.deb
+
+# Fedora / RHEL / openSUSE
+sudo rpm -i ./mcp-manager-<version>.x86_64.rpm
+
+# AppImage
+chmod +x ./MCP-Manager-<version>.AppImage
+./MCP-Manager-<version>.AppImage
+```
+
+### Build From Source
+
+Install dependencies:
+
+```bash
+make install
+```
+
+Run the desktop app:
+
+```bash
+make tauri-dev
+```
+
+Run the web UI only:
+
+```bash
+make dev
+```
+
+## Quick Start
+
+1. Launch `MCP Manager`.
+2. Import existing entries from local client configuration files.
+3. Edit servers in form mode or JSON mode.
+4. Apply the generated config to one or more supported clients.
+5. Review warnings, then write with backup and rollback protection.
 
 ## Supported Clients
+
+### Available Now
 
 | Client | Import | Apply |
 | --- | --- | --- |
@@ -47,86 +182,19 @@ The project is built as a desktop application with:
 | Gemini CLI | ✅ | ✅ |
 | Antigravity | ✅ | ✅ |
 | iFlow | ✅ | ✅ |
+| Qwen Code | ✅ | ✅ |
+| Cline | ✅ | ✅ |
+| Windsurf | ✅ | ✅ |
+| Kiro | ✅ | ✅ |
 | VS Code | ✅ | ✅ |
-| Windsurf | Planned | Planned |
-| Cline | Planned | Planned |
-| RooCode | Planned | Planned |
-| Kilo Code | Planned | Planned |
-| Amazon Q | Planned | Planned |
-| Qoder | Planned | Planned |
-| Auggie CLI | Planned | Planned |
-| Qwen Code | Planned | Planned |
-| CodeBuddy | Planned | Planned |
-| CoStrict | Planned | Planned |
-| Crush | Planned | Planned |
-| Factory Droid | Planned | Planned |
 
-The current implementation ships import/apply adapters for VS Code, Cursor, Claude Code, Claude Desktop, Codex, OpenCode, GitHub Copilot CLI config, Gemini CLI, Antigravity, and iFlow. The remaining clients above are tracked as roadmap targets and are not yet wired into the Rust adapter layer.
-
-## Screenshots
-
-Desktop UI screenshots and references are available in [`docs/`](./docs/) and the historical UI reference project [`mcp-server-manager/`](./mcp-server-manager/).
-
-## Getting Started
-
-### Prerequisites
-
-- Node.js 20+
-- npm 10+
-- Rust stable toolchain
-- Tauri system dependencies for your platform
-
-### Install
-
-```bash
-make install
-```
-
-### Run in Web Mode
-
-```bash
-make dev
-```
-
-### Run as Desktop App
-
-```bash
-make tauri-dev
-```
-
-### Build
-
-```bash
-make build
-```
-
-### Test
-
-```bash
-make test
-```
-
-### Full Check
-
-```bash
-make check
-```
-
-## Common Commands
-
-```bash
-npm run dev
-npm run build
-npm test
-npm run tauri -- dev
-npm run tauri -- build
-```
-
-## Configuration Model
+## How It Works
 
 - Canonical data is stored in `config/servers.yaml`
 - The app reads local client configuration and converts it into the internal model
-- Apply writes client-specific output with backup and rollback support
+- Apply writes client-specific output with atomic updates, backup, and rollback support
+
+## Scope
 
 Current scope is focused on configuration management. Runtime lifecycle management such as process start, stop, logs, and health checks is intentionally out of scope for v1.
 
@@ -136,8 +204,8 @@ Current scope is focused on configuration management. Runtime lifecycle manageme
 mcp-manager/
   src/                frontend application
   src-tauri/          tauri app + rust backend
-  public/             static assets
-  docs/               notes and design references
+  public/             static assets and branding
+  docs/               release notes and design references
   openspec/           change and spec tracking
 ```
 
@@ -150,12 +218,52 @@ mcp-manager/
 - `storage`: atomic write, backup, and rollback
 - `commands`: Tauri commands exposed to the frontend
 
+## Development
+
+```bash
+make install
+make dev
+make tauri-dev
+make build
+make test
+make check
+make tauri-build
+```
+
+## Release Automation
+
+This repository includes GitHub Actions workflows for CI and desktop release packaging with the official Tauri release action.
+
+See [`docs/releasing.md`](./docs/releasing.md) for:
+
+- tag-driven GitHub Release publishing
+- macOS, Windows, and Linux package generation
+- updater signing setup
+- optional platform code signing
+- version sync and git tag helper commands
+
 ## Contributing
 
 Issues and pull requests are welcome.
 
 If you plan to contribute a non-trivial change, open an issue or discussion first so the scope and direction are clear before implementation.
 
+### Local Development
+
+```bash
+make install
+make tauri-dev
+```
+
+### Before Opening a PR
+
+```bash
+make test
+make check
+```
+
+Keep [`README.md`](./README.md) and [`README.zh-CN.md`](./README.zh-CN.md) in sync when changing user-facing project documentation.
+
 ## License
 
-MIT
+MIT @ xJeway
