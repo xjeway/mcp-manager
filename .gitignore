@@ -41,3 +41,5 @@ config/
 *.tmp
 *.swp
 tmp
+*superpowers/
+openspec

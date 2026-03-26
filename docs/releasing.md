@@ -103,12 +103,21 @@ If the GitHub owner or repository name changes, update the endpoint URL accordin
 
 ## Release Process
 
-1. Bump the app version consistently in:
-   - `package.json`
-   - `src-tauri/tauri.conf.json`
-   - `src-tauri/Cargo.toml`
-2. Commit and push to `main`.
-3. Create and push a Git tag such as `v0.1.0`.
+1. Prepare the release locally:
+
+   ```bash
+   make release-prepare VERSION=0.1.1
+   ```
+
+   This syncs the version across release files, verifies alignment, and runs the standard checks.
+2. Commit the version bump and push it to `main`.
+3. Publish the release tag:
+
+   ```bash
+   make release-publish VERSION=0.1.1
+   ```
+
+   This re-verifies the version, creates the annotated `v0.1.1` tag, and pushes it to GitHub.
 4. GitHub Actions creates a draft release and uploads the platform installers.
 5. Verify artifacts, publish the draft release, and test updater behavior from an installed app.
 
@@ -122,13 +131,29 @@ Show current versions:
 npm run release:current
 ```
 
+Recommended `make` wrappers:
+
+Prepare a release locally:
+
+```bash
+make release-prepare VERSION=0.1.1
+```
+
+After committing and pushing the release commit to `main`, publish the tag:
+
+```bash
+make release-publish VERSION=0.1.1
+```
+
+Granular commands are still available when you want tighter control.
+
 Sync a new version across `package.json`, `package-lock.json`, `src-tauri/tauri.conf.json`, and `src-tauri/Cargo.toml`:
 
 ```bash
 npm run release:sync -- 0.1.1
 ```
 
-Or:
+Or, if you only want the version sync step:
 
 ```bash
 make release-sync VERSION=0.1.1
@@ -149,6 +174,8 @@ git push origin v0.1.1
 
 Notes:
 
+- `release-prepare` intentionally stops before `git commit` so the version bump remains reviewable.
+- `release-publish` assumes the release commit is already pushed to `main`.
 - `release:tag` requires a clean git working tree.
 - The script validates semver and refuses to tag if versions are not aligned.
 - Prerelease tags such as `v0.1.0-rc.1` are supported and will become GitHub prereleases in the workflow.
