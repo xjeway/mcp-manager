@@ -30,7 +30,7 @@ describe('release workflow structure', () => {
 
     for (const step of tauriSteps) {
       expect(step.with.releaseId).toBe('${{ needs.prepare-release.outputs.release_id }}')
-      expect(step.with.uploadUpdaterJson).toBe(false)
+      expect(step.with.includeUpdaterJson).toBe(false)
       expect(step.with.tagName).toBeUndefined()
     }
   })

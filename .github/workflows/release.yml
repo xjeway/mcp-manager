@@ -130,7 +130,7 @@ jobs:
         with:
           releaseId: ${{ needs.prepare-release.outputs.release_id }}
           args: ${{ steps.release_args.outputs.args }}
-          uploadUpdaterJson: false
+          includeUpdaterJson: false
 
       - name: Run Tauri release (macOS signed)
         if: startsWith(matrix.platform, 'macos-') && env.HAS_APPLE_SIGNING == 'true' && env.HAS_APPLE_NOTARIZATION != 'true'
@@ -145,7 +145,7 @@ jobs:
         with:
           releaseId: ${{ needs.prepare-release.outputs.release_id }}
           args: ${{ steps.release_args.outputs.args }}
-          uploadUpdaterJson: false
+          includeUpdaterJson: false
 
       - name: Run Tauri release (macOS unsigned)
         if: startsWith(matrix.platform, 'macos-') && env.HAS_APPLE_SIGNING != 'true'
@@ -157,7 +157,7 @@ jobs:
         with:
           releaseId: ${{ needs.prepare-release.outputs.release_id }}
           args: ${{ steps.release_args.outputs.args }}
-          uploadUpdaterJson: false
+          includeUpdaterJson: false
 
       - name: Run Tauri release (Windows signed)
         if: startsWith(matrix.platform, 'windows-') && env.HAS_WINDOWS_SIGNING == 'true'
@@ -171,7 +171,7 @@ jobs:
         with:
           releaseId: ${{ needs.prepare-release.outputs.release_id }}
           args: ${{ steps.release_args.outputs.args }}
-          uploadUpdaterJson: false
+          includeUpdaterJson: false
 
       - name: Run Tauri release (Windows unsigned)
         if: startsWith(matrix.platform, 'windows-') && env.HAS_WINDOWS_SIGNING != 'true'
@@ -183,7 +183,7 @@ jobs:
         with:
           releaseId: ${{ needs.prepare-release.outputs.release_id }}
           args: ${{ steps.release_args.outputs.args }}
-          uploadUpdaterJson: false
+          includeUpdaterJson: false
 
       - name: Run Tauri release (Linux)
         if: startsWith(matrix.platform, 'ubuntu-')
@@ -195,7 +195,7 @@ jobs:
         with:
           releaseId: ${{ needs.prepare-release.outputs.release_id }}
           args: ${{ steps.release_args.outputs.args }}
-          uploadUpdaterJson: false
+          includeUpdaterJson: false
 
   publish-updater:
     name: Publish updater metadata
