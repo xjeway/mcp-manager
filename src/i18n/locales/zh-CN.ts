@@ -108,6 +108,7 @@ const zhCN = {
   addEnv: '添加变量',
   addArg: '添加参数',
   checkForUpdates: '检查更新',
+  checkingUpdates: '检查中...',
   noArguments: '暂未添加参数',
   noEnvironmentVariables: '暂未添加环境变量',
 }

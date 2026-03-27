@@ -15,6 +15,7 @@ describe('SettingsPage', () => {
         appVersion="9.9.9"
         autoSyncOnLaunch
         busy={false}
+        checkingUpdates={false}
         language="zh-CN"
         onOpenRepository={() => {}}
         onAutoSyncOnLaunchChange={() => {}}
@@ -38,6 +39,7 @@ describe('SettingsPage', () => {
         appVersion="9.9.9"
         autoSyncOnLaunch
         busy={false}
+        checkingUpdates={false}
         language="zh-CN"
         onOpenRepository={() => {}}
         onAutoSyncOnLaunchChange={() => {}}
@@ -64,6 +66,7 @@ describe('SettingsPage', () => {
         appVersion="9.9.9"
         autoSyncOnLaunch
         busy={false}
+        checkingUpdates={false}
         language="zh-CN"
         onOpenRepository={() => {}}
         onAutoSyncOnLaunchChange={() => {}}
@@ -86,6 +89,7 @@ describe('SettingsPage', () => {
         appVersion="2.3.4"
         autoSyncOnLaunch
         busy={false}
+        checkingUpdates={false}
         language="zh-CN"
         onOpenRepository={() => {}}
         onAutoSyncOnLaunchChange={() => {}}
@@ -99,5 +103,30 @@ describe('SettingsPage', () => {
 
     expect(html).toContain('v2.3.4')
     expect(html).toContain('>2.3.4<')
+  })
+
+  it('renders a dedicated animated state while checking for updates', () => {
+    const html = renderToStaticMarkup(
+      <SettingsPage
+        appVersion="2.3.4"
+        autoSyncOnLaunch
+        busy={false}
+        checkingUpdates
+        language="zh-CN"
+        onOpenRepository={() => {}}
+        onAutoSyncOnLaunchChange={() => {}}
+        theme="system"
+        onBack={() => {}}
+        onCheckUpdates={() => {}}
+        onLanguageChange={() => {}}
+        onThemeChange={() => {}}
+      />,
+    )
+
+    expect(html).toContain('settings-update-button settings-button-compact is-checking')
+    expect(html).toContain('settings-update-button-icon')
+    expect(html).toContain('aria-busy="true"')
+    expect(html).toContain('disabled=""')
+    expect(html).toContain('checkingUpdates')
   })
 })

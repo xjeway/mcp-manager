@@ -9,6 +9,7 @@ interface SettingsPageProps {
   appVersion: string
   autoSyncOnLaunch: boolean
   busy: boolean
+  checkingUpdates: boolean
   language: string
   onOpenRepository: () => void
   onAutoSyncOnLaunchChange: (enabled: boolean) => void
@@ -34,6 +35,7 @@ export function SettingsPage({
   appVersion,
   autoSyncOnLaunch,
   busy,
+  checkingUpdates,
   language,
   onOpenRepository,
   onAutoSyncOnLaunchChange,
@@ -237,12 +239,19 @@ export function SettingsPage({
                   <SettingsItemLabel icon={<Monitor size={14} />} label={t('checkUpdates')} />
                   <button
                     type="button"
-                    className="ghost-button compact settings-update-button settings-button-compact"
+                    className={
+                      checkingUpdates
+                        ? 'ghost-button compact settings-update-button settings-button-compact is-checking'
+                        : 'ghost-button compact settings-update-button settings-button-compact'
+                    }
                     onClick={onCheckUpdates}
-                    disabled={busy}
+                    disabled={busy || checkingUpdates}
+                    aria-busy={checkingUpdates}
                   >
-                    <RefreshCw size={14} />
-                    {t('checkUpdates')}
+                    <span className="settings-update-button-icon" aria-hidden="true">
+                      <RefreshCw size={14} />
+                    </span>
+                    <span>{checkingUpdates ? t('checkingUpdates') : t('checkUpdates')}</span>
                   </button>
                 </div>
               </div>

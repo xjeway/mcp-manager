@@ -1509,7 +1509,62 @@ button {
 }
 
 .settings-update-button {
+  position: relative;
+  overflow: hidden;
   border-radius: 10px;
+}
+
+.settings-update-button-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  transform-origin: center;
+}
+
+.settings-update-button.is-checking {
+  border-color: color-mix(in srgb, var(--accent-strong) 36%, var(--line-strong));
+  background:
+    linear-gradient(135deg, color-mix(in srgb, var(--accent) 16%, var(--panel-muted)) 0%, var(--panel-muted) 100%);
+}
+
+.settings-update-button.is-checking::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(115deg, transparent 0%, rgba(255, 255, 255, 0.22) 48%, transparent 100%);
+  transform: translateX(-135%);
+  animation: settings-update-sheen 1.3s ease-in-out infinite;
+  pointer-events: none;
+}
+
+.settings-update-button.is-checking .settings-update-button-icon {
+  animation: settings-update-spin 0.9s linear infinite;
+}
+
+.settings-update-button.is-checking:disabled {
+  opacity: 1;
+  cursor: progress;
+}
+
+@keyframes settings-update-spin {
+  from {
+    transform: rotate(0deg);
+  }
+
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+@keyframes settings-update-sheen {
+  0% {
+    transform: translateX(-135%);
+  }
+
+  60%,
+  100% {
+    transform: translateX(135%);
+  }
 }
 
 .settings-help {

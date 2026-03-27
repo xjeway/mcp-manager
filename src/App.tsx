@@ -552,6 +552,7 @@ export default function App() {
           appVersion={appVersion}
           autoSyncOnLaunch={autoSyncOnLaunch}
           busy={isBusy}
+          checkingUpdates={actionState === 'checking-updates'}
           language={i18n.language}
           onOpenRepository={() => void handleOpenRepository()}
           onAutoSyncOnLaunchChange={handleAutoSyncOnLaunchChange}

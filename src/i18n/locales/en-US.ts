@@ -108,6 +108,7 @@ const enUS = {
   addEnv: 'Add Variable',
   addArg: 'Add Arg',
   checkForUpdates: 'Check for Updates',
+  checkingUpdates: 'Checking...',
   noArguments: 'No arguments added yet',
   noEnvironmentVariables: 'No environment variables added yet',
 }
