@@ -16,6 +16,7 @@ import { confirmDialog } from './services/nativeDialogs'
 import { mergeServerIntoConfig, shouldPromptForPendingChanges } from './services/pendingChanges'
 import { evaluateApplyRisks } from './services/risk'
 import { isDesktopRuntime } from './services/runtime'
+import { FALLBACK_APP_VERSION, loadAppVersion } from './services/appVersion'
 import { checkForUpdatesAndPrompt } from './services/updater'
 import { deriveVisibleApps } from './services/visibleApps'
 import {
@@ -76,6 +77,7 @@ export default function App() {
   const [theme, setTheme] = useState<ThemeMode>(readThemePreference)
   const [systemTheme, setSystemTheme] = useState<'light' | 'dark'>(readSystemTheme)
   const [platform] = useState(detectPlatform)
+  const [appVersion, setAppVersion] = useState(FALLBACK_APP_VERSION)
   const [view, setView] = useState<View>('dashboard')
   const [actionState, setActionState] = useState<ActionState>('loading')
   const [config, setConfig] = useState<MCPConfig>({ version: 1, servers: [] })
@@ -104,6 +106,20 @@ export default function App() {
     document.documentElement.setAttribute('data-platform', platform)
     window.localStorage.setItem('ui-theme', theme)
   }, [platform, theme, systemTheme])
+
+  useEffect(() => {
+    let alive = true
+
+    void loadAppVersion().then((version) => {
+      if (alive) {
+        setAppVersion(version)
+      }
+    })
+
+    return () => {
+      alive = false
+    }
+  }, [])
 
   const pushFeedback = (kind: FeedbackItem['kind'], message: string) => {
     setFeedbacks((current) => [
@@ -533,6 +549,7 @@ export default function App() {
         />
       ) : view === 'settings' ? (
         <SettingsPage
+          appVersion={appVersion}
           autoSyncOnLaunch={autoSyncOnLaunch}
           busy={isBusy}
           language={i18n.language}

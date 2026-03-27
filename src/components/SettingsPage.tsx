@@ -6,6 +6,7 @@ import { LanguageMenu } from './LanguageMenu'
 import { Tooltip } from './Tooltip'
 
 interface SettingsPageProps {
+  appVersion: string
   autoSyncOnLaunch: boolean
   busy: boolean
   language: string
@@ -30,6 +31,7 @@ function SettingsItemLabel({ icon, label }: { icon: ReactNode; label: string }) 
 }
 
 export function SettingsPage({
+  appVersion,
   autoSyncOnLaunch,
   busy,
   language,
@@ -201,7 +203,7 @@ export function SettingsPage({
                 <div className="settings-about-copy">
                   <div className="settings-about-topline">
                     <div className="settings-value">{t('title')}</div>
-                    <span className="settings-about-version">v0.1.0</span>
+                    <span className="settings-about-version">v{appVersion}</span>
                   </div>
                   <p className="settings-about-subtitle">{t('settingsAboutSubtitle')}</p>
                   <div className="settings-chip-row">
@@ -218,7 +220,7 @@ export function SettingsPage({
                 </div>
                 <div className="settings-item">
                   <SettingsItemLabel icon={<BadgeInfo size={14} />} label={t('settingsVersion')} />
-                  <strong className="settings-item-value-compact">0.1.0</strong>
+                  <strong className="settings-item-value-compact">{appVersion}</strong>
                 </div>
                 <div className="settings-item">
                   <SettingsItemLabel icon={<FolderGit2 size={14} />} label={t('settingsRepository')} />
