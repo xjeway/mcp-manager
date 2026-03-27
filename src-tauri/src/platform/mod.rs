@@ -171,14 +171,11 @@ impl PlatformContext {
         self.command_exists(commands)
             || self.macos_app_bundle_exists(macos_bundles)
             || self.windows_install_exists(windows_paths)
+            || self.config_marker_exists(app)
     }
 
     fn command_exists(&self, commands: &[&str]) -> bool {
-        let Some(path_var) = std::env::var_os("PATH") else {
-            return false;
-        };
-
-        std::env::split_paths(&path_var).any(|dir| {
+        self.command_search_dirs().iter().any(|dir| {
             commands.iter().any(|command| {
                 let candidate = dir.join(command);
                 if candidate.is_file() {
@@ -186,12 +183,106 @@ impl PlatformContext {
                 }
 
                 if self.os == PlatformOs::Windows {
-                    return dir.join(format!("{command}.exe")).is_file();
+                    return [".exe", ".cmd", ".bat"]
+                        .iter()
+                        .any(|extension| dir.join(format!("{command}{extension}")).is_file());
                 }
 
                 false
             })
         })
+    }
+
+    fn command_search_dirs(&self) -> Vec<PathBuf> {
+        let mut dirs = Vec::new();
+
+        let mut push_unique = |path: PathBuf| {
+            if !dirs.contains(&path) {
+                dirs.push(path);
+            }
+        };
+
+        if let Some(path_var) = std::env::var_os("PATH") {
+            for dir in std::env::split_paths(&path_var) {
+                push_unique(dir);
+            }
+        }
+
+        for relative in [
+            "bin",
+            ".local/bin",
+            ".cargo/bin",
+            ".npm-global/bin",
+            ".bun/bin",
+            ".yarn/bin",
+            ".local/share/pnpm",
+            "Library/pnpm",
+        ] {
+            push_unique(self.home_dir.join(relative));
+        }
+
+        if std::env::var_os("MCP_MANAGER_SKIP_GLOBAL_COMMAND_DIRS").is_none() {
+            match self.os {
+                PlatformOs::MacOS => {
+                    push_unique(PathBuf::from("/opt/homebrew/bin"));
+                    push_unique(PathBuf::from("/usr/local/bin"));
+                    push_unique(PathBuf::from("/opt/local/bin"));
+                    push_unique(PathBuf::from("/usr/bin"));
+                    push_unique(PathBuf::from("/bin"));
+                }
+                PlatformOs::Linux => {
+                    push_unique(PathBuf::from("/usr/local/bin"));
+                    push_unique(PathBuf::from("/usr/bin"));
+                    push_unique(PathBuf::from("/bin"));
+                    push_unique(PathBuf::from("/snap/bin"));
+                }
+                PlatformOs::Windows | PlatformOs::Unknown => {}
+            }
+        }
+
+        dirs
+    }
+
+    fn config_marker_exists(&self, app: SupportedApp) -> bool {
+        self.config_markers(app)
+            .into_iter()
+            .any(|path| self.resolve_path(&path).exists())
+    }
+
+    fn config_markers(&self, app: SupportedApp) -> Vec<String> {
+        match app {
+            SupportedApp::Vscode => vec![
+                self.workspace_file(".vscode/mcp.json")
+                    .to_string_lossy()
+                    .to_string(),
+                self.user_app_config_path(SupportedApp::Vscode)
+                    .to_string_lossy()
+                    .to_string(),
+            ],
+            SupportedApp::ClaudeCode
+            | SupportedApp::Codex
+            | SupportedApp::OpenCode
+            | SupportedApp::GeminiCli
+            | SupportedApp::Antigravity
+            | SupportedApp::QwenCode
+            | SupportedApp::Cline => vec![self.user_app_config_path(app).to_string_lossy().to_string()],
+            SupportedApp::GithubCopilot => vec![
+                self.workspace_file(".vscode/mcp.json")
+                    .to_string_lossy()
+                    .to_string(),
+                self.user_app_config_path(SupportedApp::Vscode)
+                    .to_string_lossy()
+                    .to_string(),
+                self.user_app_config_path(SupportedApp::GithubCopilot)
+                    .to_string_lossy()
+                    .to_string(),
+            ],
+            SupportedApp::Cursor
+            | SupportedApp::ClaudeDesktop
+            | SupportedApp::IFlow
+            | SupportedApp::Windsurf
+            | SupportedApp::Kiro => Vec::new(),
+        }
     }
 
     fn macos_app_bundle_exists(&self, bundles: &[&str]) -> bool {
@@ -358,6 +449,7 @@ mod tests {
         std::fs::create_dir_all(&workspace).expect("create workspace");
         std::fs::write(home.join(".cursor/mcp.json"), "{}").expect("write leftover config");
         std::env::set_var("PATH", "");
+        std::env::set_var("MCP_MANAGER_SKIP_GLOBAL_COMMAND_DIRS", "1");
 
         let ctx = PlatformContext {
             os: PlatformOs::Linux,
@@ -382,6 +474,7 @@ mod tests {
         std::fs::create_dir_all(&bin).expect("create bin");
         std::fs::write(bin.join("codex"), "").expect("write codex stub");
         std::env::set_var("PATH", &bin);
+        std::env::set_var("MCP_MANAGER_SKIP_GLOBAL_COMMAND_DIRS", "1");
 
         let ctx = PlatformContext {
             os: PlatformOs::Linux,
@@ -395,6 +488,62 @@ mod tests {
     }
 
     #[test]
+    fn detect_installed_apps_finds_cli_tools_in_common_user_bin_without_path() {
+        let _guard = env_lock().lock().expect("lock env");
+        let temp = tempdir().expect("tempdir");
+        let home = temp.path().join("home");
+        let workspace = temp.path().join("workspace");
+        let local_bin = home.join(".local/bin");
+        std::fs::create_dir_all(&local_bin).expect("create local bin");
+        std::fs::create_dir_all(&workspace).expect("create workspace");
+        std::fs::write(local_bin.join("codex"), "").expect("write codex stub");
+        std::env::set_var("PATH", "");
+        std::env::set_var("MCP_MANAGER_SKIP_GLOBAL_COMMAND_DIRS", "1");
+
+        let ctx = PlatformContext {
+            os: PlatformOs::Linux,
+            home_dir: home,
+            workspace_root: workspace,
+        };
+
+        let installed = ctx.detect_installed_apps();
+
+        assert!(installed.contains(&SupportedApp::Codex));
+    }
+
+    #[test]
+    fn detect_installed_apps_finds_plugin_clients_from_existing_config_sources() {
+        let _guard = env_lock().lock().expect("lock env");
+        let temp = tempdir().expect("tempdir");
+        let home = temp.path().join("home");
+        let workspace = temp.path().join("workspace");
+        std::fs::create_dir_all(home.join(".cline/data/settings"))
+            .expect("create cline settings dir");
+        std::fs::create_dir_all(home.join(".copilot")).expect("create copilot dir");
+        std::fs::create_dir_all(&workspace).expect("create workspace");
+        std::fs::write(
+            home.join(".cline/data/settings/cline_mcp_settings.json"),
+            r#"{"mcpServers":{}}"#,
+        )
+        .expect("write cline config");
+        std::fs::write(home.join(".copilot/mcp-config.json"), r#"{"mcpServers":{}}"#)
+            .expect("write copilot config");
+        std::env::set_var("PATH", "");
+        std::env::set_var("MCP_MANAGER_SKIP_GLOBAL_COMMAND_DIRS", "1");
+
+        let ctx = PlatformContext {
+            os: PlatformOs::Linux,
+            home_dir: home,
+            workspace_root: workspace,
+        };
+
+        let installed = ctx.detect_installed_apps();
+
+        assert!(installed.contains(&SupportedApp::Cline));
+        assert!(installed.contains(&SupportedApp::GithubCopilot));
+    }
+
+    #[test]
     fn detect_installed_apps_finds_macos_app_bundles() {
         let _guard = env_lock().lock().expect("lock env");
         let temp = tempdir().expect("tempdir");
@@ -404,6 +553,7 @@ mod tests {
             .expect("create cursor bundle");
         std::fs::create_dir_all(&workspace).expect("create workspace");
         std::env::set_var("PATH", "");
+        std::env::set_var("MCP_MANAGER_SKIP_GLOBAL_COMMAND_DIRS", "1");
 
         let ctx = PlatformContext {
             os: PlatformOs::MacOS,
