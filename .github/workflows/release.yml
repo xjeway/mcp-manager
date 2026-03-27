@@ -5,12 +5,38 @@ on:
     tags:
       - "v*"
 
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
+
 permissions:
   contents: write
 
 jobs:
+  prepare-release:
+    name: Prepare release
+    runs-on: ubuntu-latest
+    outputs:
+      release_id: ${{ steps.prepare.outputs.release_id }}
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v5
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v5
+        with:
+          node-version: 20
+
+      - name: Ensure GitHub release exists
+        id: prepare
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: node scripts/github-release.mjs ensure "${{ github.ref_name }}"
+
   publish-tauri:
     name: Release (${{ matrix.name }})
+    needs: prepare-release
     strategy:
       fail-fast: false
       matrix:
@@ -90,7 +116,7 @@ jobs:
 
       - name: Run Tauri release (macOS signed + notarized)
         if: startsWith(matrix.platform, 'macos-') && env.HAS_APPLE_SIGNING == 'true' && env.HAS_APPLE_NOTARIZATION == 'true'
-        uses: tauri-apps/tauri-action@v0
+        uses: tauri-apps/tauri-action@v0.6.0
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
@@ -102,21 +128,13 @@ jobs:
           APPLE_PASSWORD: ${{ secrets.APPLE_PASSWORD }}
           APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
         with:
-          tagName: ${{ github.ref_name }}
-          releaseName: MCP Manager ${{ github.ref_name }}
-          releaseBody: |
-            Automated release for ${{ github.ref_name }}.
-
-            Download the installer or archive that matches your platform from the assets below.
-
-            macOS note: public macOS builds may still be unsigned while Apple signing is being prepared. If Gatekeeper blocks `MCP Manager.app`, move it to `/Applications`, try Finder `Open` once, or run `xattr -dr com.apple.quarantine "/Applications/MCP Manager.app"` and open it again.
+          releaseId: ${{ needs.prepare-release.outputs.release_id }}
           args: ${{ steps.release_args.outputs.args }}
-          releaseDraft: true
-          prerelease: ${{ contains(github.ref_name, '-') }}
+          uploadUpdaterJson: false
 
       - name: Run Tauri release (macOS signed)
         if: startsWith(matrix.platform, 'macos-') && env.HAS_APPLE_SIGNING == 'true' && env.HAS_APPLE_NOTARIZATION != 'true'
-        uses: tauri-apps/tauri-action@v0
+        uses: tauri-apps/tauri-action@v0.6.0
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
@@ -125,41 +143,25 @@ jobs:
           APPLE_CERTIFICATE_PASSWORD: ${{ secrets.APPLE_CERTIFICATE_PASSWORD }}
           APPLE_SIGNING_IDENTITY: ${{ secrets.APPLE_SIGNING_IDENTITY }}
         with:
-          tagName: ${{ github.ref_name }}
-          releaseName: MCP Manager ${{ github.ref_name }}
-          releaseBody: |
-            Automated release for ${{ github.ref_name }}.
-
-            Download the installer or archive that matches your platform from the assets below.
-
-            macOS note: public macOS builds may still be unsigned while Apple signing is being prepared. If Gatekeeper blocks `MCP Manager.app`, move it to `/Applications`, try Finder `Open` once, or run `xattr -dr com.apple.quarantine "/Applications/MCP Manager.app"` and open it again.
+          releaseId: ${{ needs.prepare-release.outputs.release_id }}
           args: ${{ steps.release_args.outputs.args }}
-          releaseDraft: true
-          prerelease: ${{ contains(github.ref_name, '-') }}
+          uploadUpdaterJson: false
 
       - name: Run Tauri release (macOS unsigned)
         if: startsWith(matrix.platform, 'macos-') && env.HAS_APPLE_SIGNING != 'true'
-        uses: tauri-apps/tauri-action@v0
+        uses: tauri-apps/tauri-action@v0.6.0
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
           TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
         with:
-          tagName: ${{ github.ref_name }}
-          releaseName: MCP Manager ${{ github.ref_name }}
-          releaseBody: |
-            Automated release for ${{ github.ref_name }}.
-
-            Download the installer or archive that matches your platform from the assets below.
-
-            macOS note: public macOS builds may still be unsigned while Apple signing is being prepared. If Gatekeeper blocks `MCP Manager.app`, move it to `/Applications`, try Finder `Open` once, or run `xattr -dr com.apple.quarantine "/Applications/MCP Manager.app"` and open it again.
+          releaseId: ${{ needs.prepare-release.outputs.release_id }}
           args: ${{ steps.release_args.outputs.args }}
-          releaseDraft: true
-          prerelease: ${{ contains(github.ref_name, '-') }}
+          uploadUpdaterJson: false
 
       - name: Run Tauri release (Windows signed)
         if: startsWith(matrix.platform, 'windows-') && env.HAS_WINDOWS_SIGNING == 'true'
-        uses: tauri-apps/tauri-action@v0
+        uses: tauri-apps/tauri-action@v0.6.0
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
@@ -167,54 +169,51 @@ jobs:
           WINDOWS_CERTIFICATE: ${{ secrets.WINDOWS_CERTIFICATE }}
           WINDOWS_CERTIFICATE_PASSWORD: ${{ secrets.WINDOWS_CERTIFICATE_PASSWORD }}
         with:
-          tagName: ${{ github.ref_name }}
-          releaseName: MCP Manager ${{ github.ref_name }}
-          releaseBody: |
-            Automated release for ${{ github.ref_name }}.
-
-            Download the installer or archive that matches your platform from the assets below.
-
-            macOS note: public macOS builds may still be unsigned while Apple signing is being prepared. If Gatekeeper blocks `MCP Manager.app`, move it to `/Applications`, try Finder `Open` once, or run `xattr -dr com.apple.quarantine "/Applications/MCP Manager.app"` and open it again.
+          releaseId: ${{ needs.prepare-release.outputs.release_id }}
           args: ${{ steps.release_args.outputs.args }}
-          releaseDraft: true
-          prerelease: ${{ contains(github.ref_name, '-') }}
+          uploadUpdaterJson: false
 
       - name: Run Tauri release (Windows unsigned)
         if: startsWith(matrix.platform, 'windows-') && env.HAS_WINDOWS_SIGNING != 'true'
-        uses: tauri-apps/tauri-action@v0
+        uses: tauri-apps/tauri-action@v0.6.0
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
           TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
         with:
-          tagName: ${{ github.ref_name }}
-          releaseName: MCP Manager ${{ github.ref_name }}
-          releaseBody: |
-            Automated release for ${{ github.ref_name }}.
-
-            Download the installer or archive that matches your platform from the assets below.
-
-            macOS note: public macOS builds may still be unsigned while Apple signing is being prepared. If Gatekeeper blocks `MCP Manager.app`, move it to `/Applications`, try Finder `Open` once, or run `xattr -dr com.apple.quarantine "/Applications/MCP Manager.app"` and open it again.
+          releaseId: ${{ needs.prepare-release.outputs.release_id }}
           args: ${{ steps.release_args.outputs.args }}
-          releaseDraft: true
-          prerelease: ${{ contains(github.ref_name, '-') }}
+          uploadUpdaterJson: false
 
       - name: Run Tauri release (Linux)
         if: startsWith(matrix.platform, 'ubuntu-')
-        uses: tauri-apps/tauri-action@v0
+        uses: tauri-apps/tauri-action@v0.6.0
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
           TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
         with:
-          tagName: ${{ github.ref_name }}
-          releaseName: MCP Manager ${{ github.ref_name }}
-          releaseBody: |
-            Automated release for ${{ github.ref_name }}.
-
-            Download the installer or archive that matches your platform from the assets below.
-
-            macOS note: public macOS builds may still be unsigned while Apple signing is being prepared. If Gatekeeper blocks `MCP Manager.app`, move it to `/Applications`, try Finder `Open` once, or run `xattr -dr com.apple.quarantine "/Applications/MCP Manager.app"` and open it again.
+          releaseId: ${{ needs.prepare-release.outputs.release_id }}
           args: ${{ steps.release_args.outputs.args }}
-          releaseDraft: true
-          prerelease: ${{ contains(github.ref_name, '-') }}
+          uploadUpdaterJson: false
+
+  publish-updater:
+    name: Publish updater metadata
+    needs:
+      - prepare-release
+      - publish-tauri
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v5
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v5
+        with:
+          node-version: 20
+
+      - name: Upload latest.json
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: node scripts/github-release.mjs upload-updater "${{ needs.prepare-release.outputs.release_id }}"

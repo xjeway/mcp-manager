@@ -1,11 +1,12 @@
 # Release Automation
 
-This project uses the mainstream Tauri release flow for GitHub-hosted open source desktop apps:
+This project uses a repository-owned release orchestration layer on top of the mainstream Tauri release flow for GitHub-hosted open source desktop apps:
 
 - GitHub Actions for CI and release orchestration
 - `tauri-apps/tauri-action` for cross-platform desktop packaging
 - GitHub Releases for artifact hosting
 - Tauri updater signing keys for in-app update metadata
+- a repository-owned GitHub release script for single-writer release metadata updates
 
 ## What Gets Built
 
@@ -18,7 +19,7 @@ When you push a tag like `v0.1.0`, GitHub Actions builds release artifacts on:
 - Linux x64: `.AppImage`, `.deb`, `.rpm`, and updater artifacts
 - Linux arm64: `.AppImage`, `.deb`, `.rpm`, and updater artifacts
 
-The generated assets are uploaded to a draft GitHub Release automatically. Tauri also generates updater artifacts because `bundle.createUpdaterArtifacts` is enabled in `src-tauri/tauri.conf.json`.
+The generated assets are uploaded to a GitHub Release automatically. Tauri also generates updater artifacts because `bundle.createUpdaterArtifacts` is enabled in `src-tauri/tauri.conf.json`.
 
 ## Workflows
 
@@ -26,7 +27,11 @@ The generated assets are uploaded to a draft GitHub Release automatically. Tauri
   Runs frontend tests, frontend build, and `cargo check` on pull requests and pushes to `main`.
 - `.github/workflows/release.yml`
   Runs on tags matching `v*` and publishes the desktop bundles to GitHub Releases.
-  The workflow explicitly builds `app,dmg` on macOS, `nsis,msi` for stable Windows x64 tags, `nsis` for Windows prerelease x64 and Windows arm64 tags, and `appimage,deb,rpm` on Linux.
+  The workflow now has three stages:
+  1. `prepare-release` creates or reuses the GitHub release exactly once per tag.
+  2. `publish-tauri` keeps the current cross-platform build matrix and uploads only platform assets by `releaseId`.
+  3. `publish-updater` uploads `latest.json` once after all matrix uploads complete.
+  The matrix explicitly builds `app,dmg` on macOS, `nsis,msi` for stable Windows x64 tags, `nsis` for Windows prerelease x64 and Windows arm64 tags, and `appimage,deb,rpm` on Linux.
 
 ## Required Repository Secrets
 
@@ -107,6 +112,8 @@ Before shipping updater-enabled releases, set the updater public key:
 
 If the GitHub owner or repository name changes, update the endpoint URL accordingly.
 
+The workflow intentionally uploads `latest.json` only after every platform build finishes. This avoids multiple matrix jobs deleting and re-uploading the same `latest.json` release asset at the same time.
+
 ## Release Process
 
 1. Prepare the release locally:
@@ -124,8 +131,8 @@ If the GitHub owner or repository name changes, update the endpoint URL accordin
    ```
 
    This re-verifies the version, creates the annotated `v0.1.1` tag, and pushes it to GitHub.
-4. GitHub Actions creates a draft release and uploads the platform installers.
-5. Verify artifacts, publish the draft release, and test updater behavior from an installed app.
+4. GitHub Actions creates or reuses the release, uploads the platform installers in parallel, and publishes `latest.json` after all platform uploads succeed.
+5. Verify artifacts, publish the draft release if it is still a draft, and test updater behavior from an installed app.
 
 ## Version Sync And Tagging
 
@@ -187,6 +194,7 @@ Notes:
 - Prerelease tags such as `v0.1.0-rc.1` are supported and will become GitHub prereleases in the workflow.
 - Windows x64 prerelease tags publish NSIS installers only because MSI bundling requires numeric-only prerelease identifiers.
 - The updater endpoint stays unavailable until the GitHub Release is published. While a release is still a draft, `releases/latest/download/latest.json` returns `404`.
+- Rerunning the workflow after manually editing or publishing the release will reuse the existing release instead of trying to recreate it.
 
 ## First Production Rollout Checklist
 
