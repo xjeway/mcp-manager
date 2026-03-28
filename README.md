@@ -17,7 +17,7 @@
 </p>
 
 <p align="center">
-  English | <a href="./README.zh-CN.md">简体中文</a> | <a href="https://github.com/xjeway/mcp-manager/releases/latest">Latest Release</a> | <a href="./docs/releasing.md">Release Guide</a>
+  English | <a href="./README.zh-CN.md">з®ЂдЅ“дё­ж–‡</a> | <a href="https://github.com/xjeway/mcp-manager/releases/latest">Latest Release</a> | <a href="./docs/releasing.md">Release Guide</a>
 </p>
 
 ## Why MCP Manager
@@ -182,26 +182,51 @@ make dev
 4. Apply the generated config to one or more supported clients.
 5. Review warnings, then write with backup and rollback protection.
 
+## Optional Example: Wrap a Server with a Stdio Firewall
+
+If you want to keep the underlying MCP server package unchanged but place it behind an explicit transport boundary, you can point a managed entry at `mcp-transport-firewall` and forward the real server after `--`.
+
+```json
+{
+  "mcpServers": {
+    "filesystem-safe": {
+      "command": "npx",
+      "args": [
+        "-y",
+        "mcp-transport-firewall",
+        "--",
+        "npx",
+        "-y",
+        "@modelcontextprotocol/server-filesystem",
+        "."
+      ]
+    }
+  }
+}
+```
+
+Additional package-first launch patterns are documented at https://github.com/shleder/mcp-transport-firewall/blob/main/docs/CLIENT_CONFIGS.md.
+
 ## Supported Clients
 
 ### Available Now
 
 | Client | Import | Apply |
 | --- | --- | --- |
-| Claude Code | ✅ | ✅ |
-| Claude Desktop | ✅ | ✅ |
-| Codex | ✅ | ✅ |
-| Cursor | ✅ | ✅ |
-| OpenCode | ✅ | ✅ |
-| GitHub Copilot | ✅ | ✅ |
-| Gemini CLI | ✅ | ✅ |
-| Antigravity | ✅ | ✅ |
-| iFlow | ✅ | ✅ |
-| Qwen Code | ✅ | ✅ |
-| Cline | ✅ | ✅ |
-| Windsurf | ✅ | ✅ |
-| Kiro | ✅ | ✅ |
-| VS Code | ✅ | ✅ |
+| Claude Code | вњ… | вњ… |
+| Claude Desktop | вњ… | вњ… |
+| Codex | вњ… | вњ… |
+| Cursor | вњ… | вњ… |
+| OpenCode | вњ… | вњ… |
+| GitHub Copilot | вњ… | вњ… |
+| Gemini CLI | вњ… | вњ… |
+| Antigravity | вњ… | вњ… |
+| iFlow | вњ… | вњ… |
+| Qwen Code | вњ… | вњ… |
+| Cline | вњ… | вњ… |
+| Windsurf | вњ… | вњ… |
+| Kiro | вњ… | вњ… |
+| VS Code | вњ… | вњ… |
 
 ## How It Works
 
