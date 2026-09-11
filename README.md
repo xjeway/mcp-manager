@@ -1,3 +1,5 @@
+
+
 <p align="center">
   <img src="./src-tauri/icons/app-icon-rounded.png" alt="MCP Manager logo" width="160" height="160" />
 </p>
@@ -149,8 +151,8 @@ sudo dpkg -i ./mcp-manager_<version>_amd64.deb
 sudo rpm -i ./mcp-manager-<version>.x86_64.rpm
 
 # AppImage
-chmod +x ./MCP-Manager-<version>.AppImage
-./MCP-Manager-<version>.AppImage
+chmod +x ./MCP-Manager-<version>-<arch>.AppImage
+./MCP-Manager-<version>-<arch>.AppImage
 ```
 
 ### Build From Source
