@@ -148,6 +148,7 @@ mod tests {
                     transport: TransportSpec {
                         kind: "stdio".to_string(),
                         url: None,
+                        headers: Default::default(),
                     },
                     command: Some(crate::core::CommandSpec {
                         program: "npx".to_string(),
@@ -169,6 +170,7 @@ mod tests {
                     transport: TransportSpec {
                         kind: "stdio".to_string(),
                         url: None,
+                        headers: Default::default(),
                     },
                     command: Some(crate::core::CommandSpec {
                         program: "uvx".to_string(),
@@ -207,6 +209,7 @@ mod tests {
                         transport: TransportSpec {
                             kind: "stdio".to_string(),
                             url: None,
+                            headers: Default::default(),
                         },
                         command: Some(crate::core::CommandSpec {
                             program: "npx".to_string(),
@@ -225,6 +228,7 @@ mod tests {
                         transport: TransportSpec {
                             kind: "sse".to_string(),
                             url: Some("https://mcp.linear.app/sse".to_string()),
+                            headers: Default::default(),
                         },
                         command: None,
                         apps,
@@ -239,5 +243,18 @@ mod tests {
         assert_eq!(payload["playwright"]["type"], "stdio");
         assert_eq!(payload["linear"]["type"], "sse");
         assert_eq!(payload["linear"]["url"], "https://mcp.linear.app/sse");
+    }
+
+    #[test]
+    fn round_trips_http_headers() {
+        crate::adapters::header_fixture::assert_round_trip(
+            &ClaudeCodeAdapter,
+            include_str!("../../tests/fixtures/headers/claude_code.json"),
+            crate::adapters::header_fixture::Expect {
+                field: "mcpServers",
+                headers_key: Some("headers"),
+                unrelated_key: "numStartups",
+            },
+        );
     }
 }

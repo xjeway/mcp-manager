@@ -1,0 +1,23 @@
+{
+  "mcpServers": {
+    "remote": {
+      "type": "streamableHttp",
+      "url": "https://mcp.example.com/mcp",
+      "headers": {
+        "Authorization": "Bearer fixture-token",
+        "X-Api-Key": "fixture-key"
+      },
+      "disabled": false,
+      "autoApprove": []
+    },
+    "other": {
+      "command": "npx",
+      "args": [
+        "-y",
+        "@modelcontextprotocol/server-memory"
+      ],
+      "autoApprove": []
+    }
+  },
+  "telemetry": false
+}

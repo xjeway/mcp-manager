@@ -1,6 +1,6 @@
 use crate::core::{empty_apps, MCPConfig, MCPServer, SupportedApp, TransportSpec};
 use serde_json::{Map, Value};
-use std::collections::HashMap;
+use std::collections::{BTreeMap, HashMap};
 use toml::Table;
 
 #[derive(Debug, Clone)]
@@ -95,6 +95,28 @@ fn parse_jsonc_value(content: &str) -> Result<Value, String> {
     serde_json::from_str(&normalized).map_err(|e| e.to_string())
 }
 
+fn string_map(value: &Map<String, Value>) -> impl Iterator<Item = (String, String)> + '_ {
+    value.iter().map(|(key, value)| {
+        (
+            key.clone(),
+            value
+                .as_str()
+                .map(ToString::to_string)
+                .unwrap_or_else(|| value.to_string()),
+        )
+    })
+}
+
+/// Remote request headers: `headers` for most clients, `http_headers` in Codex TOML.
+fn parse_headers(input: &Map<String, Value>) -> BTreeMap<String, String> {
+    input
+        .get("headers")
+        .or_else(|| input.get("http_headers"))
+        .and_then(Value::as_object)
+        .map(|headers| string_map(headers).collect())
+        .unwrap_or_default()
+}
+
 fn parse_server(id: &str, input: &Map<String, Value>) -> Result<MCPServer, String> {
     let command =
         input
@@ -116,19 +138,7 @@ fn parse_server(id: &str, input: &Map<String, Value>) -> Result<MCPServer, Strin
                 env: input
                     .get("env")
                     .and_then(Value::as_object)
-                    .map(|env| {
-                        env.iter()
-                            .map(|(key, value)| {
-                                (
-                                    key.clone(),
-                                    value
-                                        .as_str()
-                                        .map(ToString::to_string)
-                                        .unwrap_or_else(|| value.to_string()),
-                                )
-                            })
-                            .collect::<HashMap<_, _>>()
-                    })
+                    .map(|env| string_map(env).collect::<HashMap<_, _>>())
                     .unwrap_or_default(),
             });
 
@@ -149,16 +159,19 @@ fn parse_server(id: &str, input: &Map<String, Value>) -> Result<MCPServer, Strin
         TransportSpec {
             kind: explicit_remote_type.unwrap_or("http").to_string(),
             url: Some(url.to_string()),
+            headers: parse_headers(input),
         }
     } else if let Some(kind) = explicit_remote_type {
         TransportSpec {
             kind: kind.to_string(),
             url: None,
+            headers: parse_headers(input),
         }
     } else {
         TransportSpec {
             kind: "stdio".to_string(),
             url: None,
+            headers: Default::default(),
         }
     };
 
@@ -405,6 +418,9 @@ pub fn extract_opencode_mcp_json(content: &str) -> Result<String, String> {
                     server.insert("url".to_string(), Value::String(url.to_string()));
                     server.insert("type".to_string(), Value::String("http".to_string()));
                 }
+                if let Some(headers) = config.get("headers").and_then(Value::as_object) {
+                    server.insert("headers".to_string(), Value::Object(headers.clone()));
+                }
             }
             _ => continue,
         }
@@ -611,6 +627,54 @@ args = ["@playwright/mcp@latest"]
             Some("https://mcp.linear.app/sse")
         );
         assert!(!parsed.servers[0].enabled);
+    }
+
+    #[test]
+    fn parses_remote_headers() {
+        let parsed = parse_mcp_json(
+            r#"{"mcpServers":{"linear":{"url":"https://mcp.linear.app/mcp","headers":{"Authorization":"Bearer t","X-Retries":3}}}}"#,
+        );
+        assert!(parsed.errors.is_empty());
+        let headers = &parsed.servers[0].transport.headers;
+        assert_eq!(headers["Authorization"], "Bearer t");
+        assert_eq!(headers["X-Retries"], "3");
+    }
+
+    #[test]
+    fn parses_codex_http_headers() {
+        let json = extract_codex_mcp_json(
+            r#"[mcp_servers.figma]
+url = "https://mcp.figma.com/mcp"
+http_headers = { "X-Figma-Region" = "us-east-1" }
+"#,
+        )
+        .expect("extract codex");
+        let parsed = parse_mcp_json(&json);
+        assert_eq!(
+            parsed.servers[0].transport.headers["X-Figma-Region"],
+            "us-east-1"
+        );
+    }
+
+    #[test]
+    fn ignores_headers_on_stdio_servers() {
+        let parsed = parse_mcp_json(
+            r#"{"mcpServers":{"local":{"command":"npx","headers":{"Authorization":"x"}}}}"#,
+        );
+        assert!(parsed.servers[0].transport.headers.is_empty());
+    }
+
+    #[test]
+    fn extracts_opencode_remote_headers() {
+        let json = extract_opencode_mcp_json(
+            r#"{"mcp":{"ctx":{"type":"remote","url":"https://x/mcp","headers":{"Authorization":"Bearer t"}}}}"#,
+        )
+        .expect("extract opencode");
+        let parsed = parse_mcp_json(&json);
+        assert_eq!(
+            parsed.servers[0].transport.headers["Authorization"],
+            "Bearer t"
+        );
     }
 
     #[test]

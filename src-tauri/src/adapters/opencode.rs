@@ -146,6 +146,7 @@ mod tests {
                     transport: TransportSpec {
                         kind: "stdio".to_string(),
                         url: None,
+                        headers: Default::default(),
                     },
                     command: Some(crate::core::CommandSpec {
                         program: "npx".to_string(),
@@ -162,5 +163,18 @@ mod tests {
         );
         assert_eq!(operations[0].mode, "merge_json_object_entries");
         assert_eq!(operations[0].field.as_deref(), Some("mcp"));
+    }
+
+    #[test]
+    fn round_trips_http_headers() {
+        crate::adapters::header_fixture::assert_round_trip(
+            &OpenCodeAdapter,
+            include_str!("../../tests/fixtures/headers/opencode.json"),
+            crate::adapters::header_fixture::Expect {
+                field: "mcp",
+                headers_key: Some("headers"),
+                unrelated_key: "theme",
+            },
+        );
     }
 }
