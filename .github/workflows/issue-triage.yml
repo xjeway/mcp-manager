@@ -32,6 +32,8 @@ jobs:
         env:
           ISSUE_TITLE: ${{ github.event.issue.title }}
           ISSUE_BODY: ${{ github.event.issue.body }}
+        # The context must live outside .gemini/: Gemini CLI refuses to read
+        # gitignored files, and .gemini/ is ignored.
         run: |
           mkdir -p .gemini/commands
           cp .github/gemini/issue-triage.toml .gemini/commands/issue-triage.toml
@@ -39,7 +41,7 @@ jobs:
             --arg labels "$ALLOWED_LABELS" \
             --arg title "$ISSUE_TITLE" \
             --arg body "$ISSUE_BODY" \
-            '{allowed_labels: $labels, issue_title: $title, issue_body: $body}' > .gemini/context.json
+            '{allowed_labels: $labels, issue_title: $title, issue_body: $body}' > .github/gemini/context.json
 
       - name: Run Gemini
         id: gemini
