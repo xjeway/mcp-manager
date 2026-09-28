@@ -63,16 +63,13 @@ jobs:
             }
           prompt: /issue-triage
 
-      # The action reports API errors as its output, so check it before labeling.
+      # On API errors the action can still succeed and put the raw CLI output in
+      # `summary`, so only a plain label list counts. (`error` is just stderr,
+      # which always has noise, so it is not a failure signal.)
       - name: Check Gemini output
         env:
           RESPONSE: ${{ steps.gemini.outputs.summary }}
-          ERROR: ${{ steps.gemini.outputs.error }}
         run: |
-          if [ -n "$ERROR" ]; then
-            echo "::error title=Gemini triage failed::Gemini returned an error, see the Run Gemini step log."
-            exit 1
-          fi
           RESPONSE="${RESPONSE%$'\n'}"
           if [ -n "$RESPONSE" ] && [[ ! "$RESPONSE" =~ ^[a-z:,\ -]+$ ]]; then
             echo "::error title=Gemini triage failed::Gemini did not return a label list, see the Run Gemini step log."
