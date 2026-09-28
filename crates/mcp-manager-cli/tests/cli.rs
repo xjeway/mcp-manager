@@ -349,3 +349,38 @@ fn rollback_refuses_to_undo_over_a_later_edit() {
         "client files are untouched"
     );
 }
+
+#[cfg(unix)]
+#[test]
+fn client_files_are_restored_when_the_server_list_cannot_be_saved() {
+    use std::os::unix::fs::PermissionsExt;
+
+    let sandbox = Sandbox::new();
+    sandbox.ok(ADD_CTX);
+    let cursor_before = fs::read_to_string(sandbox.home.join(".cursor/mcp.json")).unwrap();
+
+    // servers.yaml is saved by writing a temporary file next to it, which a
+    // read-only directory refuses, after the client files are written.
+    let config_dir = sandbox.servers_yaml().parent().unwrap().to_path_buf();
+    fs::set_permissions(&config_dir, fs::Permissions::from_mode(0o555)).unwrap();
+    let output = sandbox.run(&[
+        "add",
+        "other",
+        "-a",
+        "cursor",
+        "-y",
+        "--",
+        "npx",
+        "other-mcp",
+    ]);
+    fs::set_permissions(&config_dir, fs::Permissions::from_mode(0o755)).unwrap();
+
+    assert!(!output.status.success());
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    assert!(stderr.contains("Client files were restored"), "{stderr}");
+    assert_eq!(
+        fs::read_to_string(sandbox.home.join(".cursor/mcp.json")).unwrap(),
+        cursor_before
+    );
+    assert_eq!(sandbox.listed_ids(), vec!["ctx"]);
+}

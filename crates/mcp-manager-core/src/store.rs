@@ -103,7 +103,7 @@ pub fn write_text_checked(
             ));
         }
     }
-    atomic_write(&path.to_path_buf(), content)?;
+    atomic_write(path, content)?;
     Ok(fingerprint_of(content))
 }
 

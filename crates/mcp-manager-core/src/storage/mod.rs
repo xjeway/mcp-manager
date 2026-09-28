@@ -66,7 +66,7 @@ fn restore_dir(relative: &Path) -> PathBuf {
     }
 }
 
-pub fn backup_file(target: &PathBuf) -> Result<Option<String>, String> {
+pub fn backup_file(target: &Path) -> Result<Option<String>, String> {
     if !target.exists() {
         return Ok(None);
     }
@@ -88,12 +88,63 @@ pub fn backup_file(target: &PathBuf) -> Result<Option<String>, String> {
     Ok(Some(backup.to_string_lossy().to_string()))
 }
 
-pub fn atomic_write(path: &PathBuf, content: &str) -> Result<(), String> {
+pub fn atomic_write(path: &Path, content: &str) -> Result<(), String> {
+    atomic_write_bytes(path, content.as_bytes())
+}
+
+/// Writes to a temporary file and renames it over `path`, so a crash never
+/// leaves `path` truncated.
+pub fn atomic_write_bytes(path: &Path, content: &[u8]) -> Result<(), String> {
     ensure_parent(path)?;
     let tmp = path.with_extension("tmp");
     fs::write(&tmp, content).map_err(|e| e.to_string())?;
     fs::rename(tmp, path).map_err(|e| e.to_string())?;
     Ok(())
+}
+
+/// Files as they were at one moment, to put them back after a failed change.
+/// A file that did not exist is removed on restore.
+#[derive(Debug, Default)]
+pub struct Snapshot(Vec<(PathBuf, Option<Vec<u8>>)>);
+
+impl Snapshot {
+    /// Records `path` unless it is already recorded, so the first state wins.
+    pub fn capture(&mut self, path: &Path) -> Result<(), String> {
+        if self.0.iter().any(|(seen, _)| seen == path) {
+            return Ok(());
+        }
+        let content = if path.exists() {
+            Some(fs::read(path).map_err(|e| e.to_string())?)
+        } else {
+            None
+        };
+        self.0.push((path.to_path_buf(), content));
+        Ok(())
+    }
+
+    /// Puts every recorded file back, newest first, and reports each failure.
+    pub fn restore(&self) -> Result<(), String> {
+        let failures = self
+            .0
+            .iter()
+            .rev()
+            .filter_map(|(path, original)| {
+                let restored = match original {
+                    Some(content) => atomic_write_bytes(path, content),
+                    None if path.exists() => fs::remove_file(path).map_err(|e| e.to_string()),
+                    None => Ok(()),
+                };
+                restored
+                    .err()
+                    .map(|e| format!("{}: {e}", path.to_string_lossy()))
+            })
+            .collect::<Vec<_>>();
+        if failures.is_empty() {
+            Ok(())
+        } else {
+            Err(failures.join("; "))
+        }
+    }
 }
 
 fn json_value_to_toml(value: &Value) -> Result<toml::Value, String> {
@@ -127,13 +178,13 @@ fn json_value_to_toml(value: &Value) -> Result<toml::Value, String> {
     }
 }
 
-fn apply_replace_json(path: &PathBuf, content: &str) -> Result<(), String> {
+fn apply_replace_json(path: &Path, content: &str) -> Result<(), String> {
     let parsed: Value = serde_json::from_str(content).map_err(|e| e.to_string())?;
     let pretty = serde_json::to_string_pretty(&parsed).map_err(|e| e.to_string())?;
     atomic_write(path, &pretty)
 }
 
-fn apply_merge_json_field(path: &PathBuf, field: &str, content: &str) -> Result<(), String> {
+fn apply_merge_json_field(path: &Path, field: &str, content: &str) -> Result<(), String> {
     let field_value: Value = serde_json::from_str(content).map_err(|e| e.to_string())?;
     let existing = if path.exists() {
         fs::read_to_string(path).map_err(|e| e.to_string())?
@@ -154,7 +205,7 @@ fn apply_merge_json_field(path: &PathBuf, field: &str, content: &str) -> Result<
 }
 
 fn apply_merge_json_object_entries(
-    path: &PathBuf,
+    path: &Path,
     field: &str,
     content: &str,
     remove_keys: Option<&[String]>,
@@ -203,7 +254,7 @@ fn apply_merge_json_object_entries(
     atomic_write(path, &pretty)
 }
 
-fn apply_merge_toml_field(path: &PathBuf, field: &str, content: &str) -> Result<(), String> {
+fn apply_merge_toml_field(path: &Path, field: &str, content: &str) -> Result<(), String> {
     let field_value: Value = serde_json::from_str(content).map_err(|e| e.to_string())?;
     let existing = if path.exists() {
         fs::read_to_string(path).map_err(|e| e.to_string())?
@@ -221,7 +272,7 @@ fn apply_merge_toml_field(path: &PathBuf, field: &str, content: &str) -> Result<
 }
 
 fn apply_merge_toml_table_entries(
-    path: &PathBuf,
+    path: &Path,
     field: &str,
     content: &str,
     remove_keys: Option<&[String]>,
@@ -267,7 +318,7 @@ fn apply_merge_toml_table_entries(
     atomic_write(path, &rendered)
 }
 
-fn apply_operation(path: &PathBuf, item: &WriteOperation) -> Result<(), String> {
+fn apply_operation(path: &Path, item: &WriteOperation) -> Result<(), String> {
     let field = |kind: &str| {
         item.field
             .as_deref()
@@ -298,21 +349,12 @@ fn apply_operation(path: &PathBuf, item: &WriteOperation) -> Result<(), String> 
 /// (and files it created are removed), so clients never end up half-applied.
 pub fn apply_operations(artifacts: Vec<WriteOperation>) -> Result<Vec<String>, String> {
     let mut backups = Vec::new();
-    // Each file touched so far with its content before the batch; `None`
-    // when the batch created it.
-    let mut originals: Vec<(PathBuf, Option<Vec<u8>>)> = Vec::new();
+    let mut originals = Snapshot::default();
 
     for item in artifacts {
         let path = resolve_path(&item.path);
         let result = (|| {
-            if !originals.iter().any(|(seen, _)| seen == &path) {
-                let original = if path.exists() {
-                    Some(fs::read(&path).map_err(|e| e.to_string())?)
-                } else {
-                    None
-                };
-                originals.push((path.clone(), original));
-            }
+            originals.capture(&path)?;
             if let Some(backup) = backup_file(&path)? {
                 backups.push(backup);
             }
@@ -320,7 +362,7 @@ pub fn apply_operations(artifacts: Vec<WriteOperation>) -> Result<Vec<String>, S
         })();
 
         if let Err(error) = result {
-            return Err(match restore_originals(&originals) {
+            return Err(match originals.restore() {
                 Ok(()) => error,
                 Err(restore_error) => format!(
                     "{error}; restoring the files written before it also failed: {restore_error}"
@@ -330,28 +372,6 @@ pub fn apply_operations(artifacts: Vec<WriteOperation>) -> Result<Vec<String>, S
     }
 
     Ok(backups)
-}
-
-fn restore_originals(originals: &[(PathBuf, Option<Vec<u8>>)]) -> Result<(), String> {
-    let failures = originals
-        .iter()
-        .rev()
-        .filter_map(|(path, original)| {
-            let restored = match original {
-                Some(content) => fs::write(path, content),
-                None if path.exists() => fs::remove_file(path),
-                None => Ok(()),
-            };
-            restored
-                .err()
-                .map(|e| format!("{}: {e}", path.to_string_lossy()))
-        })
-        .collect::<Vec<_>>();
-    if failures.is_empty() {
-        Ok(())
-    } else {
-        Err(failures.join("; "))
-    }
 }
 
 pub fn rollback(backups: Vec<String>) -> Result<(), String> {

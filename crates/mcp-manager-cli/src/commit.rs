@@ -65,6 +65,23 @@ pub fn commit(session: &Session, change: Change, dry_run: bool) -> Outcome<bool>
     session.confirm("Apply these changes?")?;
 
     let Change { before, after, .. } = change;
+
+    // Drop the previous rollback record first: once this change lands, that
+    // record's backups no longer describe the last change, and if saving the
+    // new record fails, rollback must not fall back to it.
+    let mut remembered = state::load(&session.ctx);
+    if remembered.last_previous_config.is_some() {
+        remembered.last_backups.clear();
+        remembered.last_previous_config = None;
+        remembered.last_applied_config = None;
+        state::save(&session.ctx, &remembered).map_err(|error| {
+            format!("Could not update the rollback record ({error}). Nothing was written.")
+        })?;
+    }
+
+    // Client files as they were, in case servers.yaml cannot be saved after
+    // they are written.
+    let mut client_files = None;
     let result = store::update(&session.ctx, |current| {
         if serde_json::to_value(&*current).ok() != serde_json::to_value(&before).ok() {
             return Err(
@@ -73,12 +90,26 @@ pub fn commit(session: &Session, change: Change, dry_run: bool) -> Outcome<bool>
                     .to_string(),
             );
         }
+        client_files = Some(workflow::snapshot(&session.ctx, &after, Some(&before))?);
         let applied = workflow::apply(&session.ctx, &after, Some(&before))?;
         *current = after.clone();
         Ok(applied)
-    })?;
+    });
+    let result = match (result, client_files) {
+        (Ok(result), _) => result,
+        // apply undoes its own partial writes, so on its failure this puts the
+        // files back as they already are; after it, it undoes the whole apply.
+        (Err(error), Some(files)) => {
+            return Err(Failure::Error(match files.restore() {
+                Ok(()) => format!("{error}. Client files were restored; nothing was changed."),
+                Err(restore_error) => {
+                    format!("{error}. Restoring client files also failed: {restore_error}")
+                }
+            }))
+        }
+        (Err(error), None) => return Err(Failure::Error(error)),
+    };
 
-    let mut remembered = state::load(&session.ctx);
     remembered.last_backups = result.backups.clone();
     remembered.last_previous_config = Some(before);
     remembered.last_applied_config = Some(after);

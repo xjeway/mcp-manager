@@ -9,7 +9,7 @@ use crate::core::{
 };
 use crate::parser::parse_yaml_config;
 use crate::platform::PlatformContext;
-use crate::storage::apply_operations;
+use crate::storage::{apply_operations, Snapshot};
 use crate::store::config_path;
 use serde::Serialize;
 use serde_json::{Map, Value};
@@ -120,6 +120,20 @@ fn plan_by_app(
                 .map(move |operation| (app, operation))
         })
         .collect()
+}
+
+/// Every client file [`apply`] would write, as it is now, so a caller can put
+/// them back if something after the apply fails.
+pub fn snapshot(
+    ctx: &PlatformContext,
+    config: &MCPConfig,
+    previous_config: Option<&MCPConfig>,
+) -> Result<Snapshot, String> {
+    let mut snapshot = Snapshot::default();
+    for operation in plan(ctx, config, previous_config) {
+        snapshot.capture(&ctx.resolve_path(&operation.path))?;
+    }
+    Ok(snapshot)
 }
 
 /// Writes `config` to every client, backing up each file first.
