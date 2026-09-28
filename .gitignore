@@ -35,7 +35,6 @@ Thumbs.db
 # Tauri / Rust
 /src-tauri/target/
 /src-tauri/.cargo/
-/src-tauri/Cargo.lock
 
 # Runtime artifacts
 backups/
