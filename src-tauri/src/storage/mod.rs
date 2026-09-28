@@ -3,7 +3,7 @@ use crate::platform::PlatformContext;
 use chrono::Utc;
 use serde_json::{Map, Value};
 use std::fs;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use toml::Table;
 
 fn base_dir() -> PathBuf {
@@ -23,7 +23,7 @@ pub fn resolve_relative_path(relative_path: &str) -> PathBuf {
     base_dir().join(candidate)
 }
 
-pub fn ensure_parent(path: &PathBuf) -> Result<(), String> {
+pub fn ensure_parent(path: &Path) -> Result<(), String> {
     if let Some(parent) = path.parent() {
         fs::create_dir_all(parent).map_err(|e| e.to_string())?;
     }
@@ -346,18 +346,11 @@ mod tests {
     const HOME_ENV_VAR: &str = "HOME";
 
     fn expected_app_data_dir(home: &Path) -> PathBuf {
-        #[cfg(target_os = "macos")]
-        {
-            return home.join("Library/Application Support/mcp-manager");
-        }
-
-        #[cfg(target_os = "windows")]
-        {
-            return home.join("AppData/Roaming/mcp-manager");
-        }
-
-        #[cfg(not(any(target_os = "macos", target_os = "windows")))]
-        {
+        if cfg!(target_os = "macos") {
+            home.join("Library/Application Support/mcp-manager")
+        } else if cfg!(target_os = "windows") {
+            home.join("AppData/Roaming/mcp-manager")
+        } else {
             home.join(".config/mcp-manager")
         }
     }

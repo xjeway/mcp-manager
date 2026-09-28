@@ -1,0 +1,57 @@
+name: 问题反馈 / Bug report
+description: 某个功能不正常，或客户端配置没有被正确读取、写入
+labels: [bug]
+body:
+  - type: dropdown
+    id: os
+    attributes:
+      label: 操作系统 / OS
+      options:
+        - macOS
+        - Windows
+        - Linux
+    validations:
+      required: true
+  - type: input
+    id: version
+    attributes:
+      label: MCP Manager 版本 / Version
+      description: 在「设置」页底部可以看到
+      placeholder: 例如 0.1.6
+    validations:
+      required: true
+  - type: dropdown
+    id: clients
+    attributes:
+      label: 涉及的客户端 / Affected clients
+      multiple: true
+      options:
+        - Antigravity
+        - Claude Code
+        - Claude Desktop
+        - Cline
+        - Codex
+        - Cursor
+        - Gemini CLI
+        - GitHub Copilot
+        - iFlow
+        - Kiro
+        - OpenCode
+        - Qoder
+        - Qwen Code
+        - VS Code
+        - Windsurf
+        - 其他 / Other
+  - type: textarea
+    id: description
+    attributes:
+      label: 问题描述 / What happened
+      description: 做了什么操作、期望发生什么、实际发生了什么
+    validations:
+      required: true
+  - type: textarea
+    id: config
+    attributes:
+      label: 相关配置 / Relevant config
+      description: 客户端配置文件的路径和内容（请先删除 token、密钥等敏感信息）
+      render: json
