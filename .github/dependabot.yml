@@ -21,6 +21,11 @@ updates:
     directory: /
     schedule:
       interval: weekly
+    ignore:
+      # v1 breaks the release pipeline (updater json option, .app.tar.gz names
+      # used by the Homebrew cask, release notes); migrate deliberately.
+      - dependency-name: tauri-apps/tauri-action
+        update-types: [version-update:semver-major]
     groups:
       actions:
         patterns: ["*"]
