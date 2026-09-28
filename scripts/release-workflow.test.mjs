@@ -11,7 +11,7 @@ function readWorkflow() {
 }
 
 function findTauriSteps(job) {
-  return (job.steps ?? []).filter((step) => step.uses === 'tauri-apps/tauri-action@v0.6.0')
+  return (job.steps ?? []).filter((step) => step.uses?.startsWith('tauri-apps/tauri-action@'))
 }
 
 describe('release workflow structure', () => {
@@ -58,5 +58,17 @@ describe('release workflow structure', () => {
     expect(job.needs).toBe('publish-updater')
     expect(job.with.release_tag).toBe('${{ github.ref_name }}')
     expect(job.secrets.HOMEBREW_TAP_PAT).toBe('${{ secrets.HOMEBREW_TAP_PAT }}')
+  })
+
+  // tauri-action v1 renames includeUpdaterJson, adds the version to .app.tar.gz
+  // names (which the Homebrew cask relies on) and rewrites release notes.
+  it('stays on tauri-action v0 until the release pipeline is migrated to v1', () => {
+    const workflow = readWorkflow()
+    const steps = findTauriSteps(workflow.jobs['publish-tauri'])
+
+    expect(steps.length).toBeGreaterThan(0)
+    for (const step of steps) {
+      expect(step.uses).toMatch(/^tauri-apps\/tauri-action@v0\./)
+    }
   })
 })
