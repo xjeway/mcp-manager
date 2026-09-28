@@ -15,7 +15,3 @@ toml.workspace = true
 
 [dev-dependencies]
 tempfile.workspace = true
-
-[features]
-# Exposes `platform::test_paths` to other crates' tests.
-test-utils = []

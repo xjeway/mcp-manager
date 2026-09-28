@@ -1,0 +1,58 @@
+version: 1
+servers:
+  - id: linear
+    name: linear
+    enabled: true
+    transport:
+      type: http
+      url: https://mcp.linear.app/mcp
+    apps:
+      vscode: false
+      cursor: true
+      claudeCode: true
+      claudeDesktop: false
+      codex: false
+      openCode: false
+      githubCopilot: false
+      geminiCli: false
+      antigravity: false
+      iFlow: false
+      qwenCode: false
+      cline: false
+      windsurf: false
+      kiro: false
+      qoder: false
+  - description: Docs lookup
+    id: context7
+    name: context7
+    enabled: true
+    transport:
+      type: stdio
+    command:
+      program: npx
+      args:
+        - -y
+        - "@upstash/context7-mcp@latest"
+      env:
+        TOKEN: ${env:TOKEN}
+    apps:
+      vscode: false
+      cursor: true
+      claudeCode: false
+      claudeDesktop: false
+      codex: true
+      openCode: false
+      githubCopilot: false
+      geminiCli: false
+      antigravity: false
+      iFlow: false
+      qwenCode: false
+      cline: false
+      windsurf: false
+      kiro: false
+      qoder: false
+    placements:
+      - app: claudeCode
+        scope: workspace
+        enabled: true
+        managed: true

@@ -19,7 +19,6 @@ tauri-plugin-dialog = "2"
 tauri-plugin-fs = "2"
 
 [dev-dependencies]
-mcp-manager-core = { workspace = true, features = ["test-utils"] }
 tempfile.workspace = true
 
 [features]
