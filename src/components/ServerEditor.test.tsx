@@ -22,6 +22,7 @@ describe('ServerEditor', () => {
         onCancel={() => {}}
         onDraftChange={() => {}}
         onSave={() => {}}
+        onSaveMany={() => {}}
       />,
     )
 
@@ -40,6 +41,7 @@ describe('ServerEditor', () => {
         onCancel={() => {}}
         onDraftChange={() => {}}
         onSave={() => {}}
+        onSaveMany={() => {}}
       />,
     )
 

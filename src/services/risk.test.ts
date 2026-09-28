@@ -24,6 +24,7 @@ describe('evaluateApplyRisks', () => {
           cline: false,
           windsurf: false,
           kiro: false,
+          qoder: false,
         },
       },
     ])

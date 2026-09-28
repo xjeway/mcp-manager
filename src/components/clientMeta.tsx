@@ -97,6 +97,12 @@ export const CLIENTS: ClientMeta[] = [
     accent: 'client-codex',
     icon: <ClientLogo src="/logos/apps/kiro.svg" alt="Kiro" />,
   },
+  {
+    id: 'qoder',
+    label: 'Qoder',
+    accent: 'client-cursor',
+    icon: <ClientLogo src="/logos/apps/qoder.svg" alt="Qoder" />,
+  },
 ]
 
 export const CLIENTS_BY_LABEL = [...CLIENTS].sort((left, right) =>
@@ -111,7 +117,6 @@ export const PLANNED_CLIENTS = [
   'RooCode',
   'Kilo Code',
   'Amazon Q',
-  'Qoder',
   'Auggie CLI',
   'CodeBuddy',
   'CoStrict',

@@ -36,6 +36,7 @@ describe('Dashboard', () => {
         onEdit={() => {}}
         onRollback={() => {}}
         onToggleApp={() => {}}
+        onBatchSetApp={() => {}}
         onCopyCommand={() => {}}
       />,
     )
@@ -62,6 +63,7 @@ describe('Dashboard', () => {
         onEdit={() => {}}
         onRollback={() => {}}
         onToggleApp={() => {}}
+        onBatchSetApp={() => {}}
         onCopyCommand={() => {}}
       />,
     )
@@ -89,6 +91,7 @@ describe('Dashboard', () => {
         onEdit={() => {}}
         onRollback={() => {}}
         onToggleApp={() => {}}
+        onBatchSetApp={() => {}}
         onCopyCommand={() => {}}
       />,
     )
@@ -128,6 +131,7 @@ describe('Dashboard', () => {
         onEdit={() => {}}
         onRollback={() => {}}
         onToggleApp={() => {}}
+        onBatchSetApp={() => {}}
         onCopyCommand={() => {}}
       />,
     )
@@ -166,6 +170,7 @@ describe('Dashboard', () => {
         onEdit={() => {}}
         onRollback={() => {}}
         onToggleApp={() => {}}
+        onBatchSetApp={() => {}}
         onCopyCommand={() => {}}
       />,
     )

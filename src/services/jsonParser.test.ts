@@ -85,6 +85,7 @@ describe('parseMcpJson', () => {
       cline: false,
       windsurf: false,
       kiro: false,
+      qoder: false,
     } satisfies MCPServer['apps'])
   })
 

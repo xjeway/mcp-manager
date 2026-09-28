@@ -13,6 +13,7 @@ export const SUPPORTED_APPS = [
   'cline',
   'windsurf',
   'kiro',
+  'qoder',
 ] as const
 
 export type SupportedApp = (typeof SUPPORTED_APPS)[number]

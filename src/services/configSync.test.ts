@@ -29,6 +29,7 @@ describe('configSync', () => {
             cline: false,
             windsurf: false,
             kiro: false,
+            qoder: false,
           },
         },
         {
@@ -53,6 +54,7 @@ describe('configSync', () => {
             cline: false,
             windsurf: false,
             kiro: false,
+            qoder: false,
           },
         },
       ],
@@ -83,6 +85,7 @@ describe('configSync', () => {
             cline: false,
             windsurf: false,
             kiro: false,
+            qoder: false,
           },
         },
         {
@@ -108,6 +111,7 @@ describe('configSync', () => {
             cline: false,
             windsurf: false,
             kiro: false,
+            qoder: false,
           },
         },
       ],

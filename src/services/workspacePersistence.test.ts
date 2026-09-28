@@ -1,5 +1,12 @@
 import { describe, expect, it, vi } from 'vitest'
-import { importConfigOnLaunch, persistImportedConfig, saveAndSyncConfig, toggleServerAppInConfig } from './workspacePersistence'
+import {
+  importConfigOnLaunch,
+  importServersIntoConfig,
+  persistImportedConfig,
+  saveAndSyncConfig,
+  setServersAppInConfig,
+  toggleServerAppInConfig,
+} from './workspacePersistence'
 
 const previousConfig = {
   version: 1,
@@ -25,6 +32,7 @@ const previousConfig = {
         cline: false,
         windsurf: false,
         kiro: false,
+        qoder: false,
       },
     },
   ],
@@ -143,5 +151,65 @@ describe('workspacePersistence', () => {
 
     expect(next.servers[0].apps.vscode).toBe(false)
     expect(next.servers[0].placements?.[0].enabled).toBe(false)
+  })
+
+  it('enables an app for every selected server and leaves the rest alone', () => {
+    const config = {
+      version: 1,
+      servers: [
+        previousConfig.servers[0],
+        { ...previousConfig.servers[0], id: 'server-2', name: 'Server 2' },
+        { ...previousConfig.servers[0], id: 'server-3', name: 'Server 3' },
+      ],
+    }
+
+    const next = setServersAppInConfig(config, ['server-1', 'server-2'], 'cursor', true)
+
+    expect(next.servers.map((server) => server.apps.cursor)).toEqual([true, true, false])
+  })
+
+  it('disables an app for selected servers including their project placements', () => {
+    const config = {
+      version: 1,
+      servers: [
+        {
+          ...previousConfig.servers[0],
+          placements: [
+            {
+              app: 'vscode' as const,
+              scope: 'workspace' as const,
+              path: '/workspace/project/.vscode/mcp.json',
+              enabled: true,
+              managed: true,
+            },
+          ],
+        },
+      ],
+    }
+
+    const next = setServersAppInConfig(config, ['server-1'], 'vscode', false)
+
+    expect(next.servers[0].apps.vscode).toBe(false)
+    expect(next.servers[0].placements?.[0].enabled).toBe(false)
+  })
+
+  it('adds new servers and updates existing ones without dropping their clients', () => {
+    const incoming = [
+      {
+        ...previousConfig.servers[0],
+        command: { program: 'uvx', args: ['updated'], env: {} },
+        apps: { ...previousConfig.servers[0].apps, vscode: false, cursor: true },
+      },
+      { ...previousConfig.servers[0], id: 'server-2', name: 'Server 2' },
+    ]
+
+    const result = importServersIntoConfig(previousConfig, incoming)
+
+    expect(result.added).toEqual(['server-2'])
+    expect(result.updated).toEqual(['server-1'])
+    expect(result.config.servers).toHaveLength(2)
+    expect(result.config.servers[0].command?.program).toBe('uvx')
+    expect(result.config.servers[0].apps.vscode).toBe(true)
+    expect(result.config.servers[0].apps.cursor).toBe(true)
   })
 })
