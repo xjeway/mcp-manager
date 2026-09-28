@@ -82,11 +82,15 @@ pub fn commit(session: &Session, change: Change, dry_run: bool) -> Outcome<bool>
     remembered.last_backups = result.backups.clone();
     remembered.last_previous_config = Some(before);
     remembered.last_applied_config = Some(after);
-    if let Err(error) = state::save(&session.ctx, &remembered) {
-        session.warn(format!(
-            "Could not record this change for rollback: {error}"
-        ))?;
-    }
+    // The change is already applied; say so rather than promising a rollback
+    // that was never recorded.
+    state::save(&session.ctx, &remembered).map_err(|error| {
+        format!(
+            "The changes were applied, but they could not be recorded for rollback ({error}), \
+             so `{} rollback` will not undo them.",
+            env!("CARGO_BIN_NAME")
+        )
+    })?;
 
     if session.json {
         print_json(&Report {

@@ -267,51 +267,91 @@ fn apply_merge_toml_table_entries(
     atomic_write(path, &rendered)
 }
 
+fn apply_operation(path: &PathBuf, item: &WriteOperation) -> Result<(), String> {
+    let field = |kind: &str| {
+        item.field
+            .as_deref()
+            .ok_or_else(|| format!("missing {kind} merge field"))
+    };
+    match item.mode.as_str() {
+        "replace_json" => apply_replace_json(path, &item.content),
+        "merge_json_field" => apply_merge_json_field(path, field("JSON")?, &item.content),
+        "merge_json_object_entries" => apply_merge_json_object_entries(
+            path,
+            field("JSON")?,
+            &item.content,
+            item.remove_keys.as_deref(),
+        ),
+        "merge_toml_field" => apply_merge_toml_field(path, field("TOML")?, &item.content),
+        "merge_toml_table_entries" => apply_merge_toml_table_entries(
+            path,
+            field("TOML")?,
+            &item.content,
+            item.remove_keys.as_deref(),
+        ),
+        other => Err(format!("unsupported artifact mode: {other}")),
+    }
+}
+
+/// Applies every operation, backing up each existing file first. If one
+/// fails, every file already written by this batch is put back as it was
+/// (and files it created are removed), so clients never end up half-applied.
 pub fn apply_operations(artifacts: Vec<WriteOperation>) -> Result<Vec<String>, String> {
     let mut backups = Vec::new();
+    // Each file touched so far with its content before the batch; `None`
+    // when the batch created it.
+    let mut originals: Vec<(PathBuf, Option<Vec<u8>>)> = Vec::new();
 
     for item in artifacts {
         let path = resolve_path(&item.path);
-        if let Some(backup) = backup_file(&path)? {
-            backups.push(backup);
-        }
-        match item.mode.as_str() {
-            "replace_json" => apply_replace_json(&path, &item.content)?,
-            "merge_json_field" => apply_merge_json_field(
-                &path,
-                item.field
-                    .as_deref()
-                    .ok_or_else(|| "missing JSON merge field".to_string())?,
-                &item.content,
-            )?,
-            "merge_json_object_entries" => apply_merge_json_object_entries(
-                &path,
-                item.field
-                    .as_deref()
-                    .ok_or_else(|| "missing JSON merge field".to_string())?,
-                &item.content,
-                item.remove_keys.as_deref(),
-            )?,
-            "merge_toml_field" => apply_merge_toml_field(
-                &path,
-                item.field
-                    .as_deref()
-                    .ok_or_else(|| "missing TOML merge field".to_string())?,
-                &item.content,
-            )?,
-            "merge_toml_table_entries" => apply_merge_toml_table_entries(
-                &path,
-                item.field
-                    .as_deref()
-                    .ok_or_else(|| "missing TOML merge field".to_string())?,
-                &item.content,
-                item.remove_keys.as_deref(),
-            )?,
-            other => return Err(format!("unsupported artifact mode: {other}")),
+        let result = (|| {
+            if !originals.iter().any(|(seen, _)| seen == &path) {
+                let original = if path.exists() {
+                    Some(fs::read(&path).map_err(|e| e.to_string())?)
+                } else {
+                    None
+                };
+                originals.push((path.clone(), original));
+            }
+            if let Some(backup) = backup_file(&path)? {
+                backups.push(backup);
+            }
+            apply_operation(&path, &item)
+        })();
+
+        if let Err(error) = result {
+            return Err(match restore_originals(&originals) {
+                Ok(()) => error,
+                Err(restore_error) => format!(
+                    "{error}; restoring the files written before it also failed: {restore_error}"
+                ),
+            });
         }
     }
 
     Ok(backups)
+}
+
+fn restore_originals(originals: &[(PathBuf, Option<Vec<u8>>)]) -> Result<(), String> {
+    let failures = originals
+        .iter()
+        .rev()
+        .filter_map(|(path, original)| {
+            let restored = match original {
+                Some(content) => fs::write(path, content),
+                None if path.exists() => fs::remove_file(path),
+                None => Ok(()),
+            };
+            restored
+                .err()
+                .map(|e| format!("{}: {e}", path.to_string_lossy()))
+        })
+        .collect::<Vec<_>>();
+    if failures.is_empty() {
+        Ok(())
+    } else {
+        Err(failures.join("; "))
+    }
 }
 
 pub fn rollback(backups: Vec<String>) -> Result<(), String> {
@@ -392,6 +432,44 @@ mod tests {
             Some(value) => std::env::set_var(HOME_ENV_VAR, value),
             None => std::env::remove_var(HOME_ENV_VAR),
         }
+    }
+
+    #[test]
+    fn a_failed_batch_puts_every_written_file_back() {
+        let _guard = env_lock()
+            .lock()
+            .unwrap_or_else(|poisoned| poisoned.into_inner());
+        let dir = tempfile::tempdir().expect("tmpdir");
+        let home = dir.path().join("home");
+        fs::create_dir_all(&home).expect("create home");
+        let existing = dir.path().join("existing.json");
+        let created = dir.path().join("created/mcp.json");
+        fs::write(&existing, r#"{"mcpServers":{"old":{"command":"old"}}}"#).expect("seed");
+        let (previous_home, previous_dir) = set_test_runtime(&home, dir.path());
+
+        let merge = |path: &Path| WriteOperation {
+            path: path.to_string_lossy().to_string(),
+            mode: "merge_json_object_entries".to_string(),
+            field: Some("mcpServers".to_string()),
+            remove_keys: Some(vec!["old".to_string()]),
+            content: r#"{"new":{"command":"npx"}}"#.to_string(),
+        };
+        let result = apply_operations(vec![
+            merge(&existing),
+            merge(&created),
+            WriteOperation {
+                mode: "not_a_mode".to_string(),
+                ..merge(&existing)
+            },
+        ]);
+        restore_test_runtime(previous_home, previous_dir);
+
+        assert!(result.unwrap_err().contains("not_a_mode"));
+        assert_eq!(
+            fs::read_to_string(&existing).expect("read"),
+            r#"{"mcpServers":{"old":{"command":"old"}}}"#
+        );
+        assert!(!created.exists());
     }
 
     #[test]
