@@ -1,0 +1,799 @@
+[
+  {
+    "name": "upsert appends a new server",
+    "op": "upsertServer",
+    "args": {
+      "editingId": null,
+      "server": {
+        "id": "b",
+        "name": "b",
+        "enabled": true,
+        "transport": {
+          "type": "stdio"
+        },
+        "command": {
+          "program": "x",
+          "args": [],
+          "env": {}
+        },
+        "apps": {}
+      }
+    },
+    "input": {
+      "version": 1,
+      "servers": [
+        {
+          "id": "a",
+          "name": "a",
+          "enabled": true,
+          "transport": {
+            "type": "stdio"
+          },
+          "command": {
+            "program": "x",
+            "args": [],
+            "env": {}
+          },
+          "apps": {}
+        }
+      ]
+    },
+    "expected": {
+      "version": 1,
+      "servers": [
+        {
+          "id": "a",
+          "name": "a",
+          "enabled": true,
+          "transport": {
+            "type": "stdio"
+          },
+          "command": {
+            "program": "x",
+            "args": [],
+            "env": {}
+          },
+          "apps": {}
+        },
+        {
+          "id": "b",
+          "name": "b",
+          "enabled": true,
+          "transport": {
+            "type": "stdio"
+          },
+          "command": {
+            "program": "x",
+            "args": [],
+            "env": {}
+          },
+          "apps": {}
+        }
+      ]
+    }
+  },
+  {
+    "name": "upsert replaces the edited server in place, even when renamed",
+    "op": "upsertServer",
+    "args": {
+      "editingId": "a",
+      "server": {
+        "id": "a2",
+        "name": "a2",
+        "enabled": true,
+        "transport": {
+          "type": "stdio"
+        },
+        "command": {
+          "program": "y",
+          "args": [],
+          "env": {}
+        },
+        "apps": {}
+      }
+    },
+    "input": {
+      "version": 1,
+      "servers": [
+        {
+          "id": "a",
+          "name": "a",
+          "enabled": true,
+          "transport": {
+            "type": "stdio"
+          },
+          "command": {
+            "program": "x",
+            "args": [],
+            "env": {}
+          },
+          "apps": {}
+        },
+        {
+          "id": "b",
+          "name": "b",
+          "enabled": true,
+          "transport": {
+            "type": "stdio"
+          },
+          "command": {
+            "program": "x",
+            "args": [],
+            "env": {}
+          },
+          "apps": {}
+        }
+      ]
+    },
+    "expected": {
+      "version": 1,
+      "servers": [
+        {
+          "id": "a2",
+          "name": "a2",
+          "enabled": true,
+          "transport": {
+            "type": "stdio"
+          },
+          "command": {
+            "program": "y",
+            "args": [],
+            "env": {}
+          },
+          "apps": {}
+        },
+        {
+          "id": "b",
+          "name": "b",
+          "enabled": true,
+          "transport": {
+            "type": "stdio"
+          },
+          "command": {
+            "program": "x",
+            "args": [],
+            "env": {}
+          },
+          "apps": {}
+        }
+      ]
+    }
+  },
+  {
+    "name": "remove drops only that server",
+    "op": "removeServer",
+    "args": {
+      "serverId": "a"
+    },
+    "input": {
+      "version": 1,
+      "servers": [
+        {
+          "id": "a",
+          "name": "a",
+          "enabled": true,
+          "transport": {
+            "type": "stdio"
+          },
+          "command": {
+            "program": "x",
+            "args": [],
+            "env": {}
+          },
+          "apps": {}
+        },
+        {
+          "id": "b",
+          "name": "b",
+          "enabled": true,
+          "transport": {
+            "type": "stdio"
+          },
+          "command": {
+            "program": "x",
+            "args": [],
+            "env": {}
+          },
+          "apps": {}
+        }
+      ]
+    },
+    "expected": {
+      "version": 1,
+      "servers": [
+        {
+          "id": "b",
+          "name": "b",
+          "enabled": true,
+          "transport": {
+            "type": "stdio"
+          },
+          "command": {
+            "program": "x",
+            "args": [],
+            "env": {}
+          },
+          "apps": {}
+        }
+      ]
+    }
+  },
+  {
+    "name": "enabling an app sets user level but leaves project placements alone",
+    "op": "setAppEnabled",
+    "args": {
+      "serverIds": [
+        "a"
+      ],
+      "app": "cursor",
+      "enabled": true
+    },
+    "input": {
+      "version": 1,
+      "servers": [
+        {
+          "id": "a",
+          "name": "a",
+          "enabled": true,
+          "transport": {
+            "type": "stdio"
+          },
+          "command": {
+            "program": "x",
+            "args": [],
+            "env": {}
+          },
+          "apps": {
+            "cursor": false
+          },
+          "placements": [
+            {
+              "app": "cursor",
+              "scope": "user",
+              "enabled": false,
+              "managed": true
+            },
+            {
+              "app": "cursor",
+              "scope": "workspace",
+              "enabled": false,
+              "managed": true,
+              "path": "/work/.cursor/mcp.json"
+            }
+          ]
+        }
+      ]
+    },
+    "expected": {
+      "version": 1,
+      "servers": [
+        {
+          "id": "a",
+          "name": "a",
+          "enabled": true,
+          "transport": {
+            "type": "stdio"
+          },
+          "command": {
+            "program": "x",
+            "args": [],
+            "env": {}
+          },
+          "apps": {
+            "cursor": true
+          },
+          "placements": [
+            {
+              "app": "cursor",
+              "scope": "user",
+              "enabled": true,
+              "managed": true
+            },
+            {
+              "app": "cursor",
+              "scope": "workspace",
+              "enabled": false,
+              "managed": true,
+              "path": "/work/.cursor/mcp.json"
+            }
+          ]
+        }
+      ]
+    }
+  },
+  {
+    "name": "disabling an app turns it off at every scope",
+    "op": "setAppEnabled",
+    "args": {
+      "serverIds": [
+        "a"
+      ],
+      "app": "cursor",
+      "enabled": false
+    },
+    "input": {
+      "version": 1,
+      "servers": [
+        {
+          "id": "a",
+          "name": "a",
+          "enabled": true,
+          "transport": {
+            "type": "stdio"
+          },
+          "command": {
+            "program": "x",
+            "args": [],
+            "env": {}
+          },
+          "apps": {
+            "cursor": true,
+            "codex": true
+          },
+          "placements": [
+            {
+              "app": "cursor",
+              "scope": "workspace",
+              "enabled": true,
+              "managed": true,
+              "path": "/work/.cursor/mcp.json"
+            },
+            {
+              "app": "codex",
+              "scope": "user",
+              "enabled": true,
+              "managed": true
+            }
+          ]
+        }
+      ]
+    },
+    "expected": {
+      "version": 1,
+      "servers": [
+        {
+          "id": "a",
+          "name": "a",
+          "enabled": true,
+          "transport": {
+            "type": "stdio"
+          },
+          "command": {
+            "program": "x",
+            "args": [],
+            "env": {}
+          },
+          "apps": {
+            "cursor": false,
+            "codex": true
+          },
+          "placements": [
+            {
+              "app": "cursor",
+              "scope": "workspace",
+              "enabled": false,
+              "managed": true,
+              "path": "/work/.cursor/mcp.json"
+            },
+            {
+              "app": "codex",
+              "scope": "user",
+              "enabled": true,
+              "managed": true
+            }
+          ]
+        }
+      ]
+    }
+  },
+  {
+    "name": "only the selected servers change",
+    "op": "setAppEnabled",
+    "args": {
+      "serverIds": [
+        "b"
+      ],
+      "app": "codex",
+      "enabled": true
+    },
+    "input": {
+      "version": 1,
+      "servers": [
+        {
+          "id": "a",
+          "name": "a",
+          "enabled": true,
+          "transport": {
+            "type": "stdio"
+          },
+          "command": {
+            "program": "x",
+            "args": [],
+            "env": {}
+          },
+          "apps": {}
+        },
+        {
+          "id": "b",
+          "name": "b",
+          "enabled": true,
+          "transport": {
+            "type": "stdio"
+          },
+          "command": {
+            "program": "x",
+            "args": [],
+            "env": {}
+          },
+          "apps": {}
+        }
+      ]
+    },
+    "expected": {
+      "version": 1,
+      "servers": [
+        {
+          "id": "a",
+          "name": "a",
+          "enabled": true,
+          "transport": {
+            "type": "stdio"
+          },
+          "command": {
+            "program": "x",
+            "args": [],
+            "env": {}
+          },
+          "apps": {}
+        },
+        {
+          "id": "b",
+          "name": "b",
+          "enabled": true,
+          "transport": {
+            "type": "stdio"
+          },
+          "command": {
+            "program": "x",
+            "args": [],
+            "env": {}
+          },
+          "apps": {
+            "codex": true
+          }
+        }
+      ]
+    }
+  },
+  {
+    "name": "workspace placement is added when missing",
+    "op": "setWorkspacePlacement",
+    "args": {
+      "serverId": "a",
+      "app": "cursor",
+      "path": "/work/.cursor/mcp.json",
+      "enabled": true
+    },
+    "input": {
+      "version": 1,
+      "servers": [
+        {
+          "id": "a",
+          "name": "a",
+          "enabled": true,
+          "transport": {
+            "type": "stdio"
+          },
+          "command": {
+            "program": "x",
+            "args": [],
+            "env": {}
+          },
+          "apps": {}
+        }
+      ]
+    },
+    "expected": {
+      "version": 1,
+      "servers": [
+        {
+          "id": "a",
+          "name": "a",
+          "enabled": true,
+          "transport": {
+            "type": "stdio"
+          },
+          "command": {
+            "program": "x",
+            "args": [],
+            "env": {}
+          },
+          "apps": {},
+          "placements": [
+            {
+              "app": "cursor",
+              "scope": "workspace",
+              "enabled": true,
+              "managed": true,
+              "path": "/work/.cursor/mcp.json"
+            }
+          ]
+        }
+      ]
+    }
+  },
+  {
+    "name": "only the workspace placement at that path is updated",
+    "op": "setWorkspacePlacement",
+    "args": {
+      "serverId": "a",
+      "app": "cursor",
+      "path": "/work/.cursor/mcp.json",
+      "enabled": false
+    },
+    "input": {
+      "version": 1,
+      "servers": [
+        {
+          "id": "a",
+          "name": "a",
+          "enabled": true,
+          "transport": {
+            "type": "stdio"
+          },
+          "command": {
+            "program": "x",
+            "args": [],
+            "env": {}
+          },
+          "apps": {},
+          "placements": [
+            {
+              "app": "cursor",
+              "scope": "workspace",
+              "enabled": true,
+              "managed": true,
+              "path": "/work/.cursor/mcp.json"
+            },
+            {
+              "app": "cursor",
+              "scope": "workspace",
+              "enabled": true,
+              "managed": true,
+              "path": "/other/.cursor/mcp.json"
+            },
+            {
+              "app": "cursor",
+              "scope": "user",
+              "enabled": true,
+              "managed": true
+            }
+          ]
+        }
+      ]
+    },
+    "expected": {
+      "version": 1,
+      "servers": [
+        {
+          "id": "a",
+          "name": "a",
+          "enabled": true,
+          "transport": {
+            "type": "stdio"
+          },
+          "command": {
+            "program": "x",
+            "args": [],
+            "env": {}
+          },
+          "apps": {},
+          "placements": [
+            {
+              "app": "cursor",
+              "scope": "workspace",
+              "enabled": false,
+              "managed": true,
+              "path": "/work/.cursor/mcp.json"
+            },
+            {
+              "app": "cursor",
+              "scope": "workspace",
+              "enabled": true,
+              "managed": true,
+              "path": "/other/.cursor/mcp.json"
+            },
+            {
+              "app": "cursor",
+              "scope": "user",
+              "enabled": true,
+              "managed": true
+            }
+          ]
+        }
+      ]
+    }
+  },
+  {
+    "name": "import adds new servers and updates existing ones without uninstalling",
+    "op": "importServers",
+    "args": {
+      "servers": [
+        {
+          "id": "a",
+          "name": "a",
+          "enabled": true,
+          "transport": {
+            "type": "stdio"
+          },
+          "command": {
+            "program": "new",
+            "args": [],
+            "env": {}
+          },
+          "apps": {
+            "cursor": false,
+            "codex": true
+          },
+          "placements": [
+            {
+              "app": "cursor",
+              "scope": "workspace",
+              "enabled": true,
+              "managed": true,
+              "path": "/work/.cursor/mcp.json"
+            },
+            {
+              "app": "vscode",
+              "scope": "user",
+              "enabled": true,
+              "managed": true
+            }
+          ]
+        },
+        {
+          "id": "c",
+          "name": "c",
+          "enabled": true,
+          "transport": {
+            "type": "stdio"
+          },
+          "command": {
+            "program": "x",
+            "args": [],
+            "env": {}
+          },
+          "apps": {}
+        }
+      ]
+    },
+    "input": {
+      "version": 1,
+      "servers": [
+        {
+          "id": "a",
+          "name": "a",
+          "enabled": true,
+          "transport": {
+            "type": "stdio"
+          },
+          "command": {
+            "program": "x",
+            "args": [],
+            "env": {}
+          },
+          "apps": {
+            "cursor": true,
+            "codex": false
+          },
+          "placements": [
+            {
+              "app": "cursor",
+              "scope": "workspace",
+              "enabled": false,
+              "managed": true,
+              "path": "/work/.cursor/mcp.json"
+            },
+            {
+              "app": "kiro",
+              "scope": "user",
+              "enabled": true,
+              "managed": true
+            }
+          ]
+        },
+        {
+          "id": "b",
+          "name": "b",
+          "enabled": true,
+          "transport": {
+            "type": "stdio"
+          },
+          "command": {
+            "program": "x",
+            "args": [],
+            "env": {}
+          },
+          "apps": {}
+        }
+      ]
+    },
+    "expected": {
+      "version": 1,
+      "servers": [
+        {
+          "id": "a",
+          "name": "a",
+          "enabled": true,
+          "transport": {
+            "type": "stdio"
+          },
+          "command": {
+            "program": "new",
+            "args": [],
+            "env": {}
+          },
+          "apps": {
+            "cursor": true,
+            "codex": true
+          },
+          "placements": [
+            {
+              "app": "cursor",
+              "scope": "workspace",
+              "enabled": true,
+              "managed": true,
+              "path": "/work/.cursor/mcp.json"
+            },
+            {
+              "app": "kiro",
+              "scope": "user",
+              "enabled": true,
+              "managed": true
+            },
+            {
+              "app": "vscode",
+              "scope": "user",
+              "enabled": true,
+              "managed": true
+            }
+          ]
+        },
+        {
+          "id": "b",
+          "name": "b",
+          "enabled": true,
+          "transport": {
+            "type": "stdio"
+          },
+          "command": {
+            "program": "x",
+            "args": [],
+            "env": {}
+          },
+          "apps": {}
+        },
+        {
+          "id": "c",
+          "name": "c",
+          "enabled": true,
+          "transport": {
+            "type": "stdio"
+          },
+          "command": {
+            "program": "x",
+            "args": [],
+            "env": {}
+          },
+          "apps": {}
+        }
+      ]
+    },
+    "expectedAdded": [
+      "c"
+    ],
+    "expectedUpdated": [
+      "a"
+    ]
+  }
+]

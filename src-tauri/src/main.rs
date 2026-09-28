@@ -1,15 +1,9 @@
-mod adapters;
 mod commands;
-mod core;
-mod parser;
-mod platform;
-mod security;
-mod storage;
 
 use commands::{
     apply_config, current_workspace, detect_installed_apps, import_detected_configs,
     load_yaml_config, open_path, open_releases_link, open_repository_link, restart_app,
-    rollback_from_backups, save_yaml_config,
+    rollback_from_backups, save_yaml_config, yaml_config_fingerprint,
 };
 
 fn main() {
@@ -20,6 +14,7 @@ fn main() {
         .invoke_handler(tauri::generate_handler![
             load_yaml_config,
             save_yaml_config,
+            yaml_config_fingerprint,
             open_releases_link,
             open_repository_link,
             open_path,

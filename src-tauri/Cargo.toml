@@ -1,27 +1,25 @@
 [package]
 name = "mcp-manager"
-version = "0.1.7"
 description = "MCP Manager"
-authors = ["xJeway"]
-license = "MIT"
-edition = "2021"
+version.workspace = true
+authors.workspace = true
+license.workspace = true
+edition.workspace = true
 
 [build-dependencies]
 tauri-build = { version = "2", features = [] }
 
 [dependencies]
-chrono = { version = "0.4", features = ["clock"] }
-serde = { version = "1", features = ["derive"] }
-serde_json = "1"
-serde_yaml = "0.9"
-toml = "1.1.6"
+mcp-manager-core.workspace = true
+serde.workspace = true
+serde_json.workspace = true
 tauri = { version = "2", features = [] }
 tauri-plugin-updater = "2"
 tauri-plugin-dialog = "2"
 tauri-plugin-fs = "2"
 
 [dev-dependencies]
-tempfile = "3"
+tempfile.workspace = true
 
 [features]
 default = ["custom-protocol"]

@@ -312,9 +312,11 @@ impl PlatformContext {
             return false;
         }
 
+        // Tests set this to keep what the machine has installed out of detection.
+        let include_global = std::env::var_os("MCP_MANAGER_SKIP_GLOBAL_COMMAND_DIRS").is_none();
         bundles.iter().any(|bundle| {
             self.home_dir.join("Applications").join(bundle).exists()
-                || PathBuf::from("/Applications").join(bundle).exists()
+                || (include_global && PathBuf::from("/Applications").join(bundle).exists())
         })
     }
 

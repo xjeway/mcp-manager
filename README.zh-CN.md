@@ -203,6 +203,21 @@ make dev
 | Qoder | ✅ | ✅ |
 | VS Code | ✅ | ✅ |
 
+## 命令行（预览）
+
+命令行工具与桌面应用共用同一份 server 列表，在任一端的修改另一端都能看到。目前尚未发布，可在源码目录中运行：
+
+```bash
+cargo run -p mcp-manager-cli -- add context7 -- npx -y @upstash/context7-mcp@latest
+cargo run -p mcp-manager-cli -- add linear --url https://mcp.linear.app/mcp -a cursor,claude-code
+cargo run -p mcp-manager-cli -- add --from mcp.json --project
+cargo run -p mcp-manager-cli -- list
+cargo run -p mcp-manager-cli -- remove context7 -a codex
+cargo run -p mcp-manager-cli -- rollback
+```
+
+在终端中，`add` 会分步引导你选择 server、客户端和用户级或项目级配置，并在写入前列出每个客户端文件将发生的变化。每一步都可以用参数直接回答（`--server`、`--env`、`--app`、`--global`/`--project`、`--yes`）；`--dry-run` 只预览，`--json` 输出机器可读结果。在 Claude Code、Codex 等 AI 编程工具中运行时，会跳过提问并默认写入该工具的配置。
+
 ## 工作方式
 
 - 应用会读取本地客户端配置并转换为内部模型
@@ -217,20 +232,25 @@ make dev
 ```text
 mcp-manager/
   src/                前端应用
-  src-tauri/          Tauri 应用与 Rust 后端
+  src-tauri/          Tauri 应用（对前端暴露的命令）
+  crates/
+    mcp-manager-core/ 客户端适配、解析与安全写入（共用）
+    mcp-manager-cli/  命令行工具
   public/             静态资源与品牌素材
   docs/               发布说明与设计参考
   openspec/           变更与规格记录
 ```
 
-### 后端模块
+### 核心模块（`crates/mcp-manager-core`）
 
 - `platform`：平台路径解析与运行上下文
 - `adapters`：按客户端实现导入与 apply 逻辑
 - `core`：统一配置模型与合并规则
 - `parser`：YAML / JSON / TOML 解析与配置提取
 - `storage`：原子写、备份与回滚
-- `commands`：对前端暴露的 Tauri 命令
+- `store`：共用的 `servers.yaml`，带文件锁与外部修改检测
+- `workflow`：跨所有客户端的导入、预览与应用
+- `ops`：server 列表的编辑与校验（与前端逻辑保持一致）
 
 ## 开发命令
 

@@ -10,7 +10,7 @@ const files = {
   packageJson: path.join(repoRoot, 'package.json'),
   packageLock: path.join(repoRoot, 'package-lock.json'),
   tauriConfig: path.join(repoRoot, 'src-tauri', 'tauri.conf.json'),
-  cargoToml: path.join(repoRoot, 'src-tauri', 'Cargo.toml'),
+  cargoToml: path.join(repoRoot, 'Cargo.toml'),
 }
 
 const semverPattern =
@@ -40,7 +40,7 @@ function readVersions() {
   const cargoVersionMatch = cargoToml.match(/^version = "([^"]+)"$/m)
 
   if (!cargoVersionMatch) {
-    throw new Error('Unable to find version in src-tauri/Cargo.toml')
+    throw new Error('Unable to find version in Cargo.toml')
   }
 
   return {

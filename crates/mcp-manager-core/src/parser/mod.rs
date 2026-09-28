@@ -25,7 +25,7 @@ pub fn parse_yaml_config(content: &str) -> Result<MCPConfig, String> {
     serde_yaml_compat::from_str(content)
 }
 
-fn strip_json_comments(content: &str) -> String {
+pub(crate) fn strip_json_comments(content: &str) -> String {
     let mut out = String::with_capacity(content.len());
     let mut chars = content.chars().peekable();
     let mut in_string = false;

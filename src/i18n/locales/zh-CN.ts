@@ -110,6 +110,8 @@ const zhCN = {
   surfaceSubtitle: '统一 MCP 管理工作台',
   syncLocalConfig: '导入本地配置',
   syncFailedDetail: '保存并同步失败：{{error}}',
+  configChangedExternally: 'Server 列表已在 MCP Manager 之外（如 CLI）被修改，已加载最新版本。',
+  configConflictReloaded: 'Server 列表已在 MCP Manager 之外被修改，本次改动未保存。已加载最新版本，请重新操作。',
   autoImportSummary: '启动时已自动探测 {{count}} 个配置源，并导入 {{servers}} 个 MCP Server 到统一 YAML',
   themeToggle: '切换主题',
   theme: '主题',
