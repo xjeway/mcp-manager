@@ -18,7 +18,7 @@
     "@tauri-apps/api": "^2.12.0",
     "@tauri-apps/plugin-updater": "^2.13.0",
     "i18next": "^25.8.18",
-    "lucide-react": "^0.577.0",
+    "lucide-react": "^1.48.0",
     "react": "^19.2.4",
     "react-dom": "^19.2.4",
     "react-i18next": "^16.5.8",
