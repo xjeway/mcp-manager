@@ -92,7 +92,6 @@ const zhCN = {
   marketplaceInferred: '发布者没有声明运行方式，下面的命令是推断的，添加前请核对。',
   marketplaceUnsupported: '{{type}} 包无法自动添加，请按仓库说明手动配置。',
   marketplaceRequired: '必填',
-  marketplaceManualHeaders: '这个 server 需要以下请求头。MCP Manager 暂时无法写入请求头，保存后请在各客户端中手动添加：',
   marketplaceWillRun: '将在本机运行',
   marketplaceWillConnect: '将连接到',
   marketplaceInstallHint: '会打开编辑器，所有客户端默认关闭。在编辑器中选择客户端后保存。',

@@ -34,7 +34,8 @@ import {
   defaultOptionIndex,
   editableInputs,
   isEntryAdded,
-  manualHeaders,
+  headerPreview,
+  inputIsSecret,
   missingRequiredInputs,
   type InputValues,
 } from '../view-models/marketplace'
@@ -332,7 +333,7 @@ function EntryDetail({
   const option = entry.installOptions[optionIndex] as InstallOption | undefined
   const inputs = useMemo(() => (option ? editableInputs(option) : []), [option])
   const missing = option ? missingRequiredInputs(option, values) : []
-  const headers = option ? manualHeaders(option) : []
+  const headers = option ? headerPreview(option, values) : []
   const added = isEntryAdded(entry, servers)
 
   const install = () => {
@@ -448,7 +449,7 @@ function EntryDetail({
                     </span>
                     {item.description ? <span className="marketplace-input-help">{item.description}</span> : null}
                     <input
-                      type={item.secret ? 'password' : 'text'}
+                      type={option && inputIsSecret(option, item) ? 'password' : 'text'}
                       autoComplete="off"
                       spellCheck={false}
                       value={values[item.key] ?? ''}
@@ -463,7 +464,7 @@ function EntryDetail({
 
           {headers.length > 0 ? (
             <div className="marketplace-note">
-              <p>{t('marketplaceManualHeaders')}</p>
+              <p>{t('requestHeaders')}</p>
               <ul className="marketplace-headers">
                 {headers.map((header) => (
                   <li key={header.name}>

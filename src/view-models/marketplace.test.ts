@@ -3,8 +3,10 @@ import {
   buildServerFromOption,
   commandPreview,
   defaultOptionIndex,
+  editableInputs,
+  headerPreview,
+  inputIsSecret,
   isEntryAdded,
-  manualHeaders,
   missingRequiredInputs,
   serverIdFor,
 } from './marketplace'
@@ -107,15 +109,31 @@ describe('missingRequiredInputs', () => {
     expect(missingRequiredInputs(npmOption, { CONTEXT7_API_KEY: 'k' })).toEqual([])
   })
 
-  it('does not require header-only inputs because headers are configured manually', () => {
-    expect(missingRequiredInputs(httpOption, {}).map((item) => item.key)).toEqual(['tenant'])
+  it('requires inputs that feed headers like any other input', () => {
+    expect(editableInputs(httpOption).map((item) => item.key)).toEqual(['tenant', 'API_TOKEN'])
+    expect(missingRequiredInputs(httpOption, {}).map((item) => item.key)).toEqual(['tenant', 'API_TOKEN'])
+    expect(missingRequiredInputs(httpOption, { tenant: 'acme', API_TOKEN: 't' })).toEqual([])
   })
 })
 
-describe('manualHeaders', () => {
-  it('lists headers of an http option', () => {
-    expect(manualHeaders(httpOption)).toEqual([{ name: 'Authorization', value: 'Bearer {API_TOKEN}' }])
-    expect(manualHeaders(npmOption)).toEqual([])
+describe('inputIsSecret', () => {
+  it('treats header-only inputs as secrets even when the registry does not flag them', () => {
+    const option: InstallOption = {
+      ...httpOption,
+      headers: { 'X-Api-Key': '{X-Api-Key}' },
+      inputs: [input('tenant'), input('X-Api-Key')],
+    }
+    expect(inputIsSecret(option, option.inputs[0])).toBe(false)
+    expect(inputIsSecret(option, option.inputs[1])).toBe(true)
+    expect(inputIsSecret(npmOption, npmOption.inputs[0])).toBe(true)
+  })
+})
+
+describe('headerPreview', () => {
+  it('masks resolved header values and keeps unfilled templates visible', () => {
+    expect(headerPreview(httpOption, {})).toEqual([{ name: 'Authorization', value: 'Bearer {API_TOKEN}' }])
+    expect(headerPreview(httpOption, { API_TOKEN: 'secret' })).toEqual([{ name: 'Authorization', value: '••••' }])
+    expect(headerPreview(npmOption, {})).toEqual([])
   })
 })
 
@@ -157,11 +175,29 @@ describe('buildServerFromOption', () => {
     expect(server.command?.env).toEqual({ LOG_LEVEL: 'debug' })
   })
 
-  it('builds an http server from the url', () => {
-    const server = buildServerFromOption(entry(), httpOption, { tenant: 'acme' }, ['context7'])
+  it('builds an http server from the url and resolved headers', () => {
+    const server = buildServerFromOption(entry(), httpOption, { tenant: 'acme', API_TOKEN: 'tok' }, ['context7'])
     expect(server.id).toBe('context7-2')
-    expect(server.transport).toEqual({ type: 'http', url: 'https://acme.example.com/mcp' })
+    expect(server.transport).toEqual({
+      type: 'http',
+      url: 'https://acme.example.com/mcp',
+      headers: { Authorization: 'Bearer tok' },
+    })
     expect(server.command).toBeUndefined()
+  })
+
+  it('drops optional headers left unfilled', () => {
+    const option: InstallOption = {
+      ...httpOption,
+      url: 'https://example.com/mcp',
+      headers: { 'X-Trace': '{trace}', 'X-Client': 'mcp-manager' },
+      inputs: [input('trace')],
+    }
+    expect(buildServerFromOption(entry(), option, {}, []).transport).toEqual({
+      type: 'http',
+      url: 'https://example.com/mcp',
+      headers: { 'X-Client': 'mcp-manager' },
+    })
   })
 
   it('falls back to the website when there is no repository', () => {

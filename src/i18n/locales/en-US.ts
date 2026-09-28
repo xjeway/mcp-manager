@@ -92,7 +92,6 @@ const enUS = {
   marketplaceInferred: 'The publisher did not declare how to run this package; the command below is a best guess. Check it before adding.',
   marketplaceUnsupported: '{{type}} packages cannot be added automatically. Follow the repository instructions and add the server manually.',
   marketplaceRequired: 'required',
-  marketplaceManualHeaders: 'This server expects the request headers below. MCP Manager cannot write headers yet, so add them in each client after saving:',
   marketplaceWillRun: 'Runs on this computer',
   marketplaceWillConnect: 'Connects to',
   marketplaceInstallHint: 'Opens the editor with every client turned off. Choose clients there, then save.',

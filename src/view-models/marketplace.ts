@@ -44,10 +44,7 @@ function placeholderKeys(value: string): string[] {
   return [...value.matchAll(PLACEHOLDER)].map((match) => match[1])
 }
 
-/**
- * Headers cannot be written to client configs yet, so inputs that only feed headers are
- * shown for reference and never block adding the server.
- */
+/** Inputs used only in headers; they carry credentials, so they are masked. */
 function headerOnlyKeys(option: InstallOption): Set<string> {
   if (option.kind !== 'http') {
     return new Set()
@@ -60,10 +57,13 @@ function headerOnlyKeys(option: InstallOption): Set<string> {
   )
 }
 
-/** Inputs the user fills in for this option (header-only inputs excluded). */
+/** Inputs the user fills in for this option. */
 export function editableInputs(option: InstallOption): InstallInput[] {
-  const headerOnly = headerOnlyKeys(option)
-  return inputsOf(option).filter((item) => !headerOnly.has(item.key))
+  return inputsOf(option)
+}
+
+export function inputIsSecret(option: InstallOption, item: InstallInput): boolean {
+  return item.secret || headerOnlyKeys(option).has(item.key)
 }
 
 function valueFor(item: InstallInput | undefined, values: InputValues): string {
@@ -76,10 +76,6 @@ function valueFor(item: InstallInput | undefined, values: InputValues): string {
 
 export function missingRequiredInputs(option: InstallOption, values: InputValues): InstallInput[] {
   return editableInputs(option).filter((item) => item.required && !valueFor(item, values))
-}
-
-export function manualHeaders(option: InstallOption): Array<{ name: string; value: string }> {
-  return option.kind === 'http' ? Object.entries(option.headers).map(([name, value]) => ({ name, value })) : []
 }
 
 interface Resolved {
@@ -116,6 +112,27 @@ function resolveArgs(option: Extract<InstallOption, { kind: 'stdio' }>, values: 
   })
 }
 
+/** Headers whose placeholders are all filled; required ones are enforced by `missingRequiredInputs`. */
+function resolveHeaders(option: Extract<InstallOption, { kind: 'http' }>, values: InputValues): Record<string, string> {
+  return Object.fromEntries(
+    Object.entries(option.headers).flatMap(([name, template]) => {
+      const resolved = resolve(template, option.inputs, values, false)
+      return resolved.incomplete ? [] : [[name, resolved.text]]
+    }),
+  )
+}
+
+/** Headers that will be sent; filled values are masked, unfilled templates stay visible. */
+export function headerPreview(option: InstallOption, values: InputValues): Array<{ name: string; value: string }> {
+  if (option.kind !== 'http') {
+    return []
+  }
+  return Object.entries(option.headers).map(([name, template]) => {
+    const resolved = resolve(template, option.inputs, values, false)
+    return { name, value: resolved.incomplete ? template : SECRET_MASK }
+  })
+}
+
 function resolveEnv(option: Extract<InstallOption, { kind: 'stdio' }>, values: InputValues): Record<string, string> {
   return Object.fromEntries(
     Object.entries(option.env).flatMap(([name, template]) => {
@@ -142,7 +159,15 @@ export function buildServerFromOption(
   }
 
   if (option.kind === 'http') {
-    return { ...base, transport: { type: 'http', url: resolve(option.url, option.inputs, values, false).text } }
+    const headers = resolveHeaders(option, values)
+    return {
+      ...base,
+      transport: {
+        type: 'http',
+        url: resolve(option.url, option.inputs, values, false).text,
+        ...(Object.keys(headers).length > 0 ? { headers } : {}),
+      },
+    }
   }
   if (option.kind === 'stdio') {
     return {
