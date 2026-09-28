@@ -1,6 +1,6 @@
 import type { ReactNode } from 'react'
 import { useEffect, useLayoutEffect, useRef, useState } from 'react'
-import { ArrowLeft, Check, Code, FileUp, FolderOpen, LayoutTemplate, Plus, X } from 'lucide-react'
+import { ArrowLeft, Check, Code, Eye, EyeOff, FileUp, FolderOpen, LayoutTemplate, Plus, X } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import { getVisibleClients } from './clientMeta'
 import { JsonEditor } from './JsonEditor'
@@ -161,7 +161,9 @@ export function ServerEditor({
   const [batchServers, setBatchServers] = useState<MCPServer[]>([])
   const fileInputRef = useRef<HTMLInputElement | null>(null)
   // Row that was just added, so its input can take focus.
-  const [pendingFocus, setPendingFocus] = useState<{ args?: number; env?: number }>({})
+  const [pendingFocus, setPendingFocus] = useState<{ args?: number; env?: number; header?: number }>({})
+  // Header values are secrets: masked unless the user reveals a row.
+  const [revealedHeaders, setRevealedHeaders] = useState<ReadonlySet<number>>(new Set())
   const visibleClients = getVisibleClients(visibleApps)
   const projectConfigurableApps = getProjectConfigurableApps()
   const projectConfigurableClients = visibleClients.filter((client) => projectConfigurableApps.includes(client.id))
@@ -208,6 +210,7 @@ export function ServerEditor({
     setWarnings([])
     setErrors([])
     setBatchServers([])
+    setRevealedHeaders(new Set())
     setMode('form')
   }, [server])
 
@@ -221,7 +224,8 @@ export function ServerEditor({
     !draft.program.trim() &&
     !draft.url.trim() &&
     draft.args.every((arg) => !arg.trim()) &&
-    draft.envEntries.every((entry) => !entry.key.trim() && !entry.value.trim())
+    draft.envEntries.every((entry) => !entry.key.trim() && !entry.value.trim()) &&
+    draft.headerEntries.every((entry) => !entry.key.trim() && !entry.value.trim())
 
   const initialSerialized = server ? JSON.stringify(editorDraftToServer(serverToEditorDraft(server))) : ''
   const currentSerialized = !server && isDraftEffectivelyEmpty ? '' : JSON.stringify(editorDraftToServer(draft))
@@ -331,6 +335,40 @@ export function ServerEditor({
       ...current,
       envEntries: current.envEntries.filter((_, position) => position !== index),
     }))
+  }
+
+  const addHeader = () => {
+    setPendingFocus({ header: draft.headerEntries.length })
+    setDraft((current) => ({
+      ...current,
+      headerEntries: [...current.headerEntries, { key: '', value: '' }],
+    }))
+  }
+
+  const updateHeader = (index: number, patch: Partial<EditorDraft['headerEntries'][number]>) => {
+    setDraft((current) => {
+      const next = [...current.headerEntries]
+      next[index] = { ...next[index], ...patch }
+      return { ...current, headerEntries: next }
+    })
+  }
+
+  const removeHeader = (index: number) => {
+    setRevealedHeaders(new Set())
+    setDraft((current) => ({
+      ...current,
+      headerEntries: current.headerEntries.filter((_, position) => position !== index),
+    }))
+  }
+
+  const toggleHeaderReveal = (index: number) => {
+    setRevealedHeaders((current) => {
+      const next = new Set(current)
+      if (!next.delete(index)) {
+        next.add(index)
+      }
+      return next
+    })
   }
 
   const submit = () => {
@@ -598,16 +636,66 @@ export function ServerEditor({
                     </div>
                   </>
                 ) : (
-                  <label className="editor-field">
-                    <span className="editor-field-label">{t('url')}</span>
-                    <input
-                      className="editor-input editor-input-mono"
-                      placeholder="https://example.com/mcp"
-                      spellCheck={false}
-                      value={draft.url}
-                      onChange={(event) => setDraft((current) => ({ ...current, url: event.target.value }))}
-                    />
-                  </label>
+                  <>
+                    <label className="editor-field">
+                      <span className="editor-field-label">{t('url')}</span>
+                      <input
+                        className="editor-input editor-input-mono"
+                        placeholder="https://example.com/mcp"
+                        spellCheck={false}
+                        value={draft.url}
+                        onChange={(event) => setDraft((current) => ({ ...current, url: event.target.value }))}
+                      />
+                    </label>
+
+                    <div className="editor-field">
+                      <span className="editor-field-label">{t('requestHeaders')}</span>
+                      <div className="config-list">
+                        {draft.headerEntries.map((entry, index) => {
+                          const revealed = revealedHeaders.has(index)
+                          return (
+                            <div key={index} className="config-list-row config-list-row-header">
+                              <input
+                                className="config-list-input config-list-input-key"
+                                placeholder="Authorization"
+                                aria-label={t('headerKey')}
+                                autoFocus={index === pendingFocus.header}
+                                spellCheck={false}
+                                value={entry.key}
+                                onChange={(event) => updateHeader(index, { key: event.target.value })}
+                              />
+                              <input
+                                className="config-list-input"
+                                type={revealed ? 'text' : 'password'}
+                                placeholder={t('headerValue')}
+                                aria-label={t('headerValue')}
+                                autoComplete="off"
+                                spellCheck={false}
+                                value={entry.value}
+                                onChange={(event) => updateHeader(index, { value: event.target.value })}
+                              />
+                              <button
+                                type="button"
+                                className="config-list-remove config-list-reveal"
+                                onClick={() => toggleHeaderReveal(index)}
+                                aria-label={revealed ? t('hideHeaderValue') : t('showHeaderValue')}
+                                aria-pressed={revealed}
+                              >
+                                {revealed ? <EyeOff size={13} /> : <Eye size={13} />}
+                              </button>
+                              <button type="button" className="config-list-remove" onClick={() => removeHeader(index)} aria-label={t('delete')}>
+                                <X size={13} />
+                              </button>
+                            </div>
+                          )
+                        })}
+                        <button type="button" className="config-list-add" onClick={addHeader}>
+                          <Plus size={12} />
+                          {t('addHeader')}
+                        </button>
+                      </div>
+                    </div>
+                  </>
                 )
               ) : (
                 <>

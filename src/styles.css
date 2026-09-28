@@ -1285,6 +1285,10 @@ button {
   grid-template-columns: minmax(120px, 0.36fr) minmax(0, 1fr) 28px;
 }
 
+.config-list-row-header {
+  grid-template-columns: minmax(120px, 0.36fr) minmax(0, 1fr) 28px 28px;
+}
+
 .config-list-input {
   width: 100%;
   min-width: 0;
@@ -1329,6 +1333,13 @@ button {
 .config-list-remove:hover {
   color: var(--danger);
   background: color-mix(in srgb, var(--danger) 12%, transparent);
+}
+
+.config-list-reveal:hover,
+.config-list-reveal[aria-pressed='true'] {
+  color: var(--text);
+  background: var(--panel-muted);
+  opacity: 1;
 }
 
 .config-list-add {
