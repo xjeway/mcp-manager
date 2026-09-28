@@ -217,3 +217,14 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: node scripts/github-release.mjs upload-updater "${{ needs.prepare-release.outputs.release_id }}"
+
+  publish-homebrew:
+    name: Publish Homebrew cask
+    needs: publish-updater
+    # Same rule as isPrereleaseRef: tags like v1.2.3-beta.1 are prereleases.
+    if: ${{ !contains(github.ref_name, '-') }}
+    uses: ./.github/workflows/homebrew.yml
+    with:
+      release_tag: ${{ github.ref_name }}
+    secrets:
+      HOMEBREW_TAP_PAT: ${{ secrets.HOMEBREW_TAP_PAT }}
