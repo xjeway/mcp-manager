@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest'
 import {
   editorDraftToServer,
   filterWorkspaceRows,
+  retainVisibleSelection,
   mapConfigToWorkspaceView,
   serverToEditorDraft,
   setServerAppEnabled,
@@ -314,5 +315,16 @@ describe('filterWorkspaceRows', () => {
   it('keeps only rows enabled for the selected app', () => {
     expect(ids(filterWorkspaceRows(rows, { query: '', app: 'cursor' }))).toEqual(['github', 'filesystem'])
     expect(ids(filterWorkspaceRows(rows, { query: 'file', app: 'vscode' }))).toEqual([])
+  })
+})
+
+describe('retainVisibleSelection', () => {
+  it('drops ids that are hidden or no longer exist', () => {
+    expect(retainVisibleSelection(['a', 'b', 'c'], ['a', 'c', 'd'])).toEqual(['a', 'c'])
+  })
+
+  it('returns the same array when nothing changes so state updates can bail out', () => {
+    const selection = ['a', 'b']
+    expect(retainVisibleSelection(selection, ['a', 'b', 'c'])).toBe(selection)
   })
 })

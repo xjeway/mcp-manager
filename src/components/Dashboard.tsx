@@ -4,7 +4,7 @@ import { useTranslation } from 'react-i18next'
 import { getVisibleClients } from './clientMeta'
 import { AppLogo } from './AppLogo'
 import { Tooltip } from './Tooltip'
-import { filterWorkspaceRows, type WorkspaceViewModel } from '../view-models/workspace'
+import { filterWorkspaceRows, retainVisibleSelection, type WorkspaceViewModel } from '../view-models/workspace'
 import type { SupportedApp } from '../types/config'
 
 interface DashboardProps {
@@ -93,6 +93,13 @@ export function Dashboard({
   // Batch actions only ever touch rows the user can see: drop selections for servers that
   // were deleted, replaced, or are currently hidden by the search/client filter.
   const selected = selectedIds.filter((id) => rowIds.includes(id))
+  // Also forget them, so clearing the filter does not bring back a selection the user
+  // could not see when they acted.
+  const rowIdsKey = rowIds.join('\u0000')
+  useEffect(() => {
+    const visibleIds = rowIdsKey ? rowIdsKey.split('\u0000') : []
+    setSelectedIds((current) => retainVisibleSelection(current, visibleIds))
+  }, [rowIdsKey])
   const selectedRows = workspace.rows.filter((row) => selected.includes(row.id))
   const allSelected = rowIds.length > 0 && selected.length === rowIds.length
 
@@ -290,8 +297,15 @@ export function Dashboard({
                   }
                 }}
               />
+              <span className="sr-only" role="status" aria-live="polite">
+                {filtering
+                  ? visibleRows.length === 0
+                    ? t('serverSearchEmptyTitle')
+                    : t('serverSearchStatus', { shown: visibleRows.length, total: workspace.rows.length })
+                  : ''}
+              </span>
               {filtering ? (
-                <span className="server-search-count">
+                <span className="server-search-count" aria-hidden="true">
                   {t('serverSearchCount', { shown: visibleRows.length, total: workspace.rows.length })}
                 </span>
               ) : null}

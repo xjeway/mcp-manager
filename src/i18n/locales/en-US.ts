@@ -56,6 +56,7 @@ const enUS = {
   batchClear: 'Clear selection',
   serverSearchPlaceholder: 'Search servers (⌘F)',
   serverSearchCount: '{{shown}} / {{total}}',
+  serverSearchStatus: 'Showing {{shown}} of {{total}} servers',
   serverSearchEmptyTitle: 'No matching MCP servers',
   serverSearchClear: 'Clear search and filters',
   clientFilterApply: 'Show only servers enabled for {{client}}',

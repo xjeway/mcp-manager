@@ -56,6 +56,7 @@ const zhCN = {
   batchClear: '取消选择',
   serverSearchPlaceholder: '搜索 server（⌘F）',
   serverSearchCount: '{{shown}} / {{total}}',
+  serverSearchStatus: '显示 {{shown}} / {{total}} 个 server',
   serverSearchEmptyTitle: '没有匹配的 MCP server',
   serverSearchClear: '清除搜索和筛选',
   clientFilterApply: '只显示已启用 {{client}} 的 server',

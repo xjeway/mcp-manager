@@ -157,6 +157,12 @@ export function filterWorkspaceRows(rows: WorkspaceRowViewModel[], filter: Works
   })
 }
 
+/** Keeps only selected ids that are still visible; returns `selectedIds` itself if none were dropped. */
+export function retainVisibleSelection(selectedIds: string[], visibleIds: string[]): string[] {
+  const next = selectedIds.filter((id) => visibleIds.includes(id))
+  return next.length === selectedIds.length ? selectedIds : next
+}
+
 function placementScopeLabel(scope: PlacementScope): string {
   return scope === 'workspace' ? 'placementScopeWorkspace' : 'placementScopeUser'
 }
