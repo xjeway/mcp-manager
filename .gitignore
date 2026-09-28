@@ -51,3 +51,7 @@ openspec
 
 # Local Claude Code settings
 .claude/
+
+# Gemini CLI (issue triage)
+.gemini/
+gha-creds-*.json

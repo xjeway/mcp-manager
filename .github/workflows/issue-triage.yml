@@ -1,0 +1,114 @@
+name: Issue Triage
+
+on:
+  issues:
+    types: [opened, reopened]
+
+concurrency:
+  group: issue-triage-${{ github.event.issue.number }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+env:
+  # The only labels the model may apply; anything else it returns is dropped.
+  ALLOWED_LABELS: bug,enhancement,question,documentation,client-support,needs-info,platform:windows,platform:macos,platform:linux
+
+jobs:
+  triage:
+    name: Classify issue
+    if: github.event.issue.user.type != 'Bot'
+    runs-on: ubuntu-latest
+    timeout-minutes: 7
+    outputs:
+      labels: ${{ steps.gemini.outputs.summary }}
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v5
+
+      - name: Prepare prompt context
+        env:
+          ISSUE_TITLE: ${{ github.event.issue.title }}
+          ISSUE_BODY: ${{ github.event.issue.body }}
+        run: |
+          mkdir -p .gemini/commands
+          cp .github/gemini/issue-triage.toml .gemini/commands/issue-triage.toml
+          jq -n \
+            --arg labels "$ALLOWED_LABELS" \
+            --arg title "$ISSUE_TITLE" \
+            --arg body "$ISSUE_BODY" \
+            '{allowed_labels: $labels, issue_title: $title, issue_body: $body}' > .gemini/context.json
+
+      - name: Run Gemini
+        id: gemini
+        uses: google-github-actions/run-gemini-cli@v0
+        env:
+          GEMINI_CLI_TRUST_WORKSPACE: 'true'
+          # The issue text is untrusted, so the model gets no GitHub token and no tools.
+          GITHUB_TOKEN: ''
+        with:
+          gemini_api_key: ${{ secrets.GEMINI_API_KEY }}
+          gemini_model: ${{ vars.GEMINI_MODEL }}
+          workflow_name: issue-triage
+          github_issue_number: ${{ github.event.issue.number }}
+          settings: |-
+            {
+              "model": { "maxSessionTurns": 5 },
+              "tools": { "core": [] }
+            }
+          prompt: /issue-triage
+
+  label:
+    name: Apply labels
+    needs: triage
+    if: needs.triage.outputs.labels != ''
+    runs-on: ubuntu-latest
+    permissions:
+      issues: write
+
+    steps:
+      - name: Apply labels and ask for missing info
+        uses: actions/github-script@v8
+        env:
+          SELECTED_LABELS: ${{ needs.triage.outputs.labels }}
+        with:
+          script: |
+            const allowed = process.env.ALLOWED_LABELS.split(',')
+            const selected = [...new Set(
+              process.env.SELECTED_LABELS.split(',').map((label) => label.trim()).filter((label) => allowed.includes(label)),
+            )]
+            if (selected.length === 0) {
+              core.info('No valid labels returned.')
+              return
+            }
+
+            const issue_number = context.payload.issue.number
+            const { owner, repo } = context.repo
+
+            // Create any triage label the repository does not have yet.
+            const existing = new Set(
+              (await github.paginate(github.rest.issues.listLabelsForRepo, { owner, repo, per_page: 100 })).map((label) => label.name),
+            )
+            for (const name of selected.filter((label) => !existing.has(label))) {
+              const color = name.startsWith('platform:') ? 'bfd4f2' : name === 'needs-info' ? 'fbca04' : 'c5def5'
+              await github.rest.issues.createLabel({ owner, repo, name, color })
+            }
+
+            await github.rest.issues.addLabels({ owner, repo, issue_number, labels: selected })
+            core.info(`Applied labels: ${selected.join(', ')}`)
+
+            // A fixed message, so no model output is ever posted.
+            if (selected.includes('needs-info')) {
+              await github.rest.issues.createComment({
+                owner,
+                repo,
+                issue_number,
+                body: [
+                  '感谢反馈！为了更快定位问题，请补充：操作系统（macOS / Windows / Linux）、MCP Manager 版本，以及涉及的客户端和版本。',
+                  '',
+                  'Thanks for the report! Please add your OS, MCP Manager version, and the affected client and its version.',
+                ].join('\n'),
+              })
+            }
