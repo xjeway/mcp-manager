@@ -81,6 +81,7 @@ pub fn commit(session: &Session, change: Change, dry_run: bool) -> Outcome<bool>
     let mut remembered = state::load(&session.ctx);
     remembered.last_backups = result.backups.clone();
     remembered.last_previous_config = Some(before);
+    remembered.last_applied_config = Some(after);
     if let Err(error) = state::save(&session.ctx, &remembered) {
         session.warn(format!(
             "Could not record this change for rollback: {error}"

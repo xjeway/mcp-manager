@@ -74,6 +74,18 @@ impl Sandbox {
         fs::read_to_string(self.home.join(".codex/config.toml")).unwrap_or_default()
     }
 
+    /// The app's shared server list, where PlatformContext puts it on each OS.
+    fn servers_yaml(&self) -> PathBuf {
+        let data = if cfg!(target_os = "macos") {
+            "Library/Application Support/mcp-manager"
+        } else if cfg!(windows) {
+            "AppData/Roaming/mcp-manager"
+        } else {
+            ".config/mcp-manager"
+        };
+        self.home.join(data).join("config/servers.yaml")
+    }
+
     fn listed_ids(&self) -> Vec<String> {
         self.json(&["list", "--json"])
             .as_array()
@@ -311,4 +323,29 @@ fn rejects_unknown_clients_and_servers() {
 
     let output = sandbox.run(&["remove", "nope", "-y"]);
     assert!(!output.status.success());
+}
+
+#[test]
+fn rollback_refuses_to_undo_over_a_later_edit() {
+    let sandbox = Sandbox::new();
+    sandbox.ok(ADD_CTX);
+
+    // The desktop app edits the list after the CLI's change.
+    let yaml = fs::read_to_string(sandbox.servers_yaml()).unwrap();
+    fs::write(
+        sandbox.servers_yaml(),
+        yaml.replace("ctx-mcp", "edited-in-app"),
+    )
+    .unwrap();
+
+    let output = sandbox.run(&["rollback", "-y"]);
+
+    assert!(!output.status.success());
+    assert!(String::from_utf8_lossy(&output.stderr).contains("changed after the last change"));
+    let yaml = fs::read_to_string(sandbox.servers_yaml()).unwrap();
+    assert!(yaml.contains("edited-in-app"), "the later edit is kept");
+    assert!(
+        sandbox.cursor_servers().get("ctx").is_some(),
+        "client files are untouched"
+    );
 }

@@ -2,6 +2,7 @@
 
 use mcp_manager_core::core::{MCPConfig, SupportedApp};
 use mcp_manager_core::platform::PlatformContext;
+use mcp_manager_core::storage::atomic_write;
 use serde::{Deserialize, Serialize};
 use std::path::PathBuf;
 
@@ -14,6 +15,9 @@ pub struct State {
     pub last_backups: Vec<String>,
     /// servers.yaml as it was before the last change, for `rollback`.
     pub last_previous_config: Option<MCPConfig>,
+    /// servers.yaml as the last change wrote it. `rollback` refuses to run if
+    /// the file no longer matches, so it never undoes someone else's edit.
+    pub last_applied_config: Option<MCPConfig>,
 }
 
 fn path(ctx: &PlatformContext) -> PathBuf {
@@ -29,10 +33,7 @@ pub fn load(ctx: &PlatformContext) -> State {
 }
 
 pub fn save(ctx: &PlatformContext, state: &State) -> Result<(), String> {
-    let path = path(ctx);
-    if let Some(parent) = path.parent() {
-        std::fs::create_dir_all(parent).map_err(|e| e.to_string())?;
-    }
     let content = serde_json::to_string_pretty(state).map_err(|e| e.to_string())?;
-    std::fs::write(path, content).map_err(|e| e.to_string())
+    // A torn file would load as empty state and lose the rollback record.
+    atomic_write(&path(ctx), &content)
 }
