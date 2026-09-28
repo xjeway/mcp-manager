@@ -1,0 +1,22 @@
+[package]
+name = "mcp-manager-cli"
+description = "Add, list and remove MCP servers across Claude Code, Codex, Cursor and more from the command line"
+version.workspace = true
+authors.workspace = true
+license.workspace = true
+edition.workspace = true
+
+# Placeholder command name until the published name is decided.
+[[bin]]
+name = "mcp-manager-cli"
+path = "src/main.rs"
+
+[dependencies]
+mcp-manager-core.workspace = true
+clap = { version = "4", features = ["derive"] }
+cliclack = "0.5"
+serde.workspace = true
+serde_json.workspace = true
+
+[dev-dependencies]
+tempfile.workspace = true
