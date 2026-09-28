@@ -1,0 +1,19 @@
+{
+  "mcpServers": {
+    "remote": {
+      "serverUrl": "https://mcp.example.com/mcp",
+      "headers": {
+        "Authorization": "Bearer fixture-token",
+        "X-Api-Key": "fixture-key"
+      }
+    },
+    "other": {
+      "command": "npx",
+      "args": [
+        "-y",
+        "@modelcontextprotocol/server-memory"
+      ]
+    }
+  },
+  "telemetry": false
+}

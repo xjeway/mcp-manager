@@ -103,6 +103,7 @@ mod tests {
                     transport: TransportSpec {
                         kind: "http".to_string(),
                         url: Some("https://mcp.linear.app/mcp".to_string()),
+                        headers: Default::default(),
                     },
                     command: None,
                     apps,
@@ -115,5 +116,18 @@ mod tests {
         );
         assert_eq!(operations[0].mode, "merge_json_object_entries");
         assert!(operations[0].content.contains("linear"));
+    }
+
+    #[test]
+    fn round_trips_http_headers() {
+        crate::adapters::header_fixture::assert_round_trip(
+            &AntigravityAdapter,
+            include_str!("../../tests/fixtures/headers/antigravity.json"),
+            crate::adapters::header_fixture::Expect {
+                field: "mcpServers",
+                headers_key: Some("headers"),
+                unrelated_key: "telemetry",
+            },
+        );
     }
 }

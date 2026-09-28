@@ -1,7 +1,8 @@
 import type { TFunction } from 'i18next'
 import type { ReactNode } from 'react'
-import { getVisibleClients } from '../components/clientMeta'
+import { CLIENTS, getVisibleClients } from '../components/clientMeta'
 import type {
+  ApplyWarning,
   MCPConfig,
   MCPServer,
   PlacementScope,
@@ -54,6 +55,7 @@ export interface EditorDraft {
   description: string
   enabled: boolean
   envEntries: Array<{ key: string; value: string }>
+  headerEntries: Array<{ key: string; value: string }>
   homepage: string
   id: string
   name: string
@@ -191,6 +193,7 @@ export function createEmptyEditorDraft(): EditorDraft {
     args: [],
     url: '',
     envEntries: [],
+    headerEntries: [],
     apps: emptyApps(),
   }
 }
@@ -201,6 +204,7 @@ export function serverToEditorDraft(server: MCPServer | null | undefined): Edito
   }
 
   const envEntries = Object.entries(server.command?.env ?? {}).map(([key, value]) => ({ key, value }))
+  const headerEntries = Object.entries(server.transport.headers ?? {}).map(([key, value]) => ({ key, value }))
 
   return {
     description: server.description ?? '',
@@ -213,6 +217,7 @@ export function serverToEditorDraft(server: MCPServer | null | undefined): Edito
     args: server.command?.args ?? [],
     url: server.transport.url ?? '',
     envEntries,
+    headerEntries,
     apps: { ...server.apps },
     placements: getServerPlacements(server),
   }
@@ -226,15 +231,20 @@ function slugify(input: string): string {
     .replace(/^-+|-+$/g, '')
 }
 
-export function editorDraftToServer(draft: EditorDraft): MCPServer {
-  const id = draft.id.trim() || slugify(draft.name) || 'new-server'
-  const name = draft.name.trim() || id
-  const env = draft.envEntries.reduce<Record<string, string>>((acc, entry) => {
+function entriesToRecord(entries: EditorDraft['envEntries']): Record<string, string> {
+  return entries.reduce<Record<string, string>>((acc, entry) => {
     if (entry.key.trim()) {
       acc[entry.key.trim()] = entry.value
     }
     return acc
   }, {})
+}
+
+export function editorDraftToServer(draft: EditorDraft): MCPServer {
+  const id = draft.id.trim() || slugify(draft.name) || 'new-server'
+  const name = draft.name.trim() || id
+  const env = entriesToRecord(draft.envEntries)
+  const headers = entriesToRecord(draft.headerEntries)
 
   const placements = draft.placements.filter((placement) => placement.enabled)
   const apps = { ...draft.apps }
@@ -247,7 +257,7 @@ export function editorDraftToServer(draft: EditorDraft): MCPServer {
     enabled: draft.enabled,
     transport:
       draft.transportType === 'http'
-        ? { type: 'http', url: draft.url.trim() }
+        ? { type: 'http', url: draft.url.trim(), ...(Object.keys(headers).length > 0 ? { headers } : {}) }
         : { type: 'stdio' },
     command:
       draft.transportType === 'stdio'
@@ -309,6 +319,7 @@ export function serverToJsonText(server: MCPServer | null | undefined): string {
             homepage: server.homepage,
             type: 'http',
             url: server.transport.url ?? '',
+            headers: server.transport.headers,
             name: server.name,
           },
         },
@@ -333,5 +344,15 @@ export function serverToJsonText(server: MCPServer | null | undefined): string {
     },
     null,
     2,
+  )
+}
+
+/** User-facing text for the non-blocking warnings returned by an apply. */
+export function applyWarningMessages(warnings: readonly ApplyWarning[], servers: readonly MCPServer[], t: TFunction): string[] {
+  return warnings.map((warning) =>
+    t('applyWarningHttpHeadersUnsupported', {
+      client: CLIENTS.find((client) => client.id === warning.app)?.label ?? warning.app,
+      server: servers.find((server) => server.id === warning.serverId)?.name ?? warning.serverId,
+    }),
   )
 }

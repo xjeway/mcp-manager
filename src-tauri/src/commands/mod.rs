@@ -1,4 +1,4 @@
-use crate::adapters::{adapters, workspace_scope_path};
+use crate::adapters::{adapters, unsupported_header_warnings, workspace_scope_path};
 use crate::core::{
     build_import_result, ApplyResult, DetectedServer, ImportResult, MCPConfig, SupportedApp,
 };
@@ -267,7 +267,10 @@ pub fn apply_config(
     }
 
     let backups = apply_operations(operations)?;
-    Ok(ApplyResult { backups })
+    Ok(ApplyResult {
+        backups,
+        warnings: unsupported_header_warnings(&config),
+    })
 }
 
 #[tauri::command]

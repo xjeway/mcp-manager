@@ -15,7 +15,8 @@ mod vscode;
 mod windsurf;
 
 use crate::core::{
-    LocalConfigSource, MCPConfig, MCPServer, PlacementScope, SupportedApp, WriteOperation,
+    ApplyWarning, LocalConfigSource, MCPConfig, MCPServer, PlacementScope, SupportedApp,
+    WriteOperation,
 };
 use crate::platform::PlatformContext;
 use serde_json::{Map, Value};
@@ -255,19 +256,64 @@ pub fn managed_toml_field_writes(
 struct StandardJsonAppProfile {
     include_transport_type: bool,
     tools: Option<&'static [&'static str]>,
+    /// Key for remote request headers; `None` when the client cannot take them.
+    headers_key: Option<&'static str>,
 }
 
 fn standard_json_app_profile(app: SupportedApp) -> StandardJsonAppProfile {
-    match app {
-        SupportedApp::GithubCopilot => StandardJsonAppProfile {
-            include_transport_type: true,
-            tools: Some(&["*"]),
+    let headers_key = match app {
+        SupportedApp::Codex => Some("http_headers"),
+        // claude_desktop_config.json only describes local servers; remote ones
+        // (and their auth) are set up as Connectors in the app.
+        SupportedApp::ClaudeDesktop => None,
+        _ => Some("headers"),
+    };
+    StandardJsonAppProfile {
+        include_transport_type: true,
+        tools: match app {
+            SupportedApp::GithubCopilot => Some(&["*"]),
+            _ => None,
         },
-        _ => StandardJsonAppProfile {
-            include_transport_type: true,
-            tools: None,
-        },
+        headers_key,
     }
+}
+
+/// Whether `app` can store request headers for remote servers.
+pub fn http_headers_supported(app: SupportedApp) -> bool {
+    standard_json_app_profile(app).headers_key.is_some()
+}
+
+/// Servers whose headers will be dropped because a client they are enabled for
+/// cannot store them.
+pub fn unsupported_header_warnings(config: &MCPConfig) -> Vec<ApplyWarning> {
+    config
+        .servers
+        .iter()
+        .filter(|server| server.enabled && headers_value(server).is_some())
+        .flat_map(|server| {
+            SupportedApp::ALL
+                .into_iter()
+                .filter(|app| !http_headers_supported(*app))
+                .filter(move |app| {
+                    server.apps.get(app).copied().unwrap_or(false)
+                        || server
+                            .placements
+                            .iter()
+                            .any(|placement| placement.app == *app && placement.enabled)
+                })
+                .map(move |app| ApplyWarning {
+                    kind: "httpHeadersUnsupported".to_string(),
+                    app,
+                    server_id: server.id.clone(),
+                })
+        })
+        .collect()
+}
+
+fn headers_value(server: &MCPServer) -> Option<Value> {
+    (server.transport.kind != "stdio" && !server.transport.headers.is_empty()).then(|| {
+        serde_json::to_value(&server.transport.headers).expect("serialize transport headers")
+    })
 }
 
 fn standard_json_transport_type(kind: &str) -> &'static str {
@@ -344,6 +390,10 @@ pub fn standard_mcp_servers_at(
                 );
             }
 
+            if let (Some(key), Some(headers)) = (profile.headers_key, headers_value(server)) {
+                value.insert(key.to_string(), headers);
+            }
+
             if let Some(tools) = profile.tools {
                 value.insert(
                     "tools".to_string(),
@@ -399,11 +449,15 @@ pub fn opencode_mcp_servers_at(
                     "environment": server.command.as_ref().map(|c| c.env.clone()).unwrap_or_default(),
                 })
             } else {
-                serde_json::json!({
+                let mut remote = serde_json::json!({
                     "type": "remote",
                     "enabled": true,
                     "url": server.transport.url.clone().unwrap_or_default(),
-                })
+                });
+                if let Some(headers) = headers_value(server) {
+                    remote["headers"] = headers;
+                }
+                remote
             };
             servers.insert(server.id.clone(), value);
         }
@@ -429,4 +483,192 @@ pub fn adapters() -> Vec<Box<dyn AppAdapter>> {
         Box::new(KiroAdapter),
         Box::new(QoderAdapter),
     ]
+}
+
+/// Shared fixture round-trip for per-adapter header tests.
+#[cfg(test)]
+pub(crate) mod header_fixture {
+    use super::AppAdapter;
+    use crate::core::MCPConfig;
+    use crate::platform::{PlatformContext, PlatformOs};
+    use crate::storage::apply_write;
+    use serde_json::Value;
+    use std::fs;
+    use std::path::PathBuf;
+
+    pub struct Expect {
+        /// Host field holding the server entries.
+        pub field: &'static str,
+        /// Key the client reads headers from; `None` when it has no header support.
+        pub headers_key: Option<&'static str>,
+        /// A top-level host setting that apply must leave untouched.
+        pub unrelated_key: &'static str,
+    }
+
+    fn read_host(path: &PathBuf) -> Value {
+        let content = fs::read_to_string(path).expect("read host config");
+        if path.extension().is_some_and(|ext| ext == "toml") {
+            let table: toml::Table = toml::from_str(&content).expect("toml");
+            serde_json::to_value(table).expect("toml to json")
+        } else {
+            serde_json::from_str(&content).expect("json")
+        }
+    }
+
+    /// Imports `fixture` from the app's user config, changes the `remote` server's
+    /// headers, applies, and checks what the client file ends up with.
+    pub fn assert_round_trip(adapter: &dyn AppAdapter, fixture: &str, expect: Expect) {
+        let home = tempfile::tempdir().expect("tempdir");
+        let ctx = PlatformContext {
+            os: PlatformOs::MacOS,
+            home_dir: home.path().to_path_buf(),
+            // Same as home: no current project.
+            workspace_root: home.path().to_path_buf(),
+        };
+        let path = ctx.user_app_config_path(adapter.app());
+        fs::create_dir_all(path.parent().unwrap()).unwrap();
+        fs::write(&path, fixture).unwrap();
+
+        let parsed = adapter.parse_source(&ctx, &path.to_string_lossy(), 20, fixture);
+        assert!(parsed.errors.is_empty(), "{:?}", parsed.errors);
+        let mut remote = parsed
+            .servers
+            .iter()
+            .map(|(server, _)| server.clone())
+            .find(|server| server.id == "remote")
+            .expect("remote server imported");
+        if expect.headers_key.is_some() {
+            assert_eq!(
+                remote
+                    .transport
+                    .headers
+                    .get("Authorization")
+                    .map(String::as_str),
+                Some("Bearer fixture-token"),
+                "headers imported"
+            );
+            assert_eq!(remote.transport.headers["X-Api-Key"], "fixture-key");
+        }
+        assert!(remote.apps[&adapter.app()], "enabled for the app");
+
+        remote.transport.headers = [("Authorization".to_string(), "Bearer rotated".to_string())]
+            .into_iter()
+            .collect();
+        let config = MCPConfig {
+            version: 1,
+            servers: vec![remote],
+        };
+        let operations = adapter.plan_apply(&ctx, &config, None);
+        assert_eq!(operations.len(), 1);
+        for operation in &operations {
+            apply_write(&PathBuf::from(&operation.path), operation).expect("apply");
+        }
+
+        let host = read_host(&path);
+        assert!(
+            host.get(expect.unrelated_key).is_some(),
+            "unrelated `{}` preserved: {host}",
+            expect.unrelated_key
+        );
+        let entries = &host[expect.field];
+        assert!(entries.get("other").is_some(), "unmanaged server preserved");
+        let written = &entries["remote"];
+        match expect.headers_key {
+            Some(key) => {
+                assert_eq!(written[key]["Authorization"], "Bearer rotated", "{written}");
+                assert!(written[key].get("X-Api-Key").is_none());
+            }
+            None => {
+                assert!(written.get("headers").is_none(), "{written}");
+                assert!(written.get("http_headers").is_none(), "{written}");
+            }
+        }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::unsupported_header_warnings;
+    use crate::core::{
+        empty_apps, ApplyWarning, MCPConfig, MCPServer, PlacementScope, ServerPlacement,
+        SupportedApp, TransportSpec,
+    };
+
+    fn remote(id: &str, headers: bool, apps: &[SupportedApp]) -> MCPServer {
+        let mut enabled = empty_apps();
+        for app in apps {
+            enabled.insert(*app, true);
+        }
+        MCPServer {
+            description: None,
+            homepage: None,
+            id: id.to_string(),
+            name: id.to_string(),
+            enabled: true,
+            transport: TransportSpec {
+                kind: "http".to_string(),
+                url: Some("https://x/mcp".to_string()),
+                headers: if headers {
+                    [("Authorization".to_string(), "Bearer t".to_string())].into()
+                } else {
+                    Default::default()
+                },
+            },
+            command: None,
+            apps: enabled,
+            placements: vec![],
+        }
+    }
+
+    fn config(servers: Vec<MCPServer>) -> MCPConfig {
+        MCPConfig {
+            version: 1,
+            servers,
+        }
+    }
+
+    #[test]
+    fn warns_when_headers_target_a_client_without_header_support() {
+        let warnings = unsupported_header_warnings(&config(vec![remote(
+            "linear",
+            true,
+            &[SupportedApp::ClaudeDesktop, SupportedApp::Vscode],
+        )]));
+        assert_eq!(
+            warnings,
+            vec![ApplyWarning {
+                kind: "httpHeadersUnsupported".to_string(),
+                app: SupportedApp::ClaudeDesktop,
+                server_id: "linear".to_string(),
+            }]
+        );
+        let json = serde_json::to_value(&warnings[0]).unwrap();
+        assert_eq!(json["serverId"], "linear");
+        assert_eq!(json["app"], "claudeDesktop");
+    }
+
+    #[test]
+    fn no_warning_without_headers_or_when_disabled() {
+        let mut disabled = remote("off", true, &[SupportedApp::ClaudeDesktop]);
+        disabled.enabled = false;
+        assert!(unsupported_header_warnings(&config(vec![
+            remote("plain", false, &[SupportedApp::ClaudeDesktop]),
+            disabled,
+            remote("vscode-only", true, &[SupportedApp::Vscode]),
+        ]))
+        .is_empty());
+    }
+
+    #[test]
+    fn warns_for_enabled_placements_too() {
+        let mut server = remote("linear", true, &[]);
+        server.placements.push(ServerPlacement {
+            app: SupportedApp::ClaudeDesktop,
+            scope: PlacementScope::User,
+            path: None,
+            enabled: true,
+            managed: true,
+        });
+        assert_eq!(unsupported_header_warnings(&config(vec![server])).len(), 1);
+    }
 }

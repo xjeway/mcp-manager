@@ -74,4 +74,43 @@ describe('ServerEditor', () => {
     expect(html).toContain('value="Context7"')
     expect(html).toContain('value="@upstash/context7-mcp@4.1.1"')
   })
+
+  it('shows masked header rows for HTTP servers only', () => {
+    const render = (server: Parameters<typeof ServerEditor>[0]['server']) =>
+      renderToStaticMarkup(
+        <ServerEditor
+          busy={false}
+          server={server}
+          workspace={{ root: '', placementPaths: {} }}
+          visibleApps={['vscode']}
+          onCancel={() => {}}
+          onDraftChange={() => {}}
+          onSave={() => {}}
+          onSaveMany={() => {}}
+        />,
+      )
+    const apps = { vscode: true } as never
+
+    const http = render({
+      id: 'linear',
+      name: 'Linear',
+      enabled: true,
+      transport: { type: 'http', url: 'https://mcp.linear.app/mcp', headers: { Authorization: 'Bearer t' } },
+      apps,
+    })
+    expect(http).toContain('requestHeaders')
+    expect(http).toContain('value="Authorization"')
+    expect(http).toMatch(/<input[^>]*type="password"[^>]*aria-label="headerValue"/)
+    expect(http).toContain('aria-label="showHeaderValue"')
+
+    const stdio = render({
+      id: 'local',
+      name: 'Local',
+      enabled: true,
+      transport: { type: 'stdio' },
+      command: { program: 'npx', args: [], env: {} },
+      apps,
+    })
+    expect(stdio).not.toContain('requestHeaders')
+  })
 })

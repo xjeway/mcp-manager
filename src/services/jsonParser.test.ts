@@ -107,4 +107,26 @@ describe('parseMcpJson', () => {
     expect(result.servers[0].transport.url).toBe('https://mcp.linear.app/sse')
     expect(result.servers[0].enabled).toBe(false)
   })
+
+  it('parses remote headers, including Codex http_headers', () => {
+    const result = parseMcpJson(
+      JSON.stringify({
+        mcpServers: {
+          linear: { url: 'https://mcp.linear.app/mcp', headers: { Authorization: 'Bearer t', 'X-Retries': 3 } },
+          figma: { url: 'https://mcp.figma.com/mcp', http_headers: { 'X-Region': 'us' } },
+          plain: { url: 'https://example.com/mcp' },
+        },
+      }),
+    )
+
+    expect(result.errors).toHaveLength(0)
+    expect(result.servers[0].transport.headers).toEqual({ Authorization: 'Bearer t', 'X-Retries': '3' })
+    expect(result.servers[1].transport.headers).toEqual({ 'X-Region': 'us' })
+    expect(result.servers[2].transport).not.toHaveProperty('headers')
+  })
+
+  it('ignores headers on stdio servers', () => {
+    const result = parseMcpJson(JSON.stringify({ command: 'npx', headers: { Authorization: 'x' } }))
+    expect(result.servers[0].transport).not.toHaveProperty('headers')
+  })
 })

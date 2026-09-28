@@ -1,0 +1,26 @@
+{
+  "inputs": [
+    {
+      "id": "token",
+      "type": "promptString"
+    }
+  ],
+  "servers": {
+    "remote": {
+      "type": "http",
+      "url": "https://mcp.example.com/mcp",
+      "headers": {
+        "Authorization": "Bearer fixture-token",
+        "X-Api-Key": "fixture-key"
+      }
+    },
+    "other": {
+      "type": "stdio",
+      "command": "npx",
+      "args": [
+        "-y",
+        "@modelcontextprotocol/server-memory"
+      ]
+    }
+  }
+}

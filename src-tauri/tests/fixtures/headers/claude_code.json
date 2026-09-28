@@ -1,0 +1,26 @@
+{
+  "numStartups": 42,
+  "projects": {
+    "/somewhere": {
+      "allowedTools": []
+    }
+  },
+  "mcpServers": {
+    "remote": {
+      "type": "http",
+      "url": "https://mcp.example.com/mcp",
+      "headers": {
+        "Authorization": "Bearer fixture-token",
+        "X-Api-Key": "fixture-key"
+      }
+    },
+    "other": {
+      "type": "stdio",
+      "command": "npx",
+      "args": [
+        "-y",
+        "@modelcontextprotocol/server-memory"
+      ]
+    }
+  }
+}

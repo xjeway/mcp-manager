@@ -125,6 +125,7 @@ mod tests {
                     transport: TransportSpec {
                         kind: "stdio".to_string(),
                         url: None,
+                        headers: Default::default(),
                     },
                     command: Some(crate::core::CommandSpec {
                         program: "npx".to_string(),
@@ -143,5 +144,18 @@ mod tests {
             None,
         );
         assert_eq!(operations[0].field.as_deref(), Some("mcpServers"));
+    }
+
+    #[test]
+    fn round_trips_http_headers() {
+        crate::adapters::header_fixture::assert_round_trip(
+            &QoderAdapter,
+            include_str!("../../tests/fixtures/headers/qoder.json"),
+            crate::adapters::header_fixture::Expect {
+                field: "mcpServers",
+                headers_key: Some("headers"),
+                unrelated_key: "theme",
+            },
+        );
     }
 }

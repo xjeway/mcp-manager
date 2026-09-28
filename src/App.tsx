@@ -8,7 +8,7 @@ import { SettingsPage } from './components/SettingsPage'
 import { ServerEditor } from './components/ServerEditor'
 import { ToastViewport } from './components/ToastViewport'
 import { UpdateProgressWindow } from './components/UpdateProgressWindow'
-import { mapConfigToWorkspaceView, type FeedbackItem } from './view-models/workspace'
+import { applyWarningMessages, mapConfigToWorkspaceView, type FeedbackItem } from './view-models/workspace'
 import './i18n'
 import {
   EMPTY_WORKSPACE,
@@ -483,6 +483,9 @@ function MainApp() {
       })
       setConfig(nextConfig)
       setBackups(result.backups)
+      for (const message of applyWarningMessages(result.warnings ?? [], nextConfig.servers, t)) {
+        pushFeedback('warning', message)
+      }
       if (successMessage) {
         pushFeedback(successKind, successMessage)
       }

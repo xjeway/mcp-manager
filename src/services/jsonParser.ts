@@ -21,15 +21,23 @@ function defaultApps(): MCPServer['apps'] {
   }
 }
 
+function stringRecord(input: unknown): Record<string, string> {
+  const record: Record<string, string> = {}
+  if (typeof input === 'object' && input !== null && !Array.isArray(input)) {
+    for (const [k, v] of Object.entries(input)) {
+      record[k] = String(v)
+    }
+  }
+  return record
+}
+
 function normalizeServer(id: string, input: Record<string, unknown>): MCPServer {
   const apps = defaultApps()
   const command = typeof input.command === 'string' ? input.command : undefined
   const args = Array.isArray(input.args) ? input.args.map((x) => String(x)) : []
-  const envInput = typeof input.env === 'object' && input.env !== null ? (input.env as Record<string, unknown>) : {}
-  const env: Record<string, string> = {}
-  for (const [k, v] of Object.entries(envInput)) {
-    env[k] = String(v)
-  }
+  const env = stringRecord(input.env)
+  // `http_headers` is Codex's name for the same map.
+  const headers = stringRecord(input.headers ?? input.http_headers)
 
   const type = typeof input.type === 'string' ? input.type : undefined
   const url =
@@ -41,10 +49,10 @@ function normalizeServer(id: string, input: Record<string, unknown>): MCPServer 
           ? input.serverUrl
           : undefined
   const disabled = input.disabled === true
-  const transport =
+  const transport: MCPServer['transport'] =
     type === 'http' || type === 'sse' || type === 'streamable-http' || url
-      ? { type: 'http' as const, url }
-      : { type: 'stdio' as const }
+      ? { type: 'http', url, ...(Object.keys(headers).length > 0 ? { headers } : {}) }
+      : { type: 'stdio' }
 
   const server: MCPServer = {
     description: typeof input.description === 'string' && input.description.trim() ? input.description : undefined,

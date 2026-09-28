@@ -36,6 +36,8 @@ export interface MCPServer {
   transport: {
     type: TransportType
     url?: string
+    /** Request headers for HTTP servers; values are secrets. Omitted when empty. */
+    headers?: Record<string, string>
   }
   command?: CommandSpec
   apps: Record<SupportedApp, boolean>
@@ -77,6 +79,13 @@ export interface ParseResult {
   servers: MCPServer[]
   warnings: ParseWarning[]
   errors: ParseError[]
+}
+
+/** A non-blocking problem reported by the backend after applying. */
+export interface ApplyWarning {
+  kind: 'httpHeadersUnsupported'
+  app: SupportedApp
+  serverId: string
 }
 
 export interface ApplyRiskSummary {

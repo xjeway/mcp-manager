@@ -267,6 +267,44 @@ fn apply_merge_toml_table_entries(
     atomic_write(path, &rendered)
 }
 
+/// Applies one write to `path` without taking a backup.
+pub fn apply_write(path: &PathBuf, item: &WriteOperation) -> Result<(), String> {
+    match item.mode.as_str() {
+        "replace_json" => apply_replace_json(path, &item.content),
+        "merge_json_field" => apply_merge_json_field(
+            path,
+            item.field
+                .as_deref()
+                .ok_or_else(|| "missing JSON merge field".to_string())?,
+            &item.content,
+        ),
+        "merge_json_object_entries" => apply_merge_json_object_entries(
+            path,
+            item.field
+                .as_deref()
+                .ok_or_else(|| "missing JSON merge field".to_string())?,
+            &item.content,
+            item.remove_keys.as_deref(),
+        ),
+        "merge_toml_field" => apply_merge_toml_field(
+            path,
+            item.field
+                .as_deref()
+                .ok_or_else(|| "missing TOML merge field".to_string())?,
+            &item.content,
+        ),
+        "merge_toml_table_entries" => apply_merge_toml_table_entries(
+            path,
+            item.field
+                .as_deref()
+                .ok_or_else(|| "missing TOML merge field".to_string())?,
+            &item.content,
+            item.remove_keys.as_deref(),
+        ),
+        other => Err(format!("unsupported artifact mode: {other}")),
+    }
+}
+
 pub fn apply_operations(artifacts: Vec<WriteOperation>) -> Result<Vec<String>, String> {
     let mut backups = Vec::new();
 
@@ -275,40 +313,7 @@ pub fn apply_operations(artifacts: Vec<WriteOperation>) -> Result<Vec<String>, S
         if let Some(backup) = backup_file(&path)? {
             backups.push(backup);
         }
-        match item.mode.as_str() {
-            "replace_json" => apply_replace_json(&path, &item.content)?,
-            "merge_json_field" => apply_merge_json_field(
-                &path,
-                item.field
-                    .as_deref()
-                    .ok_or_else(|| "missing JSON merge field".to_string())?,
-                &item.content,
-            )?,
-            "merge_json_object_entries" => apply_merge_json_object_entries(
-                &path,
-                item.field
-                    .as_deref()
-                    .ok_or_else(|| "missing JSON merge field".to_string())?,
-                &item.content,
-                item.remove_keys.as_deref(),
-            )?,
-            "merge_toml_field" => apply_merge_toml_field(
-                &path,
-                item.field
-                    .as_deref()
-                    .ok_or_else(|| "missing TOML merge field".to_string())?,
-                &item.content,
-            )?,
-            "merge_toml_table_entries" => apply_merge_toml_table_entries(
-                &path,
-                item.field
-                    .as_deref()
-                    .ok_or_else(|| "missing TOML merge field".to_string())?,
-                &item.content,
-                item.remove_keys.as_deref(),
-            )?,
-            other => return Err(format!("unsupported artifact mode: {other}")),
-        }
+        apply_write(&path, &item)?;
     }
 
     Ok(backups)

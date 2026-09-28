@@ -146,6 +146,7 @@ args = ["@playwright/mcp@latest"]
                     transport: TransportSpec {
                         kind: "stdio".to_string(),
                         url: None,
+                        headers: Default::default(),
                     },
                     command: Some(crate::core::CommandSpec {
                         program: "npx".to_string(),
@@ -160,5 +161,18 @@ args = ["@playwright/mcp@latest"]
         );
         assert_eq!(operations[0].mode, "merge_toml_table_entries");
         assert_eq!(operations[0].field.as_deref(), Some("mcp_servers"));
+    }
+
+    #[test]
+    fn round_trips_http_headers() {
+        crate::adapters::header_fixture::assert_round_trip(
+            &CodexAdapter,
+            include_str!("../../tests/fixtures/headers/codex.toml"),
+            crate::adapters::header_fixture::Expect {
+                field: "mcp_servers",
+                headers_key: Some("http_headers"),
+                unrelated_key: "model",
+            },
+        );
     }
 }

@@ -1,0 +1,20 @@
+{
+  "theme": "GitHub",
+  "mcpServers": {
+    "remote": {
+      "httpUrl": "https://mcp.example.com/mcp",
+      "headers": {
+        "Authorization": "Bearer fixture-token",
+        "X-Api-Key": "fixture-key"
+      },
+      "timeout": 5000
+    },
+    "other": {
+      "command": "npx",
+      "args": [
+        "-y",
+        "@modelcontextprotocol/server-memory"
+      ]
+    }
+  }
+}

@@ -116,6 +116,7 @@ mod tests {
                     transport: TransportSpec {
                         kind: "stdio".to_string(),
                         url: None,
+                        headers: Default::default(),
                     },
                     command: Some(crate::core::CommandSpec {
                         program: "uvx".to_string(),
@@ -150,6 +151,7 @@ mod tests {
                     transport: TransportSpec {
                         kind: "stdio".to_string(),
                         url: None,
+                        headers: Default::default(),
                     },
                     command: Some(crate::core::CommandSpec {
                         program: "npx".to_string(),
@@ -216,6 +218,7 @@ mod tests {
                 transport: TransportSpec {
                     kind: "stdio".to_string(),
                     url: None,
+                    headers: Default::default(),
                 },
                 command: Some(crate::core::CommandSpec {
                     program: "npx".to_string(),
@@ -244,6 +247,7 @@ mod tests {
                 transport: TransportSpec {
                     kind: "stdio".to_string(),
                     url: None,
+                    headers: Default::default(),
                 },
                 command: Some(crate::core::CommandSpec {
                     program: "npx".to_string(),
@@ -271,6 +275,19 @@ mod tests {
         assert_eq!(
             workspace_operation.remove_keys.as_deref(),
             Some(&["playwright".to_string()][..])
+        );
+    }
+
+    #[test]
+    fn round_trips_http_headers() {
+        crate::adapters::header_fixture::assert_round_trip(
+            &VSCodeAdapter,
+            include_str!("../../tests/fixtures/headers/vscode.json"),
+            crate::adapters::header_fixture::Expect {
+                field: "servers",
+                headers_key: Some("headers"),
+                unrelated_key: "inputs",
+            },
         );
     }
 }
