@@ -3,7 +3,7 @@ use crate::platform::PlatformContext;
 use chrono::Utc;
 use serde_json::{Map, Value};
 use std::fs;
-use std::path::{Path, PathBuf};
+use std::path::{Component, Path, PathBuf, Prefix};
 use toml::Table;
 
 fn base_dir() -> PathBuf {
@@ -30,22 +30,50 @@ pub fn ensure_parent(path: &Path) -> Result<(), String> {
     Ok(())
 }
 
+/// Mirrors an absolute directory under the backup root. Joining the absolute
+/// path directly would replace the root, so the root and drive are turned into
+/// plain components: `/a/b` becomes `a/b`, `C:\a\b` becomes `C/a/b`.
+fn backup_relative_dir(dir: &Path) -> PathBuf {
+    dir.components()
+        .filter_map(|component| match component {
+            Component::Prefix(prefix) => Some(match prefix.kind() {
+                Prefix::Disk(letter) | Prefix::VerbatimDisk(letter) => {
+                    char::from(letter).to_string().into()
+                }
+                _ => prefix
+                    .as_os_str()
+                    .to_string_lossy()
+                    .replace(|c: char| !c.is_ascii_alphanumeric(), "_")
+                    .into(),
+            }),
+            Component::Normal(part) => Some(part.to_os_string()),
+            _ => None,
+        })
+        .collect()
+}
+
+/// Inverse of [`backup_relative_dir`].
+fn restore_dir(relative: &Path) -> PathBuf {
+    if cfg!(windows) {
+        let mut components = relative.components();
+        let drive = components
+            .next()
+            .map(|component| component.as_os_str().to_string_lossy().to_string())
+            .unwrap_or_default();
+        PathBuf::from(format!("{drive}:\\")).join(components.as_path())
+    } else {
+        Path::new("/").join(relative)
+    }
+}
+
 pub fn backup_file(target: &PathBuf) -> Result<Option<String>, String> {
     if !target.exists() {
         return Ok(None);
     }
 
-    let backup_dir = base_dir().join("backups");
-    let relative_target = target
-        .strip_prefix("/")
-        .map(PathBuf::from)
-        .unwrap_or_else(|_| target.clone());
-    let backup_parent = backup_dir.join(
-        relative_target
-            .parent()
-            .map(PathBuf::from)
-            .unwrap_or_default(),
-    );
+    let backup_parent = base_dir().join("backups").join(backup_relative_dir(
+        target.parent().unwrap_or(Path::new("")),
+    ));
     fs::create_dir_all(&backup_parent).map_err(|e| e.to_string())?;
 
     let file_name = target
@@ -307,17 +335,12 @@ pub fn rollback(backups: Vec<String>) -> Result<(), String> {
 
         // filename format: <original>.<stamp>.bak
         let original_name = file_name
-            .split('.')
-            .next()
+            .strip_suffix(".bak")
+            .and_then(|name| name.rsplit_once('.'))
+            .map(|(original, _stamp)| original)
             .ok_or_else(|| "invalid backup name format".to_string())?;
 
-        let target = PathBuf::from("/")
-            .join(
-                relative
-                    .parent()
-                    .unwrap_or_else(|| std::path::Path::new("")),
-            )
-            .join(original_name);
+        let target = restore_dir(relative.parent().unwrap_or(Path::new(""))).join(original_name);
         ensure_parent(&target)?;
         fs::copy(src, target).map_err(|e| e.to_string())?;
     }
@@ -327,7 +350,7 @@ pub fn rollback(backups: Vec<String>) -> Result<(), String> {
 
 #[cfg(test)]
 mod tests {
-    use super::{apply_operations, backup_file, resolve_relative_path};
+    use super::{apply_operations, backup_file, resolve_relative_path, rollback};
     use crate::core::WriteOperation;
     use std::ffi::OsString;
     use std::fs;
@@ -576,5 +599,35 @@ mod tests {
 
         let expected_root = expected_app_data_dir(&home).join("backups");
         assert!(PathBuf::from(backup).starts_with(&expected_root));
+    }
+
+    #[test]
+    fn rollback_restores_the_original_file() {
+        let _guard = env_lock()
+            .lock()
+            .unwrap_or_else(|poisoned| poisoned.into_inner());
+        let temp = tempfile::tempdir().expect("tmpdir");
+        let home = temp.path().join("home");
+        let workspace = temp.path().join("workspace");
+        fs::create_dir_all(&home).expect("create home");
+        fs::create_dir_all(&workspace).expect("create workspace");
+
+        let target = workspace.join(".cursor").join("mcp.json");
+        fs::create_dir_all(target.parent().expect("parent")).expect("create config dir");
+        fs::write(&target, "original").expect("seed file");
+
+        let (previous_home, previous_dir) = set_test_runtime(&home, &workspace);
+
+        let backup = backup_file(&target)
+            .expect("backup result")
+            .expect("backup path should exist");
+        fs::write(&target, "changed").expect("change file");
+        let restored = rollback(vec![backup]);
+
+        restore_test_runtime(previous_home, previous_dir);
+
+        restored.expect("rollback");
+        assert_eq!(fs::read_to_string(&target).expect("read"), "original");
+        assert!(!target.with_file_name("mcp").exists());
     }
 }
