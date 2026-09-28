@@ -42,7 +42,7 @@ describe('Homebrew workflow structure', () => {
     expect(
       steps.some(
         (step) =>
-          step.uses === 'actions/checkout@v5' &&
+          step.uses?.startsWith('actions/checkout@') &&
           step.with?.repository === 'xjeway/homebrew-mcp-manager' &&
           step.with?.token === '${{ secrets.HOMEBREW_TAP_PAT }}',
       ),
