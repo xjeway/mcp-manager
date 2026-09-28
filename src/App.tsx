@@ -21,7 +21,9 @@ import {
 import { readAutoImportOnLaunchPreference, saveAutoImportOnLaunchPreference } from './services/appPreferences'
 import {
   applyConfig,
+  ConfigConflictError,
   detectInstalledApps,
+  hasExternalConfigChange,
   getCurrentWorkspace,
   importDetectedConfigs,
   loadConfig,
@@ -201,6 +203,16 @@ function MainApp() {
     setView(nextView)
   }
 
+  /** Replaces the in-memory config with servers.yaml as another program (e.g. the CLI) left it. */
+  const reloadConfigFromDisk = async (kind: FeedbackItem['kind'], message: string) => {
+    try {
+      setConfig(await loadConfig())
+      pushFeedback(kind, message)
+    } catch (error) {
+      pushFeedback('error', t('loadFailedDetail', { error: String(error) }))
+    }
+  }
+
   const applyImportResult = async (
     result: ImportDetectedResult,
     baselineConfig: MCPConfig,
@@ -223,7 +235,11 @@ function MainApp() {
           }),
         )
       } catch (error) {
-        pushFeedback('error', t('saveFailedDetail', { error: String(error) }))
+        if (error instanceof ConfigConflictError) {
+          await reloadConfigFromDisk('warning', t('configConflictReloaded'))
+        } else {
+          pushFeedback('error', t('saveFailedDetail', { error: String(error) }))
+        }
       }
     } else if (mode === 'manual') {
       pushFeedback(
@@ -320,6 +336,27 @@ function MainApp() {
       alive = false
     }
   }, [])
+
+  useEffect(() => {
+    if (typeof window === 'undefined') {
+      return
+    }
+
+    // Changes are saved as they are made, so picking up an outside edit never
+    // discards anything here; an open editor draft is separate state and survives.
+    const handleFocus = async () => {
+      try {
+        if (await hasExternalConfigChange()) {
+          await reloadConfigFromDisk('info', t('configChangedExternally'))
+        }
+      } catch {
+        // The next save still checks for conflicts.
+      }
+    }
+
+    window.addEventListener('focus', handleFocus)
+    return () => window.removeEventListener('focus', handleFocus)
+  }, [t])
 
   useEffect(() => {
     if (typeof window === 'undefined') {
@@ -469,7 +506,11 @@ function MainApp() {
       }
       return true
     } catch (error) {
-      pushFeedback('error', t('syncFailedDetail', { error: String(error) }))
+      if (error instanceof ConfigConflictError) {
+        await reloadConfigFromDisk('warning', t('configConflictReloaded'))
+      } else {
+        pushFeedback('error', t('syncFailedDetail', { error: String(error) }))
+      }
       return false
     } finally {
       setActionState('idle')

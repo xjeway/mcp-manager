@@ -110,14 +110,35 @@ function loadBrowserConfig(): MCPConfig {
   }
 }
 
+/** Prefix of the backend error for a save that lost a race with another program. */
+const CONFLICT_ERROR = 'CONFIG_CONFLICT'
+
+/** Thrown by `saveConfig` when servers.yaml changed on disk since it was loaded (e.g. by the CLI). */
+export class ConfigConflictError extends Error {
+  constructor(message: string) {
+    super(message)
+    this.name = 'ConfigConflictError'
+  }
+}
+
+interface StoredText {
+  content: string
+  fingerprint: string
+}
+
+// Fingerprint of servers.yaml as last loaded or saved by this window; `null`
+// until the first successful load, which leaves saves unchecked.
+let loadedFingerprint: string | null = null
+
 export async function loadConfig(): Promise<MCPConfig> {
   if (!isDesktopRuntime()) {
     return loadBrowserConfig()
   }
 
   try {
-    const text = await invoke<string>('load_yaml_config', { relativePath: CONFIG_PATH })
-    const parsed = YAML.parse(text) as MCPConfig
+    const stored = await invoke<StoredText>('load_yaml_config', { relativePath: CONFIG_PATH })
+    loadedFingerprint = stored.fingerprint
+    const parsed = YAML.parse(stored.content) as MCPConfig
     return parsed?.version ? parsed : defaultConfig()
   } catch {
     return defaultConfig()
@@ -131,7 +152,28 @@ export async function saveConfig(config: MCPConfig): Promise<void> {
   }
 
   const text = YAML.stringify(config)
-  await invoke('save_yaml_config', { relativePath: CONFIG_PATH, content: text })
+  try {
+    loadedFingerprint = await invoke<string>('save_yaml_config', {
+      relativePath: CONFIG_PATH,
+      content: text,
+      expectedFingerprint: loadedFingerprint,
+    })
+  } catch (error) {
+    if (String(error).startsWith(CONFLICT_ERROR)) {
+      throw new ConfigConflictError(String(error))
+    }
+    throw error
+  }
+}
+
+/** Whether servers.yaml was changed by another program since this window loaded or saved it. */
+export async function hasExternalConfigChange(): Promise<boolean> {
+  if (!isDesktopRuntime() || loadedFingerprint === null) {
+    return false
+  }
+
+  const current = await invoke<string>('yaml_config_fingerprint', { relativePath: CONFIG_PATH })
+  return current !== loadedFingerprint
 }
 
 export interface ApplyResult {

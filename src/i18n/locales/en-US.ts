@@ -110,6 +110,9 @@ const enUS = {
   surfaceSubtitle: 'Unified MCP control surface',
   syncLocalConfig: 'Import Local Config',
   syncFailedDetail: 'Save and sync failed: {{error}}',
+  configChangedExternally: 'The server list was changed outside MCP Manager (for example by the CLI). Loaded the latest version.',
+  configConflictReloaded:
+    'The server list was changed outside MCP Manager, so this change was not saved. Loaded the latest version; please make the change again.',
   autoImportSummary: 'Auto-detected {{count}} config sources on launch and imported {{servers}} MCP servers into unified YAML',
   themeToggle: 'Toggle theme',
   theme: 'Theme',

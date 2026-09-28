@@ -3,39 +3,126 @@
 use crate::core::MCPConfig;
 use crate::parser::parse_yaml_config;
 use crate::platform::PlatformContext;
+use crate::storage::atomic_write;
+use serde::Serialize;
 use serde_json::Value;
-use std::fs;
+use std::fs::{self, File, OpenOptions};
 use std::path::{Path, PathBuf};
 
 pub const CONFIG_RELATIVE_PATH: &str = "config/servers.yaml";
 
+/// Prefix of the error a checked write returns when the file changed since it
+/// was read, so callers can tell a conflict from other failures.
+pub const CONFLICT_ERROR: &str = "CONFIG_CONFLICT";
+
 const EMPTY_CONFIG_YAML: &str = "version: 1\nservers: []\n";
+const ABSENT_FINGERPRINT: &str = "absent";
 
 pub fn config_path(ctx: &PlatformContext) -> PathBuf {
     ctx.app_data_dir().join(CONFIG_RELATIVE_PATH)
 }
 
-/// The file's text, or an empty config when it does not exist yet.
-pub fn read_text(path: &Path) -> Result<String, String> {
-    if !path.exists() {
-        return Ok(EMPTY_CONFIG_YAML.to_string());
-    }
-    fs::read_to_string(path).map_err(|e| e.to_string())
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct StoredText {
+    pub content: String,
+    /// Identifies this exact file state; pass it back to [`write_text_checked`].
+    pub fingerprint: String,
 }
 
-pub fn write_text(path: &Path, content: &str) -> Result<(), String> {
-    if let Some(parent) = path.parent() {
+/// FNV-1a of the file's bytes: stable across builds and platforms, unlike
+/// std's hasher, and plenty to notice that another process wrote the file.
+fn fingerprint_of(content: &str) -> String {
+    let hash = content
+        .bytes()
+        .fold(0xcbf2_9ce4_8422_2325_u64, |hash, byte| {
+            (hash ^ u64::from(byte)).wrapping_mul(0x0100_0000_01b3)
+        });
+    format!("{hash:016x}")
+}
+
+pub fn fingerprint(path: &Path) -> Result<String, String> {
+    if !path.exists() {
+        return Ok(ABSENT_FINGERPRINT.to_string());
+    }
+    Ok(fingerprint_of(
+        &fs::read_to_string(path).map_err(|e| e.to_string())?,
+    ))
+}
+
+/// The file's text and fingerprint, or an empty config when it does not exist yet.
+pub fn read_text(path: &Path) -> Result<StoredText, String> {
+    if !path.exists() {
+        return Ok(StoredText {
+            content: EMPTY_CONFIG_YAML.to_string(),
+            fingerprint: ABSENT_FINGERPRINT.to_string(),
+        });
+    }
+    let content = fs::read_to_string(path).map_err(|e| e.to_string())?;
+    Ok(StoredText {
+        fingerprint: fingerprint_of(&content),
+        content,
+    })
+}
+
+/// Holds an exclusive lock on `<path>.lock` until dropped, so the app and the
+/// CLI never interleave a read-modify-write of the same file.
+struct WriteLock(#[allow(dead_code)] File);
+
+fn lock(path: &Path) -> Result<WriteLock, String> {
+    let mut lock_path = path.as_os_str().to_owned();
+    lock_path.push(".lock");
+    let lock_path = PathBuf::from(lock_path);
+    if let Some(parent) = lock_path.parent() {
         fs::create_dir_all(parent).map_err(|e| e.to_string())?;
     }
-    fs::write(path, content).map_err(|e| e.to_string())
+    let file = OpenOptions::new()
+        .create(true)
+        .truncate(false)
+        .write(true)
+        .open(&lock_path)
+        .map_err(|e| e.to_string())?;
+    file.lock().map_err(|e| e.to_string())?;
+    Ok(WriteLock(file))
+}
+
+/// Writes `content` unless the file no longer matches `expected` (the
+/// fingerprint it was read with), returning the new fingerprint. `None` skips
+/// the check.
+pub fn write_text_checked(
+    path: &Path,
+    content: &str,
+    expected: Option<&str>,
+) -> Result<String, String> {
+    let _lock = lock(path)?;
+    if let Some(expected) = expected {
+        if fingerprint(path)? != expected {
+            return Err(format!(
+                "{CONFLICT_ERROR}: {} was changed by another program",
+                path.to_string_lossy()
+            ));
+        }
+    }
+    atomic_write(&path.to_path_buf(), content)?;
+    Ok(fingerprint_of(content))
 }
 
 pub fn load(ctx: &PlatformContext) -> Result<MCPConfig, String> {
-    parse_yaml_config(&read_text(&config_path(ctx))?)
+    parse_yaml_config(&read_text(&config_path(ctx))?.content)
 }
 
-pub fn save(ctx: &PlatformContext, config: &MCPConfig) -> Result<(), String> {
-    write_text(&config_path(ctx), &to_yaml(config)?)
+/// Loads the config, lets `edit` change it, and saves the result, all under
+/// the write lock. Nothing is written when `edit` fails.
+pub fn update<T>(
+    ctx: &PlatformContext,
+    edit: impl FnOnce(&mut MCPConfig) -> Result<T, String>,
+) -> Result<T, String> {
+    let path = config_path(ctx);
+    let _lock = lock(&path)?;
+    let mut config = parse_yaml_config(&read_text(&path)?.content)?;
+    let result = edit(&mut config)?;
+    atomic_write(&path, &to_yaml(&config)?)?;
+    Ok(result)
 }
 
 /// Serializes like the app's frontend does: absent optional fields are left
@@ -59,7 +146,8 @@ fn drop_nulls(value: &mut Value) {
 
 #[cfg(test)]
 mod tests {
-    use super::{load, read_text, save, to_yaml};
+    use super::to_yaml;
+    use super::{load, read_text, update, write_text_checked, CONFLICT_ERROR};
     use crate::core::{
         empty_apps, CommandSpec, MCPConfig, MCPServer, PlacementScope, ServerPlacement,
         SupportedApp, TransportSpec,
@@ -144,21 +232,78 @@ mod tests {
         assert_eq!(config.servers[1].placements.len(), 1);
     }
 
-    #[test]
-    fn missing_file_loads_as_empty_and_save_creates_it() {
-        let dir = tempdir().expect("tempdir");
-        let ctx = PlatformContext {
+    fn temp_ctx(dir: &std::path::Path) -> PlatformContext {
+        PlatformContext {
             os: PlatformOs::Linux,
-            home_dir: dir.path().to_path_buf(),
-            workspace_root: dir.path().to_path_buf(),
-        };
+            home_dir: dir.to_path_buf(),
+            workspace_root: dir.to_path_buf(),
+        }
+    }
+
+    #[test]
+    fn missing_file_loads_as_empty_and_update_creates_it() {
+        let dir = tempdir().expect("tempdir");
+        let ctx = temp_ctx(dir.path());
 
         assert!(load(&ctx).expect("load").servers.is_empty());
         assert!(read_text(&dir.path().join("nope.yaml"))
             .unwrap()
+            .content
             .contains("servers: []"));
 
-        save(&ctx, &sample()).expect("save");
+        update(&ctx, |config| {
+            *config = sample();
+            Ok(())
+        })
+        .expect("update");
         assert_eq!(load(&ctx).expect("reload").servers.len(), 2);
+    }
+
+    #[test]
+    fn failed_update_writes_nothing() {
+        let dir = tempdir().expect("tempdir");
+        let ctx = temp_ctx(dir.path());
+
+        let result = update(&ctx, |config| {
+            config.servers.clear();
+            Err::<(), _>("nope".to_string())
+        });
+
+        assert!(result.is_err());
+        assert!(!super::config_path(&ctx).exists());
+    }
+
+    #[test]
+    fn checked_write_rejects_a_file_changed_since_it_was_read() {
+        let dir = tempdir().expect("tempdir");
+        let path = dir.path().join("servers.yaml");
+
+        let absent = read_text(&path).unwrap().fingerprint;
+        let first = write_text_checked(&path, "version: 1\nservers: []\n", Some(&absent))
+            .expect("first write");
+        assert_eq!(first, read_text(&path).unwrap().fingerprint);
+
+        // Another program rewrites the file.
+        std::fs::write(&path, "version: 1\nservers: [] # edited\n").unwrap();
+
+        let error = write_text_checked(&path, "version: 1\n", Some(&first)).unwrap_err();
+        assert!(error.starts_with(CONFLICT_ERROR), "{error}");
+        assert!(read_text(&path).unwrap().content.contains("edited"));
+
+        // Without an expected fingerprint the write goes through.
+        write_text_checked(&path, "version: 1\n", None).expect("unchecked write");
+    }
+
+    #[test]
+    fn a_file_created_elsewhere_conflicts_with_an_absent_read() {
+        let dir = tempdir().expect("tempdir");
+        let path = dir.path().join("servers.yaml");
+        let absent = read_text(&path).unwrap().fingerprint;
+
+        std::fs::write(&path, "version: 1\nservers: []\n").unwrap();
+
+        assert!(write_text_checked(&path, "x", Some(&absent))
+            .unwrap_err()
+            .starts_with(CONFLICT_ERROR));
     }
 }

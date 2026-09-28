@@ -1,7 +1,7 @@
 use mcp_manager_core::core::{ApplyResult, ImportResult, MCPConfig};
 use mcp_manager_core::platform::PlatformContext;
 use mcp_manager_core::storage::{resolve_relative_path, rollback};
-use mcp_manager_core::store;
+use mcp_manager_core::store::{self, StoredText};
 use mcp_manager_core::workflow::{self, WorkspaceInfo};
 use std::path::{Path, PathBuf};
 use std::process::Command;
@@ -10,13 +10,29 @@ const REPOSITORY_URL: &str = "https://github.com/xjeway/mcp-manager";
 const RELEASES_URL: &str = "https://github.com/xjeway/mcp-manager/releases";
 
 #[tauri::command]
-pub fn load_yaml_config(relative_path: String) -> Result<String, String> {
+pub fn load_yaml_config(relative_path: String) -> Result<StoredText, String> {
     store::read_text(&resolve_relative_path(&relative_path))
 }
 
+/// Saves unless the file changed since `expected_fingerprint` was read, in
+/// which case the error starts with `store::CONFLICT_ERROR`. Returns the new
+/// fingerprint.
 #[tauri::command]
-pub fn save_yaml_config(relative_path: String, content: String) -> Result<(), String> {
-    store::write_text(&resolve_relative_path(&relative_path), &content)
+pub fn save_yaml_config(
+    relative_path: String,
+    content: String,
+    expected_fingerprint: Option<String>,
+) -> Result<String, String> {
+    store::write_text_checked(
+        &resolve_relative_path(&relative_path),
+        &content,
+        expected_fingerprint.as_deref(),
+    )
+}
+
+#[tauri::command]
+pub fn yaml_config_fingerprint(relative_path: String) -> Result<String, String> {
+    store::fingerprint(&resolve_relative_path(&relative_path))
 }
 
 #[tauri::command]
