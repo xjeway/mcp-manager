@@ -83,10 +83,8 @@ impl PlatformContext {
                 PlatformOs::Windows => self.home_dir.join("AppData/Roaming/Code/User/mcp.json"),
                 _ => self.home_dir.join(".config/Code/User/mcp.json"),
             },
-            SupportedApp::Cursor => match self.os {
-                PlatformOs::Windows => self.home_dir.join("AppData/Roaming/Cursor/User/mcp.json"),
-                _ => self.home_dir.join(".cursor/mcp.json"),
-            },
+            // Cursor keeps its global MCP config under the home directory on every OS.
+            SupportedApp::Cursor => self.home_dir.join(".cursor/mcp.json"),
             SupportedApp::ClaudeCode => self.home_dir.join(".claude.json"),
             SupportedApp::ClaudeDesktop => match self.os {
                 PlatformOs::MacOS => self
@@ -111,6 +109,7 @@ impl PlatformContext {
                 .join(".cline/data/settings/cline_mcp_settings.json"),
             SupportedApp::Windsurf => self.home_dir.join(".codeium/windsurf/mcp_config.json"),
             SupportedApp::Kiro => self.home_dir.join(".kiro/settings/mcp.json"),
+            SupportedApp::Qoder => self.home_dir.join(".qoder/settings.json"),
         }
     }
 
@@ -144,7 +143,10 @@ impl PlatformContext {
             SupportedApp::Cursor => (
                 &["cursor"][..],
                 &["Cursor.app"][..],
-                &["AppData/Local/Programs/Cursor/Cursor.exe"][..],
+                &[
+                    "AppData/Local/Programs/Cursor/Cursor.exe",
+                    "AppData/Local/Programs/cursor/Cursor.exe",
+                ][..],
             ),
             SupportedApp::ClaudeCode => (&["claude", "claude-code"][..], &[][..], &[][..]),
             SupportedApp::ClaudeDesktop => (
@@ -176,6 +178,11 @@ impl PlatformContext {
                 &["kiro"][..],
                 &["Kiro.app"][..],
                 &["AppData/Local/Programs/Kiro/Kiro.exe"][..],
+            ),
+            SupportedApp::Qoder => (
+                &["qoder", "qodercli"][..],
+                &["Qoder.app"][..],
+                &["AppData/Local/Programs/Qoder/Qoder.exe"][..],
             ),
         };
 
@@ -276,7 +283,8 @@ impl PlatformContext {
             | SupportedApp::GeminiCli
             | SupportedApp::Antigravity
             | SupportedApp::QwenCode
-            | SupportedApp::Cline => {
+            | SupportedApp::Cline
+            | SupportedApp::Qoder => {
                 vec![self.user_app_config_path(app).to_string_lossy().to_string()]
             }
             SupportedApp::GithubCopilot => vec![
@@ -399,7 +407,7 @@ mod tests {
             ctx(PlatformOs::Windows)
                 .user_app_config_path(SupportedApp::Cursor)
                 .to_string_lossy(),
-            "/Users/test/AppData/Roaming/Cursor/User/mcp.json"
+            "/Users/test/.cursor/mcp.json"
         );
         assert_eq!(
             ctx(PlatformOs::MacOS)

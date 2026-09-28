@@ -200,6 +200,7 @@ make dev
 | Cline | ✅ | ✅ |
 | Windsurf | ✅ | ✅ |
 | Kiro | ✅ | ✅ |
+| Qoder | ✅ | ✅ |
 | VS Code | ✅ | ✅ |
 
 ## 工作方式

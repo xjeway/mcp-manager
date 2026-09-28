@@ -17,6 +17,7 @@ function defaultApps(): MCPServer['apps'] {
     cline: false,
     windsurf: false,
     kiro: false,
+    qoder: false,
   }
 }
 

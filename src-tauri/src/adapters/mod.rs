@@ -9,6 +9,7 @@ mod github_copilot;
 mod iflow;
 mod kiro;
 mod opencode;
+mod qoder;
 mod qwen_code;
 mod vscode;
 mod windsurf;
@@ -31,6 +32,7 @@ pub use github_copilot::GithubCopilotAdapter;
 pub use iflow::IFlowAdapter;
 pub use kiro::KiroAdapter;
 pub use opencode::OpenCodeAdapter;
+pub use qoder::QoderAdapter;
 pub use qwen_code::QwenCodeAdapter;
 pub use vscode::VSCodeAdapter;
 pub use windsurf::WindsurfAdapter;
@@ -425,5 +427,6 @@ pub fn adapters() -> Vec<Box<dyn AppAdapter>> {
         Box::new(ClineAdapter),
         Box::new(WindsurfAdapter),
         Box::new(KiroAdapter),
+        Box::new(QoderAdapter),
     ]
 }
