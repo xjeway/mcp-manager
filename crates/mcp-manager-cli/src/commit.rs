@@ -2,7 +2,7 @@
 //! on each client file, show a summary, confirm, then save and apply.
 
 use crate::session::{Failure, Outcome, Session};
-use crate::state;
+use crate::state::{self, WrittenFile};
 use mcp_manager_core::core::{MCPConfig, PlacementScope};
 use mcp_manager_core::ops::{validate, Issue};
 use mcp_manager_core::store;
@@ -66,19 +66,7 @@ pub fn commit(session: &Session, change: Change, dry_run: bool) -> Outcome<bool>
 
     let Change { before, after, .. } = change;
 
-    // Drop the previous rollback record first: once this change lands, that
-    // record's backups no longer describe the last change, and if saving the
-    // new record fails, rollback must not fall back to it.
-    let mut remembered = state::load(&session.ctx);
-    if remembered.last_previous_config.is_some() {
-        remembered.last_backups.clear();
-        remembered.last_previous_config = None;
-        remembered.last_applied_config = None;
-        state::save(&session.ctx, &remembered).map_err(|error| {
-            format!("Could not update the rollback record ({error}). Nothing was written.")
-        })?;
-    }
-
+    let mut remembered = None;
     // Client files as they were, in case servers.yaml cannot be saved after
     // they are written.
     let mut client_files = None;
@@ -90,12 +78,24 @@ pub fn commit(session: &Session, change: Change, dry_run: bool) -> Outcome<bool>
                     .to_string(),
             );
         }
+        // Only now that this change will be applied, drop the previous
+        // rollback record: its backups will no longer describe the last
+        // change, and if saving the new record fails, rollback must not fall
+        // back to it. A command rejected above keeps the record intact.
+        let mut state = state::load(&session.ctx);
+        if state.has_rollback() {
+            state.clear_rollback();
+            state::save(&session.ctx, &state).map_err(|error| {
+                format!("Could not update the rollback record ({error}). Nothing was written.")
+            })?;
+        }
+        remembered = Some(state);
         client_files = Some(workflow::snapshot(&session.ctx, &after, Some(&before))?);
         let applied = workflow::apply(&session.ctx, &after, Some(&before))?;
         *current = after.clone();
         Ok(applied)
     });
-    let result = match (result, client_files) {
+    let result = match (result, &client_files) {
         (Ok(result), _) => result,
         // apply undoes its own partial writes, so on its failure this puts the
         // files back as they already are; after it, it undoes the whole apply.
@@ -110,7 +110,18 @@ pub fn commit(session: &Session, change: Change, dry_run: bool) -> Outcome<bool>
         (Err(error), None) => return Err(Failure::Error(error)),
     };
 
+    let mut remembered = remembered.unwrap_or_default();
     remembered.last_backups = result.backups.clone();
+    remembered.last_written_files = client_files
+        .iter()
+        .flat_map(|files| files.paths())
+        .map(|path| {
+            Ok(WrittenFile {
+                path: path.to_string_lossy().to_string(),
+                fingerprint: store::fingerprint(path)?,
+            })
+        })
+        .collect::<Result<_, String>>()?;
     remembered.last_previous_config = Some(before);
     remembered.last_applied_config = Some(after);
     // The change is already applied; say so rather than promising a rollback

@@ -18,6 +18,30 @@ pub struct State {
     /// servers.yaml as the last change wrote it. `rollback` refuses to run if
     /// the file no longer matches, so it never undoes someone else's edit.
     pub last_applied_config: Option<MCPConfig>,
+    /// Client files the last change wrote, as it left them. `rollback`
+    /// refuses if any was edited since, so it never discards that edit.
+    pub last_written_files: Vec<WrittenFile>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct WrittenFile {
+    pub path: String,
+    /// `store::fingerprint` of the file right after the change.
+    pub fingerprint: String,
+}
+
+impl State {
+    pub fn has_rollback(&self) -> bool {
+        self.last_previous_config.is_some()
+    }
+
+    pub fn clear_rollback(&mut self) {
+        self.last_backups.clear();
+        self.last_previous_config = None;
+        self.last_applied_config = None;
+        self.last_written_files.clear();
+    }
 }
 
 fn path(ctx: &PlatformContext) -> PathBuf {

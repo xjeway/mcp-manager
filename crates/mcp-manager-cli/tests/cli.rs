@@ -363,6 +363,15 @@ fn client_files_are_restored_when_the_server_list_cannot_be_saved() {
     // read-only directory refuses, after the client files are written.
     let config_dir = sandbox.servers_yaml().parent().unwrap().to_path_buf();
     fs::set_permissions(&config_dir, fs::Permissions::from_mode(0o555)).unwrap();
+    // Privileged users (e.g. root in a container) can still write there, so
+    // the save would not fail and there is nothing to test.
+    let probe = config_dir.join("probe");
+    if fs::write(&probe, "").is_ok() {
+        let _ = fs::remove_file(&probe);
+        fs::set_permissions(&config_dir, fs::Permissions::from_mode(0o755)).unwrap();
+        eprintln!("skipped: read-only directories are writable for this user");
+        return;
+    }
     let output = sandbox.run(&[
         "add",
         "other",
@@ -383,4 +392,30 @@ fn client_files_are_restored_when_the_server_list_cannot_be_saved() {
         cursor_before
     );
     assert_eq!(sandbox.listed_ids(), vec!["ctx"]);
+}
+
+#[test]
+fn rollback_refuses_to_discard_a_later_edit_of_a_client_file() {
+    let sandbox = Sandbox::new();
+    sandbox.ok(ADD_CTX);
+
+    // Someone edits a client file by hand; servers.yaml stays as the CLI left it.
+    let cursor = sandbox.home.join(".cursor/mcp.json");
+    let mut edited = sandbox.read_json(&cursor);
+    edited["mcpServers"]["mine"] = serde_json::json!({ "command": "mine" });
+    fs::write(&cursor, edited.to_string()).unwrap();
+
+    let output = sandbox.run(&["rollback", "-y"]);
+
+    assert!(!output.status.success());
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    assert!(
+        stderr.contains("were edited") && stderr.contains("mcp.json"),
+        "{stderr}"
+    );
+    assert_eq!(sandbox.cursor_servers()["mine"]["command"], "mine");
+    assert!(
+        sandbox.codex_config().contains("[mcp_servers.ctx]"),
+        "nothing was rolled back"
+    );
 }

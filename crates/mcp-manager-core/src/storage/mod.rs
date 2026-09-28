@@ -4,6 +4,7 @@ use chrono::Utc;
 use serde_json::{Map, Value};
 use std::fs;
 use std::path::{Component, Path, PathBuf, Prefix};
+use std::sync::atomic::{AtomicU64, Ordering};
 use toml::Table;
 
 fn base_dir() -> PathBuf {
@@ -95,11 +96,22 @@ pub fn atomic_write(path: &Path, content: &str) -> Result<(), String> {
 /// Writes to a temporary file and renames it over `path`, so a crash never
 /// leaves `path` truncated.
 pub fn atomic_write_bytes(path: &Path, content: &[u8]) -> Result<(), String> {
+    // Unique per write, so concurrent writes (in this process or another)
+    // never share a temporary file, even for `config.json` and `config.toml`.
+    static NEXT_TEMP_ID: AtomicU64 = AtomicU64::new(0);
     ensure_parent(path)?;
-    let tmp = path.with_extension("tmp");
+    let mut tmp = path.as_os_str().to_owned();
+    tmp.push(format!(
+        ".{}.{}.tmp",
+        std::process::id(),
+        NEXT_TEMP_ID.fetch_add(1, Ordering::Relaxed)
+    ));
+    let tmp = PathBuf::from(tmp);
     fs::write(&tmp, content).map_err(|e| e.to_string())?;
-    fs::rename(tmp, path).map_err(|e| e.to_string())?;
-    Ok(())
+    fs::rename(&tmp, path).map_err(|e| {
+        let _ = fs::remove_file(&tmp);
+        e.to_string()
+    })
 }
 
 /// Files as they were at one moment, to put them back after a failed change.
@@ -120,6 +132,10 @@ impl Snapshot {
         };
         self.0.push((path.to_path_buf(), content));
         Ok(())
+    }
+
+    pub fn paths(&self) -> impl Iterator<Item = &Path> {
+        self.0.iter().map(|(path, _)| path.as_path())
     }
 
     /// Puts every recorded file back, newest first, and reports each failure.

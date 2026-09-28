@@ -1,6 +1,7 @@
 use crate::session::{Failure, Outcome, Session};
 use crate::state;
 use mcp_manager_core::{storage, store};
+use std::path::Path;
 
 pub fn run(session: &Session) -> Outcome<()> {
     session.intro(concat!(env!("CARGO_BIN_NAME"), " rollback"))?;
@@ -40,6 +41,22 @@ pub fn run(session: &Session) -> Outcome<()> {
                     .to_string(),
             );
         }
+        let edited = remembered
+            .last_written_files
+            .iter()
+            .filter(|file| {
+                store::fingerprint(Path::new(&file.path)).ok().as_deref()
+                    != Some(file.fingerprint.as_str())
+            })
+            .map(|file| file.path.clone())
+            .collect::<Vec<_>>();
+        if !edited.is_empty() {
+            return Err(format!(
+                "These client files were edited after the last change made here, so rolling \
+                 back would discard those edits: {}. Nothing was changed.",
+                edited.join(", ")
+            ));
+        }
         // Client files are restored only once servers.yaml is known to be
         // ours, and before it is replaced, so a failure leaves both as they were.
         storage::rollback(backups)?;
@@ -47,9 +64,7 @@ pub fn run(session: &Session) -> Outcome<()> {
         Ok(())
     })?;
 
-    remembered.last_backups.clear();
-    remembered.last_previous_config = None;
-    remembered.last_applied_config = None;
+    remembered.clear_rollback();
     state::save(&session.ctx, &remembered)?;
     session.outro("Rolled back. Client files created by that change were left in place.")?;
     Ok(())
