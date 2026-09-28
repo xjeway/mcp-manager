@@ -79,15 +79,15 @@ mod tests {
     use super::VSCodeAdapter;
     use crate::adapters::AppAdapter;
     use crate::core::{empty_apps, MCPConfig, MCPServer, SupportedApp, TransportSpec};
+    use crate::platform::test_paths::abs;
     use crate::platform::{PlatformContext, PlatformOs};
     use std::collections::HashMap;
-    use std::path::PathBuf;
 
     fn ctx() -> PlatformContext {
         PlatformContext {
             os: PlatformOs::MacOS,
-            home_dir: PathBuf::from("/Users/test"),
-            workspace_root: PathBuf::from("/workspace/project"),
+            home_dir: abs("/Users/test"),
+            workspace_root: abs("/workspace/project"),
         }
     }
 
@@ -161,7 +161,12 @@ mod tests {
                         crate::core::ServerPlacement {
                             app: SupportedApp::Vscode,
                             scope: crate::core::PlacementScope::Workspace,
-                            path: Some("/workspace/project/.vscode/mcp.json".to_string()),
+                            path: Some(
+                                ctx()
+                                    .workspace_file(".vscode/mcp.json")
+                                    .to_string_lossy()
+                                    .to_string(),
+                            ),
                             enabled: true,
                             managed: true,
                         },
@@ -169,7 +174,9 @@ mod tests {
                             app: SupportedApp::Vscode,
                             scope: crate::core::PlacementScope::User,
                             path: Some(
-                                "/Users/test/Library/Application Support/Code/User/mcp.json"
+                                ctx()
+                                    .user_app_config_path(SupportedApp::Vscode)
+                                    .to_string_lossy()
                                     .to_string(),
                             ),
                             enabled: true,

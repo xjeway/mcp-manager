@@ -280,15 +280,15 @@ pub fn restart_app(app: tauri::AppHandle) -> Result<(), String> {
 mod tests {
     use super::{nearest_existing_path, workspace_info};
     use crate::core::SupportedApp;
+    use crate::platform::test_paths::{abs, UnixPath};
     use crate::platform::{PlatformContext, PlatformOs};
-    use std::path::PathBuf;
     use tempfile::tempdir;
 
     fn ctx(workspace_root: &str) -> PlatformContext {
         PlatformContext {
             os: PlatformOs::MacOS,
-            home_dir: PathBuf::from("/Users/test"),
-            workspace_root: PathBuf::from(workspace_root),
+            home_dir: abs("/Users/test"),
+            workspace_root: abs(workspace_root),
         }
     }
 
@@ -296,11 +296,12 @@ mod tests {
     fn reports_project_paths_from_the_backend_path_table() {
         let info = workspace_info(&ctx("/workspace/project"));
 
-        assert_eq!(info.root, "/workspace/project");
+        assert_eq!(info.root.unix(), "/workspace/project");
         assert_eq!(
             info.placement_paths
                 .get(&SupportedApp::Vscode)
-                .map(String::as_str),
+                .map(UnixPath::unix)
+                .as_deref(),
             Some("/workspace/project/.vscode/mcp.json")
         );
         assert!(!info.placement_paths.contains_key(&SupportedApp::Codex));

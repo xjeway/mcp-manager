@@ -29,7 +29,8 @@ impl PlatformContext {
         };
 
         let workspace_root = std::env::current_dir().unwrap_or_else(|_| PathBuf::from("."));
-        let home_dir = dirs::home_dir().unwrap_or_else(|| workspace_root.clone());
+        // Unlike `dirs`, std honors USERPROFILE on Windows, as it does HOME elsewhere.
+        let home_dir = std::env::home_dir().unwrap_or_else(|| workspace_root.clone());
 
         Self {
             os,
@@ -328,19 +329,46 @@ impl PlatformContext {
     }
 }
 
+/// Fixture helpers so tests written with Unix paths also run on Windows.
+#[cfg(test)]
+pub(crate) mod test_paths {
+    use std::path::{Path, PathBuf};
+
+    /// A Unix-style absolute path, given a drive on Windows so it stays absolute.
+    pub fn abs(unix: &str) -> PathBuf {
+        if cfg!(windows) {
+            PathBuf::from(format!("C:{unix}"))
+        } else {
+            PathBuf::from(unix)
+        }
+    }
+
+    pub trait UnixPath {
+        /// The path with `/` separators and no drive, to compare with fixtures.
+        fn unix(&self) -> String;
+    }
+
+    impl<T: AsRef<Path> + ?Sized> UnixPath for T {
+        fn unix(&self) -> String {
+            let path = self.as_ref().to_string_lossy().replace('\\', "/");
+            path.strip_prefix("C:").map(str::to_string).unwrap_or(path)
+        }
+    }
+}
+
 #[cfg(test)]
 mod tests {
+    use super::test_paths::{abs, UnixPath};
     use super::{PlatformContext, PlatformOs};
     use crate::core::SupportedApp;
-    use std::path::PathBuf;
     use std::sync::{Mutex, OnceLock};
     use tempfile::tempdir;
 
     fn ctx(os: PlatformOs) -> PlatformContext {
         PlatformContext {
             os,
-            home_dir: PathBuf::from("/Users/test"),
-            workspace_root: PathBuf::from("/workspace/project"),
+            home_dir: abs("/Users/test"),
+            workspace_root: abs("/workspace/project"),
         }
     }
 
@@ -352,12 +380,9 @@ mod tests {
     #[test]
     fn resolves_home_and_workspace_paths() {
         let ctx = ctx(PlatformOs::MacOS);
+        assert_eq!(ctx.resolve_path("~/foo").unix(), "/Users/test/foo");
         assert_eq!(
-            ctx.resolve_path("~/foo").to_string_lossy(),
-            "/Users/test/foo"
-        );
-        assert_eq!(
-            ctx.resolve_path(".vscode/mcp.json").to_string_lossy(),
+            ctx.resolve_path(".vscode/mcp.json").unix(),
             "/workspace/project/.vscode/mcp.json"
         );
     }
@@ -367,15 +392,15 @@ mod tests {
         assert!(ctx(PlatformOs::MacOS).has_workspace());
 
         let mut launched_from_finder = ctx(PlatformOs::MacOS);
-        launched_from_finder.workspace_root = PathBuf::from("/");
+        launched_from_finder.workspace_root = abs("/");
         assert!(!launched_from_finder.has_workspace());
 
         let mut launched_from_home = ctx(PlatformOs::MacOS);
-        launched_from_home.workspace_root = PathBuf::from("/Users/test");
+        launched_from_home.workspace_root = abs("/Users/test");
         assert!(!launched_from_home.has_workspace());
 
         let mut launched_from_users = ctx(PlatformOs::MacOS);
-        launched_from_users.workspace_root = PathBuf::from("/Users");
+        launched_from_users.workspace_root = abs("/Users");
         assert!(!launched_from_users.has_workspace());
     }
 
@@ -384,13 +409,13 @@ mod tests {
         assert_eq!(
             ctx(PlatformOs::MacOS)
                 .user_app_config_path(SupportedApp::Vscode)
-                .to_string_lossy(),
+                .unix(),
             "/Users/test/Library/Application Support/Code/User/mcp.json"
         );
         assert_eq!(
             ctx(PlatformOs::Linux)
                 .user_app_config_path(SupportedApp::Vscode)
-                .to_string_lossy(),
+                .unix(),
             "/Users/test/.config/Code/User/mcp.json"
         );
     }
@@ -400,79 +425,79 @@ mod tests {
         assert_eq!(
             ctx(PlatformOs::Windows)
                 .user_app_config_path(SupportedApp::Vscode)
-                .to_string_lossy(),
+                .unix(),
             "/Users/test/AppData/Roaming/Code/User/mcp.json"
         );
         assert_eq!(
             ctx(PlatformOs::Windows)
                 .user_app_config_path(SupportedApp::Cursor)
-                .to_string_lossy(),
+                .unix(),
             "/Users/test/.cursor/mcp.json"
         );
         assert_eq!(
             ctx(PlatformOs::MacOS)
                 .user_app_config_path(SupportedApp::ClaudeDesktop)
-                .to_string_lossy(),
+                .unix(),
             "/Users/test/Library/Application Support/Claude/claude_desktop_config.json"
         );
         assert_eq!(
             ctx(PlatformOs::Windows)
                 .user_app_config_path(SupportedApp::ClaudeDesktop)
-                .to_string_lossy(),
+                .unix(),
             "/Users/test/AppData/Roaming/Claude/claude_desktop_config.json"
         );
         assert_eq!(
             ctx(PlatformOs::Linux)
                 .user_app_config_path(SupportedApp::GeminiCli)
-                .to_string_lossy(),
+                .unix(),
             "/Users/test/.gemini/settings.json"
         );
         assert_eq!(
             ctx(PlatformOs::Linux)
                 .user_app_config_path(SupportedApp::Antigravity)
-                .to_string_lossy(),
+                .unix(),
             "/Users/test/.gemini/antigravity/mcp_config.json"
         );
         assert_eq!(
             ctx(PlatformOs::Linux)
                 .user_app_config_path(SupportedApp::IFlow)
-                .to_string_lossy(),
+                .unix(),
             "/Users/test/.iflow/settings.json"
         );
         assert_eq!(
             ctx(PlatformOs::Linux)
                 .user_app_config_path(SupportedApp::QwenCode)
-                .to_string_lossy(),
+                .unix(),
             "/Users/test/.qwen/settings.json"
         );
         assert_eq!(
             ctx(PlatformOs::Linux)
                 .user_app_config_path(SupportedApp::Cline)
-                .to_string_lossy(),
+                .unix(),
             "/Users/test/.cline/data/settings/cline_mcp_settings.json"
         );
         assert_eq!(
             ctx(PlatformOs::Linux)
                 .user_app_config_path(SupportedApp::Windsurf)
-                .to_string_lossy(),
+                .unix(),
             "/Users/test/.codeium/windsurf/mcp_config.json"
         );
         assert_eq!(
             ctx(PlatformOs::Linux)
                 .user_app_config_path(SupportedApp::Kiro)
-                .to_string_lossy(),
+                .unix(),
             "/Users/test/.kiro/settings/mcp.json"
         );
         assert_eq!(
-            ctx(PlatformOs::MacOS).app_data_dir().to_string_lossy(),
+            ctx(PlatformOs::MacOS).app_data_dir().unix(),
             "/Users/test/Library/Application Support/mcp-manager"
         );
         assert_eq!(
-            ctx(PlatformOs::Windows).app_data_dir().to_string_lossy(),
+            ctx(PlatformOs::Windows).app_data_dir().unix(),
             "/Users/test/AppData/Roaming/mcp-manager"
         );
         assert_eq!(
-            ctx(PlatformOs::Linux).app_data_dir().to_string_lossy(),
+            ctx(PlatformOs::Linux).app_data_dir().unix(),
             "/Users/test/.config/mcp-manager"
         );
     }
