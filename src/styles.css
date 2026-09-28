@@ -723,6 +723,7 @@ button {
   border-radius: 12px;
   overflow: hidden;
   display: flex;
+  flex-direction: column;
   flex: 1;
   align-items: stretch;
   min-height: 0;
@@ -757,7 +758,7 @@ button {
 
 .server-list-row {
   display: grid;
-  grid-template-columns: minmax(140px, 1.2fr) 92px minmax(180px, 1.4fr) auto;
+  grid-template-columns: 16px minmax(124px, 1.2fr) 92px minmax(180px, 1.4fr) auto;
   align-items: center;
   gap: 8px;
   height: 46px;
@@ -767,6 +768,60 @@ button {
   border-top: 1px solid var(--line);
   transition: background 180ms ease, border-color 180ms ease;
   cursor: pointer;
+}
+
+.server-list-row.is-selected {
+  background: color-mix(in srgb, var(--accent) 7%, transparent);
+}
+
+.server-cell-select {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.row-checkbox {
+  width: 14px;
+  height: 14px;
+  margin: 0;
+  accent-color: var(--accent);
+  cursor: pointer;
+}
+
+.batch-bar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px 10px;
+  min-height: 38px;
+  padding: 5px 10px;
+  border-bottom: 1px solid var(--line);
+  background: var(--panel-muted);
+  font-size: 0.76rem;
+  color: var(--muted);
+}
+
+.batch-select-all {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  cursor: pointer;
+  user-select: none;
+}
+
+.batch-bar-label {
+  padding-left: 10px;
+  border-left: 1px solid var(--line-strong);
+}
+
+.batch-bar .client-pill-reference.is-partial {
+  color: var(--text);
+  border-style: dashed;
+  border-color: var(--line-strong);
+}
+
+.batch-clear {
+  margin-left: auto;
 }
 
 .server-list-row:focus-visible {
@@ -1308,6 +1363,56 @@ button {
 
 .config-json-parse {
   flex: none;
+}
+
+.config-json-actions {
+  display: inline-flex;
+  flex: none;
+  gap: 6px;
+}
+
+.config-json-actions .ghost-button {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+}
+
+.batch-import-preview {
+  display: grid;
+  gap: 8px;
+  padding: 10px 12px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: var(--panel-muted);
+  font-size: 0.76rem;
+}
+
+.batch-import-preview p {
+  margin: 0;
+  color: var(--muted);
+}
+
+.batch-import-preview ul {
+  display: grid;
+  gap: 4px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.batch-import-preview li {
+  display: grid;
+  grid-template-columns: minmax(90px, 0.35fr) 1fr;
+  gap: 10px;
+  min-width: 0;
+}
+
+.batch-import-preview li span {
+  overflow: hidden;
+  color: var(--muted);
+  font-family: var(--font-mono);
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .segment-control-compact {

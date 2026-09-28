@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { getCurrentWindow } from '@tauri-apps/api/window'
 import { useTranslation } from 'react-i18next'
+import { CLIENTS } from './components/clientMeta'
 import { Dashboard } from './components/Dashboard'
 import { SettingsPage } from './components/SettingsPage'
 import { ServerEditor } from './components/ServerEditor'
@@ -47,9 +48,11 @@ import { deriveVisibleApps } from './services/visibleApps'
 import { resolveWindowSurface } from './services/windowSurface'
 import {
   deleteServerFromConfig,
+  importServersIntoConfig,
   importConfigOnLaunch,
   persistImportedConfig,
   saveAndSyncConfig,
+  setServersAppInConfig,
   toggleServerAppInConfig,
 } from './services/workspacePersistence'
 
@@ -521,6 +524,17 @@ function MainApp() {
     })
   }
 
+  const handleBatchSetApp = async (serverIds: string[], app: SupportedApp, enabled: boolean) => {
+    const client = CLIENTS.find((item) => item.id === app)?.label ?? app
+    await commitConfigChange({
+      nextConfig: setServersAppInConfig(config, serverIds, app, enabled),
+      successMessage: t(enabled ? 'batchEnabledSummary' : 'batchDisabledSummary', {
+        client,
+        count: serverIds.length,
+      }),
+    })
+  }
+
   const handleImport = async () => {
     setActionState('importing')
     try {
@@ -604,6 +618,21 @@ function MainApp() {
     setView('dashboard')
   }
 
+  const handleSaveServers = async (servers: MCPServer[]) => {
+    const { config: nextConfig, added, updated } = importServersIntoConfig(config, servers)
+    const saved = await commitConfigChange({
+      nextConfig,
+      successMessage: t('batchImportSummary', { added: added.length, updated: updated.length }),
+    })
+
+    if (!saved) {
+      return
+    }
+
+    clearEditorState()
+    setView('dashboard')
+  }
+
   const handleEditorCancel = async () => {
     if (
       !shouldPromptForPendingChanges({
@@ -650,6 +679,7 @@ function MainApp() {
           visibleApps={visibleApps}
           onDraftChange={(_draft, dirty) => setEditorDirty(dirty)}
           onSave={(server) => void handleSaveServer(server)}
+          onSaveMany={(servers) => void handleSaveServers(servers)}
           onCancel={() => void handleEditorCancel()}
         />
       ) : view === 'settings' ? (
@@ -681,6 +711,7 @@ function MainApp() {
           onEdit={openEdit}
           onDelete={(serverId) => void handleDelete(serverId)}
           onToggleApp={(serverId, app) => void handleToggleApp(serverId, app)}
+          onBatchSetApp={(serverIds, app, enabled) => void handleBatchSetApp(serverIds, app, enabled)}
           onRollback={() => void handleRollback()}
         />
       )}

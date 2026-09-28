@@ -1,4 +1,5 @@
-import { Copy, LoaderCircle, PenSquare, Plus, RefreshCw, RotateCcw, Settings, Trash2 } from 'lucide-react'
+import { useEffect, useRef, useState } from 'react'
+import { Copy, LoaderCircle, PenSquare, Plus, RefreshCw, RotateCcw, Settings, Trash2, X } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import { getVisibleClients } from './clientMeta'
 import { AppLogo } from './AppLogo'
@@ -19,7 +20,42 @@ interface DashboardProps {
   onEdit: (serverId: string) => void
   onRollback: () => void
   onToggleApp: (serverId: string, app: SupportedApp) => void
+  onBatchSetApp: (serverIds: string[], app: SupportedApp, enabled: boolean) => void
   onCopyCommand: (serverId: string) => void
+}
+
+function SelectAllCheckbox({
+  checked,
+  indeterminate,
+  label,
+  disabled,
+  onChange,
+}: {
+  checked: boolean
+  disabled: boolean
+  indeterminate: boolean
+  label: string
+  onChange: () => void
+}) {
+  const ref = useRef<HTMLInputElement | null>(null)
+
+  useEffect(() => {
+    if (ref.current) {
+      ref.current.indeterminate = indeterminate
+    }
+  }, [indeterminate])
+
+  return (
+    <input
+      ref={ref}
+      type="checkbox"
+      className="row-checkbox"
+      checked={checked}
+      disabled={disabled}
+      aria-label={label}
+      onChange={onChange}
+    />
+  )
 }
 
 function BusyIcon({ spinning }: { spinning: boolean }) {
@@ -39,11 +75,24 @@ export function Dashboard({
   onEdit,
   onRollback,
   onToggleApp,
+  onBatchSetApp,
   onCopyCommand,
 }: DashboardProps) {
   const { t } = useTranslation()
   const loading = busy === 'loading'
   const visibleClients = getVisibleClients(visibleApps)
+  const [selectedIds, setSelectedIds] = useState<string[]>([])
+  const rowIds = workspace.rows.map((row) => row.id)
+  // Drop selections for servers that no longer exist (deleted or replaced).
+  const selected = selectedIds.filter((id) => rowIds.includes(id))
+  const selectedRows = workspace.rows.filter((row) => selected.includes(row.id))
+  const allSelected = rowIds.length > 0 && selected.length === rowIds.length
+
+  const toggleSelected = (serverId: string) => {
+    setSelectedIds((current) =>
+      current.includes(serverId) ? current.filter((id) => id !== serverId) : [...current, serverId],
+    )
+  }
 
   return (
     <div className="app-shell shell-flat dashboard-shell">
@@ -141,17 +190,79 @@ export function Dashboard({
             </button>
           </div>
         ) : (
+          <>
+          <div className="batch-bar" data-tauri-no-drag>
+            <label className="batch-select-all">
+              <SelectAllCheckbox
+                checked={allSelected}
+                indeterminate={selected.length > 0 && !allSelected}
+                disabled={busy !== 'idle'}
+                label={t('batchSelectAll')}
+                onChange={() => setSelectedIds(allSelected ? [] : rowIds)}
+              />
+              <span>{selected.length > 0 ? t('batchSelected', { count: selected.length }) : t('batchSelectAll')}</span>
+            </label>
+            {selected.length > 0 ? (
+              <>
+                <span className="batch-bar-label">{t('batchApplyTo')}</span>
+                <div className="client-pills client-pills-reference">
+                  {visibleClients.map((client) => {
+                    const enabledCount = selectedRows.filter((row) => row.enabledApps.includes(client.id)).length
+                    const allEnabled = enabledCount === selectedRows.length
+                    const state = allEnabled ? 'is-enabled' : enabledCount > 0 ? 'is-partial' : 'is-muted'
+                    const tooltip = t(allEnabled ? 'batchDisableFor' : 'batchEnableFor', {
+                      client: client.label,
+                      count: selected.length,
+                    })
+                    return (
+                      <Tooltip key={client.id} content={tooltip}>
+                        <button
+                          type="button"
+                          className={`client-pill client-pill-reference ${client.accent} ${state}`}
+                          onClick={() => onBatchSetApp(selected, client.id, !allEnabled)}
+                          disabled={busy !== 'idle'}
+                        >
+                          {client.icon}
+                          <span className="sr-only">{tooltip}</span>
+                        </button>
+                      </Tooltip>
+                    )
+                  })}
+                </div>
+                <Tooltip content={t('batchClear')}>
+                  <button
+                    type="button"
+                    className="icon-button compact-icon batch-clear"
+                    onClick={() => setSelectedIds([])}
+                    aria-label={t('batchClear')}
+                  >
+                    <X size={14} />
+                  </button>
+                </Tooltip>
+              </>
+            ) : null}
+          </div>
           <div className="server-list-scroll">
             {workspace.rows.map((row) => (
               <article
                 key={row.id}
-                className="server-list-row"
+                className={selected.includes(row.id) ? 'server-list-row is-selected' : 'server-list-row'}
                 onClick={() => {
                   if (busy === 'idle') {
                     onEdit(row.id)
                   }
                 }}
               >
+                <div className="server-cell server-cell-select" onClick={(event) => event.stopPropagation()}>
+                  <input
+                    type="checkbox"
+                    className="row-checkbox"
+                    checked={selected.includes(row.id)}
+                    disabled={busy !== 'idle'}
+                    aria-label={t('batchSelectRow', { name: row.name })}
+                    onChange={() => toggleSelected(row.id)}
+                  />
+                </div>
                 <div className="server-cell server-cell-name">
                   <strong>{row.name}</strong>
                 </div>
@@ -228,6 +339,7 @@ export function Dashboard({
               </article>
             ))}
           </div>
+          </>
         )}
       </section>
     </div>

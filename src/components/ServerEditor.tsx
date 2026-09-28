@@ -1,6 +1,6 @@
 import type { ReactNode } from 'react'
 import { useEffect, useLayoutEffect, useRef, useState } from 'react'
-import { ArrowLeft, Check, Code, FolderOpen, LayoutTemplate, Plus, X } from 'lucide-react'
+import { ArrowLeft, Check, Code, FileUp, FolderOpen, LayoutTemplate, Plus, X } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import { getVisibleClients } from './clientMeta'
 import { JsonEditor } from './JsonEditor'
@@ -29,6 +29,7 @@ interface ServerEditorProps {
   onCancel: () => void
   onDraftChange: (draft: EditorDraft, dirty: boolean) => void
   onSave: (server: MCPServer) => void
+  onSaveMany: (servers: MCPServer[]) => void
   visibleApps: Array<keyof MCPServer['apps']>
 }
 
@@ -146,6 +147,7 @@ export function ServerEditor({
   onCancel,
   onDraftChange,
   onSave,
+  onSaveMany,
   visibleApps,
 }: ServerEditorProps) {
   const { t } = useTranslation()
@@ -155,6 +157,9 @@ export function ServerEditor({
   const [warnings, setWarnings] = useState<string[]>([])
   const [errors, setErrors] = useState<string[]>([])
   const [openPathError, setOpenPathError] = useState<string | null>(null)
+  // Servers parsed from a multi-server JSON while creating; saved together.
+  const [batchServers, setBatchServers] = useState<MCPServer[]>([])
+  const fileInputRef = useRef<HTMLInputElement | null>(null)
   // Row that was just added, so its input can take focus.
   const [pendingFocus, setPendingFocus] = useState<{ args?: number; env?: number }>({})
   const visibleClients = getVisibleClients(visibleApps)
@@ -202,6 +207,7 @@ export function ServerEditor({
     setJsonText(server ? serverToJsonText(server) : '')
     setWarnings([])
     setErrors([])
+    setBatchServers([])
     setMode('form')
   }, [server])
 
@@ -219,7 +225,7 @@ export function ServerEditor({
 
   const initialSerialized = server ? JSON.stringify(editorDraftToServer(serverToEditorDraft(server))) : ''
   const currentSerialized = !server && isDraftEffectivelyEmpty ? '' : JSON.stringify(editorDraftToServer(draft))
-  const isDirty = currentSerialized !== initialSerialized
+  const isDirty = currentSerialized !== initialSerialized || batchServers.length > 0
 
   useEffect(() => {
     onDraftChange(draft, isDirty)
@@ -237,21 +243,51 @@ export function ServerEditor({
     }
   }
 
-  const handleParseJson = () => {
-    const result = parseMcpJson(jsonText)
+  const parseJsonText = (text: string) => {
+    const result = parseMcpJson(text)
     const nextWarnings = [...result.warnings.map((item) => item.message)]
     const nextErrors = [...result.errors.map((item) => item.message)]
 
-    if (result.servers.length > 1) {
+    // Creating from several servers imports them all; editing one keeps just the first.
+    const isBatch = !server && result.servers.length > 1
+    if (result.servers.length > 1 && server) {
       nextWarnings.unshift(t('jsonMultiServerHint'))
     }
 
-    if (result.servers.length > 0) {
-      setDraft(serverToEditorDraft(result.servers[0]))
+    if (isBatch) {
+      setBatchServers(result.servers)
+    } else {
+      setBatchServers([])
+      if (result.servers.length > 0) {
+        // Keep the client selection the user already made while pasting a server.
+        const parsed = serverToEditorDraft(result.servers[0])
+        setDraft((current) => (server ? parsed : { ...parsed, apps: current.apps, placements: current.placements }))
+      }
     }
 
     setWarnings(nextWarnings)
     setErrors(nextErrors)
+  }
+
+  const handleParseJson = () => parseJsonText(jsonText)
+
+  const handleJsonTextChange = (value: string) => {
+    setJsonText(value)
+    setBatchServers([])
+  }
+
+  const handleImportFile = async (file: File | undefined) => {
+    if (!file) {
+      return
+    }
+    try {
+      const text = await file.text()
+      setJsonText(text)
+      parseJsonText(text)
+    } catch (error) {
+      setWarnings([])
+      setErrors([t('jsonFileReadFailed', { error: String(error) })])
+    }
   }
 
   const addArg = () => {
@@ -298,6 +334,18 @@ export function ServerEditor({
   }
 
   const submit = () => {
+    if (batchServers.length > 0) {
+      // Every imported server gets the clients chosen above.
+      onSaveMany(
+        batchServers.map((item) => ({
+          ...item,
+          enabled: item.enabled && draft.enabled,
+          apps: { ...draft.apps },
+          placements: draft.placements.filter((placement) => placement.enabled),
+        })),
+      )
+      return
+    }
     onSave(editorDraftToServer(draft))
   }
 
@@ -318,7 +366,7 @@ export function ServerEditor({
         <div className="editor-reference-toolbar" data-tauri-no-drag>
           <button type="button" className="primary-button" onClick={submit} disabled={busy}>
             <Check size={14} />
-            {t('confirm')}
+            {batchServers.length > 0 ? t('batchImportConfirm', { count: batchServers.length }) : t('confirm')}
           </button>
         </div>
       </div>
@@ -448,6 +496,8 @@ export function ServerEditor({
                 onChange={(value) => {
                   if (value === 'json') {
                     syncJsonFromDraft()
+                  } else {
+                    setBatchServers([])
                   }
                   setMode(value as EditorMode)
                 }}
@@ -561,13 +611,43 @@ export function ServerEditor({
                 )
               ) : (
                 <>
-                  <JsonEditor ariaLabel="JSON" value={jsonText} placeholder={jsonPlaceholder} onChange={setJsonText} />
+                  <JsonEditor ariaLabel="JSON" value={jsonText} placeholder={jsonPlaceholder} onChange={handleJsonTextChange} />
                   <div className="config-json-footer">
-                    <span>{t('jsonPasteHint')}</span>
-                    <button type="button" className="ghost-button config-json-parse" onClick={handleParseJson}>
-                      {t('parse')}
-                    </button>
+                    <span>{server ? t('jsonPasteHintEdit') : t('jsonPasteHint')}</span>
+                    <div className="config-json-actions">
+                      <input
+                        ref={fileInputRef}
+                        type="file"
+                        accept=".json,application/json"
+                        className="sr-only"
+                        tabIndex={-1}
+                        onChange={(event) => {
+                          void handleImportFile(event.target.files?.[0])
+                          event.target.value = ''
+                        }}
+                      />
+                      <button type="button" className="ghost-button config-json-parse" onClick={() => fileInputRef.current?.click()}>
+                        <FileUp size={12} />
+                        {t('jsonImportFile')}
+                      </button>
+                      <button type="button" className="ghost-button config-json-parse" onClick={handleParseJson}>
+                        {t('parse')}
+                      </button>
+                    </div>
                   </div>
+                  {batchServers.length > 0 ? (
+                    <div className="batch-import-preview">
+                      <p>{t('batchImportHint', { count: batchServers.length })}</p>
+                      <ul>
+                        {batchServers.map((item) => (
+                          <li key={item.id}>
+                            <strong>{item.name}</strong>
+                            <span>{item.transport.type === 'http' ? item.transport.url : [item.command?.program, ...(item.command?.args ?? [])].join(' ')}</span>
+                          </li>
+                        ))}
+                      </ul>
+                    </div>
+                  ) : null}
                 </>
               )}
 
