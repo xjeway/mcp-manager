@@ -330,8 +330,8 @@ impl PlatformContext {
 }
 
 /// Fixture helpers so tests written with Unix paths also run on Windows.
-#[cfg(test)]
-pub(crate) mod test_paths {
+#[cfg(any(test, feature = "test-utils"))]
+pub mod test_paths {
     use std::path::{Path, PathBuf};
 
     /// A Unix-style absolute path, given a drive on Windows so it stays absolute.

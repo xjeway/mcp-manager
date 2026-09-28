@@ -28,7 +28,7 @@ VERSION_FILES = (
     "package.json",
     "package-lock.json",
     "src-tauri/tauri.conf.json",
-    "src-tauri/Cargo.toml",
+    "Cargo.toml",
 )
 
 RELEASE_WORKFLOW_PATH = ".github/workflows/release.yml"

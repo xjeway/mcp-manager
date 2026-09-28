@@ -42,7 +42,7 @@ tauri-build:
 	npm run tauri -- build
 
 check: build test
-	cargo check --manifest-path src-tauri/Cargo.toml
+	cargo check --workspace
 
 release-current:
 	npm run release:current
@@ -65,7 +65,7 @@ release-prepare:
 	npm run release:verify -- $(VERSION)
 	$(MAKE) check
 	@echo "Next:"
-	@echo "  git add package.json package-lock.json src-tauri/tauri.conf.json src-tauri/Cargo.toml"
+	@echo "  git add package.json package-lock.json src-tauri/tauri.conf.json Cargo.toml"
 	@echo "  git commit -m \"chore: release v$(VERSION)\""
 	@echo "  git push origin main"
 	@echo "  make release-publish VERSION=$(VERSION)"
@@ -79,4 +79,4 @@ release-publish:
 
 clean:
 	rm -rf dist
-	cargo clean --manifest-path src-tauri/Cargo.toml
+	cargo clean

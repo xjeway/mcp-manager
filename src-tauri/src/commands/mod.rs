@@ -1,9 +1,9 @@
-use crate::adapters::{adapters, workspace_scope_path};
-use crate::core::{
+use mcp_manager_core::adapters::{adapters, workspace_scope_path};
+use mcp_manager_core::core::{
     build_import_result, ApplyResult, DetectedServer, ImportResult, MCPConfig, SupportedApp,
 };
-use crate::platform::PlatformContext;
-use crate::storage::{apply_operations, resolve_relative_path, rollback};
+use mcp_manager_core::platform::PlatformContext;
+use mcp_manager_core::storage::{apply_operations, resolve_relative_path, rollback};
 use serde::Serialize;
 use std::collections::HashMap;
 use std::fs;
@@ -131,9 +131,9 @@ pub fn import_detected_configs() -> Result<ImportResult, String> {
     let yaml_path = resolve_relative_path("config/servers.yaml");
     if yaml_path.exists() {
         let content = fs::read_to_string(&yaml_path).map_err(|e| e.to_string())?;
-        match crate::parser::parse_yaml_config(&content) {
+        match mcp_manager_core::parser::parse_yaml_config(&content) {
             Ok(config) => {
-                sources.push(crate::core::LocalConfigSource {
+                sources.push(mcp_manager_core::core::LocalConfigSource {
                     app: "yaml".to_string(),
                     path: yaml_path.to_string_lossy().to_string(),
                     exists: true,
@@ -151,7 +151,7 @@ pub fn import_detected_configs() -> Result<ImportResult, String> {
             Err(error) => errors.push(format!("{}: {}", yaml_path.to_string_lossy(), error)),
         }
     } else {
-        sources.push(crate::core::LocalConfigSource {
+        sources.push(mcp_manager_core::core::LocalConfigSource {
             app: "yaml".to_string(),
             path: yaml_path.to_string_lossy().to_string(),
             exists: false,
@@ -165,7 +165,7 @@ pub fn import_detected_configs() -> Result<ImportResult, String> {
         for (path, priority) in adapter.detect_sources(&ctx) {
             let resolved = ctx.resolve_path(&path);
             if !resolved.exists() {
-                sources.push(crate::core::LocalConfigSource {
+                sources.push(mcp_manager_core::core::LocalConfigSource {
                     app: adapter.app().as_str().to_string(),
                     path: resolved.to_string_lossy().to_string(),
                     exists: false,
@@ -255,7 +255,7 @@ pub fn apply_config(
         let path = ctx.resolve_path(&operation.path);
         if !ctx.can_write(&path) {
             let error = format!("permission denied for {}", path.to_string_lossy());
-            if crate::security::is_high_risk_condition(&error) {
+            if mcp_manager_core::security::is_high_risk_condition(&error) {
                 return Err(error);
             }
         }
@@ -279,9 +279,9 @@ pub fn restart_app(app: tauri::AppHandle) -> Result<(), String> {
 #[cfg(test)]
 mod tests {
     use super::{nearest_existing_path, workspace_info};
-    use crate::core::SupportedApp;
-    use crate::platform::test_paths::{abs, UnixPath};
-    use crate::platform::{PlatformContext, PlatformOs};
+    use mcp_manager_core::core::SupportedApp;
+    use mcp_manager_core::platform::test_paths::{abs, UnixPath};
+    use mcp_manager_core::platform::{PlatformContext, PlatformOs};
     use tempfile::tempdir;
 
     fn ctx(workspace_root: &str) -> PlatformContext {

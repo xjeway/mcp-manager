@@ -1,10 +1,4 @@
-mod adapters;
 mod commands;
-mod core;
-mod parser;
-mod platform;
-mod security;
-mod storage;
 
 use commands::{
     apply_config, current_workspace, detect_installed_apps, import_detected_configs,

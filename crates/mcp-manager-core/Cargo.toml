@@ -1,0 +1,21 @@
+[package]
+name = "mcp-manager-core"
+description = "Client adapters, parsing and safe config writes shared by the MCP Manager app and CLI"
+version.workspace = true
+authors.workspace = true
+license.workspace = true
+edition.workspace = true
+
+[dependencies]
+chrono.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+serde_yaml.workspace = true
+toml.workspace = true
+
+[dev-dependencies]
+tempfile.workspace = true
+
+[features]
+# Exposes `platform::test_paths` to other crates' tests.
+test-utils = []

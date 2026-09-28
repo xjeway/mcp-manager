@@ -201,7 +201,7 @@ make release-publish VERSION=0.1.1
 
 Granular commands are still available when you want tighter control.
 
-Sync a new version across `package.json`, `package-lock.json`, `src-tauri/tauri.conf.json`, and `src-tauri/Cargo.toml`:
+Sync a new version across `package.json`, `package-lock.json`, `src-tauri/tauri.conf.json`, and the workspace `Cargo.toml`:
 
 ```bash
 npm run release:sync -- 0.1.1
