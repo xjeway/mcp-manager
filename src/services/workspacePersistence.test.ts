@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest'
-import { importConfigOnLaunch, persistImportedConfig, saveAndSyncConfig } from './workspacePersistence'
+import { importConfigOnLaunch, persistImportedConfig, saveAndSyncConfig, toggleServerAppInConfig } from './workspacePersistence'
 
 const previousConfig = {
   version: 1,
@@ -117,5 +117,31 @@ describe('workspacePersistence', () => {
     ).resolves.toBeNull()
 
     expect(importDetectedConfigs).not.toHaveBeenCalled()
+  })
+
+  it('turns a project-only app off instead of moving it to user level', () => {
+    const config = {
+      version: 1,
+      servers: [
+        {
+          ...previousConfig.servers[0],
+          apps: { ...previousConfig.servers[0].apps, vscode: false },
+          placements: [
+            {
+              app: 'vscode' as const,
+              scope: 'workspace' as const,
+              path: '/workspace/project/.vscode/mcp.json',
+              enabled: true,
+              managed: true,
+            },
+          ],
+        },
+      ],
+    }
+
+    const next = toggleServerAppInConfig(config, 'server-1', 'vscode')
+
+    expect(next.servers[0].apps.vscode).toBe(false)
+    expect(next.servers[0].placements?.[0].enabled).toBe(false)
   })
 })

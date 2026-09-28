@@ -8,9 +8,25 @@ import { ToastViewport } from './components/ToastViewport'
 import { UpdateProgressWindow } from './components/UpdateProgressWindow'
 import { mapConfigToWorkspaceView, type FeedbackItem } from './view-models/workspace'
 import './i18n'
-import { SUPPORTED_APPS, type ImportDetectedResult, type MCPConfig, type MCPServer, type SupportedApp } from './types/config'
+import {
+  EMPTY_WORKSPACE,
+  SUPPORTED_APPS,
+  type ImportDetectedResult,
+  type MCPConfig,
+  type MCPServer,
+  type SupportedApp,
+  type WorkspaceContext,
+} from './types/config'
 import { readAutoImportOnLaunchPreference, saveAutoImportOnLaunchPreference } from './services/appPreferences'
-import { applyConfig, detectInstalledApps, importDetectedConfigs, loadConfig, rollback, saveConfig } from './services/configService'
+import {
+  applyConfig,
+  detectInstalledApps,
+  getCurrentWorkspace,
+  importDetectedConfigs,
+  loadConfig,
+  rollback,
+  saveConfig,
+} from './services/configService'
 import { areConfigsEquivalent } from './services/configSync'
 import { openRepositoryLink } from './services/externalLinks'
 import { confirmDialog } from './services/nativeDialogs'
@@ -89,6 +105,7 @@ function MainApp() {
   const [systemTheme, setSystemTheme] = useState<'light' | 'dark'>(readSystemTheme)
   const [platform] = useState(detectPlatform)
   const [appVersion, setAppVersion] = useState(FALLBACK_APP_VERSION)
+  const [currentWorkspace, setCurrentWorkspace] = useState<WorkspaceContext>(EMPTY_WORKSPACE)
   const [view, setView] = useState<View>('dashboard')
   const [actionState, setActionState] = useState<ActionState>('loading')
   const [config, setConfig] = useState<MCPConfig>({ version: 1, servers: [] })
@@ -249,6 +266,11 @@ function MainApp() {
       setActionState('loading')
       try {
         await refreshVisibleApps()
+        try {
+          setCurrentWorkspace(await getCurrentWorkspace())
+        } catch {
+          setCurrentWorkspace(EMPTY_WORKSPACE)
+        }
         const loaded = await loadConfig()
         if (!alive) {
           return
@@ -624,6 +646,7 @@ function MainApp() {
         <ServerEditor
           server={editingServer}
           busy={isBusy}
+          workspace={currentWorkspace}
           visibleApps={visibleApps}
           onDraftChange={(_draft, dirty) => setEditorDirty(dirty)}
           onSave={(server) => void handleSaveServer(server)}

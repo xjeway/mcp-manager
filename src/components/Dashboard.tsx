@@ -143,7 +143,15 @@ export function Dashboard({
         ) : (
           <div className="server-list-scroll">
             {workspace.rows.map((row) => (
-              <article key={row.id} className="server-list-row">
+              <article
+                key={row.id}
+                className="server-list-row"
+                onClick={() => {
+                  if (busy === 'idle') {
+                    onEdit(row.id)
+                  }
+                }}
+              >
                 <div className="server-cell server-cell-name">
                   <strong>{row.name}</strong>
                 </div>
@@ -159,7 +167,10 @@ export function Dashboard({
                           <button
                             type="button"
                             className={`client-pill client-pill-reference ${client.accent} ${enabled ? 'is-enabled' : 'is-muted'}`}
-                            onClick={() => onToggleApp(row.id, client.id)}
+                            onClick={(event) => {
+                              event.stopPropagation()
+                              onToggleApp(row.id, client.id)
+                            }}
                             disabled={busy !== 'idle'}
                           >
                             {client.icon}
@@ -175,7 +186,10 @@ export function Dashboard({
                     <button
                       type="button"
                       className="icon-button compact-icon server-row-action"
-                      onClick={() => onCopyCommand(row.id)}
+                      onClick={(event) => {
+                        event.stopPropagation()
+                        onCopyCommand(row.id)
+                      }}
                       aria-label={t('copyCommand')}
                       disabled={busy !== 'idle'}
                     >
@@ -186,7 +200,10 @@ export function Dashboard({
                     <button
                       type="button"
                       className="icon-button compact-icon server-row-action"
-                      onClick={() => onEdit(row.id)}
+                      onClick={(event) => {
+                        event.stopPropagation()
+                        onEdit(row.id)
+                      }}
                       aria-label={t('edit')}
                       disabled={busy !== 'idle'}
                     >
@@ -197,7 +214,10 @@ export function Dashboard({
                     <button
                       type="button"
                       className="icon-button compact-icon server-row-action server-row-action-danger"
-                      onClick={() => onDelete(row.id)}
+                      onClick={(event) => {
+                        event.stopPropagation()
+                        onDelete(row.id)
+                      }}
                       aria-label={t('delete')}
                       disabled={busy !== 'idle'}
                     >

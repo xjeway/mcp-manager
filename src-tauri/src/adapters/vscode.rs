@@ -1,6 +1,6 @@
-use crate::adapters::{managed_json_field_write, standard_mcp_servers, AppAdapter, ParsedSources};
+use crate::adapters::{managed_json_field_writes, scope_for_path, AppAdapter, ParsedSources};
 use crate::core::{LocalConfigSource, MCPConfig, SupportedApp, WriteOperation};
-use crate::parser::{enable_servers_for_app, parse_mcp_json};
+use crate::parser::{enable_servers_for_app_at, parse_mcp_json};
 use crate::platform::PlatformContext;
 
 pub struct VSCodeAdapter;
@@ -29,7 +29,7 @@ impl AppAdapter for VSCodeAdapter {
 
     fn parse_source(
         &self,
-        _ctx: &PlatformContext,
+        ctx: &PlatformContext,
         path: &str,
         priority: u32,
         content: &str,
@@ -44,10 +44,15 @@ impl AppAdapter for VSCodeAdapter {
                 priority,
                 content: Some(content.to_string()),
             }],
-            servers: enable_servers_for_app(parsed.servers, SupportedApp::Vscode)
-                .into_iter()
-                .map(|server| (server, priority))
-                .collect(),
+            servers: enable_servers_for_app_at(
+                parsed.servers,
+                SupportedApp::Vscode,
+                scope_for_path(ctx, path),
+                path.to_string(),
+            )
+            .into_iter()
+            .map(|server| (server, priority))
+            .collect(),
             warnings: parsed.warnings,
             errors: parsed.errors,
         }
@@ -58,13 +63,10 @@ impl AppAdapter for VSCodeAdapter {
         ctx: &PlatformContext,
         config: &MCPConfig,
         previous_config: Option<&MCPConfig>,
-    ) -> WriteOperation {
-        managed_json_field_write(
-            ctx.user_app_config_path(SupportedApp::Vscode)
-                .to_string_lossy()
-                .to_string(),
+    ) -> Vec<WriteOperation> {
+        managed_json_field_writes(
+            ctx,
             "servers",
-            standard_mcp_servers(config, SupportedApp::Vscode),
             SupportedApp::Vscode,
             config,
             previous_config,
@@ -101,7 +103,7 @@ mod tests {
     fn plans_vscode_servers_payload() {
         let mut apps = empty_apps();
         apps.insert(SupportedApp::Vscode, true);
-        let op = VSCodeAdapter.plan_apply(
+        let operations = VSCodeAdapter.plan_apply(
             &ctx(),
             &MCPConfig {
                 version: 1,
@@ -121,11 +123,147 @@ mod tests {
                         env: HashMap::new(),
                     }),
                     apps,
+                    placements: vec![],
                 }],
             },
             None,
         );
-        assert_eq!(op.mode, "merge_json_object_entries");
-        assert!(op.content.contains("github"));
+        assert_eq!(operations.len(), 1);
+        assert_eq!(operations[0].mode, "merge_json_object_entries");
+        assert!(operations[0].content.contains("github"));
+    }
+
+    #[test]
+    fn plans_vscode_user_and_workspace_payloads_from_placements() {
+        let mut apps = empty_apps();
+        apps.insert(SupportedApp::Vscode, true);
+        let operations = VSCodeAdapter.plan_apply(
+            &ctx(),
+            &MCPConfig {
+                version: 1,
+                servers: vec![MCPServer {
+                    description: None,
+                    homepage: None,
+                    id: "playwright".to_string(),
+                    name: "Playwright".to_string(),
+                    enabled: true,
+                    transport: TransportSpec {
+                        kind: "stdio".to_string(),
+                        url: None,
+                    },
+                    command: Some(crate::core::CommandSpec {
+                        program: "npx".to_string(),
+                        args: vec!["@playwright/mcp@latest".to_string()],
+                        env: HashMap::new(),
+                    }),
+                    apps,
+                    placements: vec![
+                        crate::core::ServerPlacement {
+                            app: SupportedApp::Vscode,
+                            scope: crate::core::PlacementScope::Workspace,
+                            path: Some("/workspace/project/.vscode/mcp.json".to_string()),
+                            enabled: true,
+                            managed: true,
+                        },
+                        crate::core::ServerPlacement {
+                            app: SupportedApp::Vscode,
+                            scope: crate::core::PlacementScope::User,
+                            path: Some(
+                                "/Users/test/Library/Application Support/Code/User/mcp.json"
+                                    .to_string(),
+                            ),
+                            enabled: true,
+                            managed: true,
+                        },
+                    ],
+                }],
+            },
+            None,
+        );
+
+        assert_eq!(operations.len(), 2);
+        assert!(operations
+            .iter()
+            .any(|op| op.path.ends_with(".vscode/mcp.json") && op.content.contains("playwright")));
+        assert!(
+            operations
+                .iter()
+                .any(|op| op.path.ends_with("Code/User/mcp.json")
+                    && op.content.contains("playwright"))
+        );
+    }
+
+    #[test]
+    fn plans_workspace_cleanup_when_managed_placement_is_disabled() {
+        let current_apps = empty_apps();
+        let previous_apps = empty_apps();
+
+        let current = MCPConfig {
+            version: 1,
+            servers: vec![MCPServer {
+                description: None,
+                homepage: None,
+                id: "playwright".to_string(),
+                name: "Playwright".to_string(),
+                enabled: true,
+                transport: TransportSpec {
+                    kind: "stdio".to_string(),
+                    url: None,
+                },
+                command: Some(crate::core::CommandSpec {
+                    program: "npx".to_string(),
+                    args: vec!["@playwright/mcp@latest".to_string()],
+                    env: HashMap::new(),
+                }),
+                apps: current_apps,
+                placements: vec![crate::core::ServerPlacement {
+                    app: SupportedApp::Vscode,
+                    scope: crate::core::PlacementScope::Workspace,
+                    path: Some("/workspace/project/.vscode/mcp.json".to_string()),
+                    enabled: false,
+                    managed: true,
+                }],
+            }],
+        };
+
+        let previous = MCPConfig {
+            version: 1,
+            servers: vec![MCPServer {
+                description: None,
+                homepage: None,
+                id: "playwright".to_string(),
+                name: "Playwright".to_string(),
+                enabled: true,
+                transport: TransportSpec {
+                    kind: "stdio".to_string(),
+                    url: None,
+                },
+                command: Some(crate::core::CommandSpec {
+                    program: "npx".to_string(),
+                    args: vec!["@playwright/mcp@latest".to_string()],
+                    env: HashMap::new(),
+                }),
+                apps: previous_apps,
+                placements: vec![crate::core::ServerPlacement {
+                    app: SupportedApp::Vscode,
+                    scope: crate::core::PlacementScope::Workspace,
+                    path: Some("/workspace/project/.vscode/mcp.json".to_string()),
+                    enabled: true,
+                    managed: true,
+                }],
+            }],
+        };
+
+        let operations = VSCodeAdapter.plan_apply(&ctx(), &current, Some(&previous));
+        let workspace_operation = operations
+            .iter()
+            .find(|operation| operation.path == "/workspace/project/.vscode/mcp.json")
+            .expect("workspace cleanup operation");
+
+        assert_eq!(workspace_operation.content, "{}");
+        assert_eq!(
+            workspace_operation.remove_keys.as_deref(),
+            Some(&["playwright".to_string()][..])
+        );
     }
 }

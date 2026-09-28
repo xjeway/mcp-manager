@@ -199,6 +199,7 @@ fn parse_server(id: &str, input: &Map<String, Value>) -> Result<MCPServer, Strin
         transport,
         command,
         apps: empty_apps(),
+        placements: vec![],
     })
 }
 
@@ -417,9 +418,30 @@ pub fn extract_opencode_mcp_json(content: &str) -> Result<String, String> {
     .map_err(|e| e.to_string())
 }
 
-pub fn enable_servers_for_app(mut servers: Vec<MCPServer>, app: SupportedApp) -> Vec<MCPServer> {
+pub fn enable_servers_for_app_at(
+    mut servers: Vec<MCPServer>,
+    app: SupportedApp,
+    scope: crate::core::PlacementScope,
+    path: String,
+) -> Vec<MCPServer> {
     for server in &mut servers {
-        server.apps.insert(app, true);
+        match scope {
+            // User-level installs are tracked by the app flag and always written to
+            // the app's primary user config. Pinning the imported path here would
+            // also keep legacy or secondary user files in sync.
+            crate::core::PlacementScope::User => {
+                server.apps.insert(app, true);
+            }
+            crate::core::PlacementScope::Workspace => {
+                server.placements.push(crate::core::ServerPlacement {
+                    app,
+                    scope,
+                    path: Some(path.clone()),
+                    enabled: true,
+                    managed: true,
+                });
+            }
+        }
     }
     servers
 }
@@ -438,6 +460,7 @@ mod tests {
         extract_claude_mcp_json, extract_codex_mcp_json, extract_json_field_mcp_json,
         extract_opencode_mcp_json, parse_mcp_json, parse_yaml_config,
     };
+    use crate::core::{PlacementScope, SupportedApp};
     use serde_json::Value;
 
     #[test]
@@ -455,6 +478,43 @@ mod tests {
         let parsed = parse_mcp_json("");
         assert!(parsed.errors.is_empty());
         assert!(parsed.servers.is_empty());
+    }
+
+    #[test]
+    fn workspace_import_does_not_enable_user_level_app_scope() {
+        let parsed = parse_mcp_json(
+            r#"{"servers":{"playwright":{"command":"npx","args":["@playwright/mcp@latest"]}}}"#,
+        );
+
+        let servers = super::enable_servers_for_app_at(
+            parsed.servers,
+            SupportedApp::Vscode,
+            PlacementScope::Workspace,
+            "/workspace/project/.vscode/mcp.json".to_string(),
+        );
+
+        assert_eq!(servers.len(), 1);
+        assert_eq!(servers[0].apps.get(&SupportedApp::Vscode), Some(&false));
+        assert_eq!(servers[0].placements.len(), 1);
+        assert_eq!(servers[0].placements[0].scope, PlacementScope::Workspace);
+    }
+
+    #[test]
+    fn user_import_enables_user_level_app_scope() {
+        let parsed = parse_mcp_json(
+            r#"{"servers":{"playwright":{"command":"npx","args":["@playwright/mcp@latest"]}}}"#,
+        );
+
+        let servers = super::enable_servers_for_app_at(
+            parsed.servers,
+            SupportedApp::Vscode,
+            PlacementScope::User,
+            "/Users/test/Library/Application Support/Code/User/mcp.json".to_string(),
+        );
+
+        assert_eq!(servers.len(), 1);
+        assert_eq!(servers[0].apps.get(&SupportedApp::Vscode), Some(&true));
+        assert!(servers[0].placements.is_empty());
     }
 
     #[test]

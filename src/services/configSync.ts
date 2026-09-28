@@ -19,6 +19,15 @@ function normalizeServer(server: MCPServer) {
         }
       : null,
     apps: Object.fromEntries(SUPPORTED_APPS.map((app) => [app, Boolean(server.apps[app])])),
+    placements: [...(server.placements ?? [])]
+      .map((placement) => ({
+        app: placement.app,
+        scope: placement.scope,
+        path: placement.path ?? null,
+        enabled: placement.enabled,
+        managed: placement.managed ?? true,
+      }))
+      .sort((left, right) => `${left.app}:${left.scope}:${left.path}`.localeCompare(`${right.app}:${right.scope}:${right.path}`)),
   }
 }
 

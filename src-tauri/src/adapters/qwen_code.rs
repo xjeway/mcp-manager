@@ -1,6 +1,6 @@
-use crate::adapters::{managed_json_field_write, standard_mcp_servers, AppAdapter, ParsedSources};
+use crate::adapters::{managed_json_field_writes, scope_for_path, AppAdapter, ParsedSources};
 use crate::core::{LocalConfigSource, MCPConfig, SupportedApp, WriteOperation};
-use crate::parser::{enable_servers_for_app, extract_json_field_mcp_json, parse_mcp_json};
+use crate::parser::{enable_servers_for_app_at, extract_json_field_mcp_json, parse_mcp_json};
 use crate::platform::PlatformContext;
 
 pub struct QwenCodeAdapter;
@@ -29,7 +29,7 @@ impl AppAdapter for QwenCodeAdapter {
 
     fn parse_source(
         &self,
-        _ctx: &PlatformContext,
+        ctx: &PlatformContext,
         path: &str,
         priority: u32,
         content: &str,
@@ -63,10 +63,15 @@ impl AppAdapter for QwenCodeAdapter {
                 priority,
                 content: Some(normalized),
             }],
-            servers: enable_servers_for_app(parsed.servers, self.app())
-                .into_iter()
-                .map(|server| (server, priority))
-                .collect(),
+            servers: enable_servers_for_app_at(
+                parsed.servers,
+                self.app(),
+                scope_for_path(ctx, path),
+                path.to_string(),
+            )
+            .into_iter()
+            .map(|server| (server, priority))
+            .collect(),
             warnings: parsed.warnings,
             errors: parsed.errors,
         }
@@ -77,17 +82,8 @@ impl AppAdapter for QwenCodeAdapter {
         ctx: &PlatformContext,
         config: &MCPConfig,
         previous_config: Option<&MCPConfig>,
-    ) -> WriteOperation {
-        managed_json_field_write(
-            ctx.user_app_config_path(self.app())
-                .to_string_lossy()
-                .to_string(),
-            "mcpServers",
-            standard_mcp_servers(config, self.app()),
-            self.app(),
-            config,
-            previous_config,
-        )
+    ) -> Vec<WriteOperation> {
+        managed_json_field_writes(ctx, "mcpServers", self.app(), config, previous_config)
     }
 }
 
@@ -124,7 +120,7 @@ mod tests {
     fn plans_qwen_merge() {
         let mut apps = empty_apps();
         apps.insert(SupportedApp::QwenCode, true);
-        let op = QwenCodeAdapter.plan_apply(
+        let operations = QwenCodeAdapter.plan_apply(
             &ctx(),
             &MCPConfig {
                 version: 1,
@@ -145,12 +141,13 @@ mod tests {
                         env: HashMap::new(),
                     }),
                     apps,
+                    placements: vec![],
                     description: None,
                     homepage: None,
                 }],
             },
             None,
         );
-        assert_eq!(op.field.as_deref(), Some("mcpServers"));
+        assert_eq!(operations[0].field.as_deref(), Some("mcpServers"));
     }
 }

@@ -73,6 +73,30 @@ pub struct TransportSpec {
     pub url: Option<String>,
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub enum PlacementScope {
+    User,
+    Workspace,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ServerPlacement {
+    pub app: SupportedApp,
+    pub scope: PlacementScope,
+    #[serde(default)]
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub path: Option<String>,
+    pub enabled: bool,
+    #[serde(default = "default_managed")]
+    pub managed: bool,
+}
+
+fn default_managed() -> bool {
+    true
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct MCPServer {
     #[serde(default)]
@@ -88,6 +112,8 @@ pub struct MCPServer {
     #[serde(default)]
     pub command: Option<CommandSpec>,
     pub apps: HashMap<SupportedApp, bool>,
+    #[serde(default)]
+    pub placements: Vec<ServerPlacement>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -166,6 +192,7 @@ fn clone_server(server: &MCPServer) -> MCPServer {
         transport: server.transport.clone(),
         command: server.command.clone(),
         apps: server.apps.clone(),
+        placements: server.placements.clone(),
     }
 }
 
@@ -190,6 +217,21 @@ pub fn merge_servers(current: Option<&MCPServer>, incoming: &MCPServer) -> MCPSe
         let enabled = merged.apps.get(&app).copied().unwrap_or(false)
             || incoming.apps.get(&app).copied().unwrap_or(false);
         merged.apps.insert(app, enabled);
+    }
+
+    for placement in &incoming.placements {
+        let existing = merged.placements.iter_mut().find(|current| {
+            current.app == placement.app
+                && current.scope == placement.scope
+                && current.path == placement.path
+        });
+        match existing {
+            Some(existing) => {
+                existing.enabled = existing.enabled || placement.enabled;
+                existing.managed = existing.managed || placement.managed;
+            }
+            None => merged.placements.push(placement.clone()),
+        }
     }
 
     if merged.command.is_none() && incoming.command.is_some() {
@@ -231,5 +273,47 @@ pub fn build_import_result(
         sources: detected_sources,
         warnings,
         errors,
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{
+        empty_apps, merge_servers, MCPServer, PlacementScope, ServerPlacement, SupportedApp,
+        TransportSpec,
+    };
+
+    fn server_with_placement(enabled: bool) -> MCPServer {
+        MCPServer {
+            description: None,
+            homepage: None,
+            id: "playwright".to_string(),
+            name: "Playwright".to_string(),
+            enabled: true,
+            transport: TransportSpec {
+                kind: "stdio".to_string(),
+                url: None,
+            },
+            command: None,
+            apps: empty_apps(),
+            placements: vec![ServerPlacement {
+                app: SupportedApp::Vscode,
+                scope: PlacementScope::Workspace,
+                path: Some("/workspace/project/.vscode/mcp.json".to_string()),
+                enabled,
+                managed: true,
+            }],
+        }
+    }
+
+    #[test]
+    fn reimport_reenables_an_existing_disabled_placement() {
+        let merged = merge_servers(
+            Some(&server_with_placement(false)),
+            &server_with_placement(true),
+        );
+
+        assert_eq!(merged.placements.len(), 1);
+        assert!(merged.placements[0].enabled);
     }
 }

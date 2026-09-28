@@ -1,4 +1,5 @@
 import type { ImportDetectedResult, MCPConfig, SupportedApp } from '../types/config'
+import { isServerAppEnabled, setServerAppEnabled } from '../view-models/workspace'
 
 interface SaveAndSyncConfigOptions {
   applyConfig: (config: MCPConfig, previousConfig: MCPConfig) => Promise<{ backups: string[] }>
@@ -58,7 +59,9 @@ export function toggleServerAppInConfig(config: MCPConfig, serverId: string, app
     ...config,
     servers: config.servers.map((server) =>
       server.id === serverId
-        ? { ...server, apps: { ...server.apps, [app]: !server.apps[app] } }
+        ? // The pill reflects every scope, so turning it off removes the server from the
+          // project too, while turning it on only installs it at user level.
+          setServerAppEnabled(server, app, !isServerAppEnabled(server, app), { includeWorkspace: true })
         : server,
     ),
   }

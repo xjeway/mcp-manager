@@ -21,3 +21,11 @@ export async function openReleasesLink(): Promise<void> {
 
   await invoke('open_releases_link')
 }
+
+export async function openPath(path: string): Promise<void> {
+  if (!isDesktopRuntime()) {
+    return
+  }
+
+  await invoke('open_path', { path })
+}

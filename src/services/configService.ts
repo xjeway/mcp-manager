@@ -1,7 +1,7 @@
 import { invoke } from '@tauri-apps/api/core'
 import YAML from 'yaml'
-import type { ImportDetectedResult, MCPConfig, SupportedApp } from '../types/config'
-import { SUPPORTED_APPS } from '../types/config'
+import type { ImportDetectedResult, MCPConfig, SupportedApp, WorkspaceContext } from '../types/config'
+import { EMPTY_WORKSPACE, SUPPORTED_APPS } from '../types/config'
 import { isDesktopRuntime } from './runtime'
 
 const CONFIG_PATH = 'config/servers.yaml'
@@ -182,4 +182,12 @@ export async function detectInstalledApps(): Promise<SupportedApp[]> {
   }
 
   return invoke<SupportedApp[]>('detect_installed_apps')
+}
+
+export async function getCurrentWorkspace(): Promise<WorkspaceContext> {
+  if (!isDesktopRuntime()) {
+    return EMPTY_WORKSPACE
+  }
+
+  return invoke<WorkspaceContext>('current_workspace')
 }

@@ -7,8 +7,9 @@ mod security;
 mod storage;
 
 use commands::{
-    apply_config, detect_installed_apps, import_detected_configs, load_yaml_config,
-    open_releases_link, open_repository_link, restart_app, rollback_from_backups, save_yaml_config,
+    apply_config, current_workspace, detect_installed_apps, import_detected_configs,
+    load_yaml_config, open_path, open_releases_link, open_repository_link, restart_app,
+    rollback_from_backups, save_yaml_config,
 };
 
 fn main() {
@@ -21,6 +22,8 @@ fn main() {
             save_yaml_config,
             open_releases_link,
             open_repository_link,
+            open_path,
+            current_workspace,
             import_detected_configs,
             detect_installed_apps,
             apply_config,

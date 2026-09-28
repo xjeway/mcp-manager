@@ -1,7 +1,14 @@
 import type { TFunction } from 'i18next'
 import type { ReactNode } from 'react'
 import { getVisibleClients } from '../components/clientMeta'
-import type { MCPConfig, MCPServer, SupportedApp } from '../types/config'
+import type {
+  MCPConfig,
+  MCPServer,
+  PlacementScope,
+  ServerPlacement,
+  SupportedApp,
+  WorkspaceContext,
+} from '../types/config'
 
 export interface FeedbackItem {
   id: string
@@ -22,12 +29,21 @@ export interface WorkspaceRowViewModel {
   enabledApps: SupportedApp[]
   id: string
   name: string
+  placements: WorkspacePlacementViewModel[]
   transportLabel: string
 }
 
 export interface WorkspaceViewModel {
   rows: WorkspaceRowViewModel[]
   stats: WorkspaceStatViewModel[]
+}
+
+export interface WorkspacePlacementViewModel {
+  app: SupportedApp
+  label: string
+  path?: string
+  scope: PlacementScope
+  scopeLabel: string
 }
 
 export type EditorMode = 'form' | 'json'
@@ -41,6 +57,7 @@ export interface EditorDraft {
   homepage: string
   id: string
   name: string
+  placements: ServerPlacement[]
   program: string
   transportType: 'stdio' | 'http'
   url: string
@@ -78,6 +95,55 @@ function commandSummary(server: MCPServer, t: TFunction): string {
   return args ? `${server.command.program} ${args}` : server.command.program
 }
 
+export function getServerPlacements(server: MCPServer): ServerPlacement[] {
+  return server.placements?.filter((placement) => placement.enabled) ?? []
+}
+
+type AppPlacementTarget = Pick<MCPServer, 'apps' | 'placements'>
+
+/** Whether the server is installed for `app` at any scope. */
+export function isServerAppEnabled(server: AppPlacementTarget, app: SupportedApp): boolean {
+  return (
+    server.apps[app] || server.placements?.some((placement) => placement.enabled && placement.app === app) || false
+  )
+}
+
+/** Whether the server is installed for `app` at user level. */
+export function isUserScopeEnabled(server: AppPlacementTarget, app: SupportedApp): boolean {
+  return (
+    server.apps[app] ||
+    server.placements?.some((placement) => placement.enabled && placement.app === app && placement.scope === 'user') ||
+    false
+  )
+}
+
+/**
+ * Turns `app` on or off for a server. The user-level flag and user-scope
+ * placements always follow `enabled`. With `includeWorkspace`, turning the app
+ * off also disables its project placements; turning it on never re-enables
+ * them, so a project is only ever changed explicitly.
+ */
+export function setServerAppEnabled<T extends AppPlacementTarget>(
+  server: T,
+  app: SupportedApp,
+  enabled: boolean,
+  { includeWorkspace = false }: { includeWorkspace?: boolean } = {},
+): T {
+  return {
+    ...server,
+    apps: { ...server.apps, [app]: enabled },
+    placements: server.placements?.map((placement) =>
+      placement.app === app && (placement.scope === 'user' || (includeWorkspace && !enabled))
+        ? { ...placement, enabled }
+        : placement,
+    ),
+  }
+}
+
+function placementScopeLabel(scope: PlacementScope): string {
+  return scope === 'workspace' ? 'placementScopeWorkspace' : 'placementScopeUser'
+}
+
 export function mapConfigToWorkspaceView(
   config: MCPConfig,
   visibleApps: SupportedApp[],
@@ -87,14 +153,26 @@ export function mapConfigToWorkspaceView(
   return {
     stats: visibleClients.map((client) => ({
       ...client,
-      count: config.servers.filter((server) => server.enabled && server.apps[client.id]).length,
+      count: config.servers.filter((server) => server.enabled && isServerAppEnabled(server, client.id)).length,
     })),
     rows: config.servers.map((server) => ({
       id: server.id,
       name: server.name,
       transportLabel: server.transport.type === 'http' ? t('transportHttp') : t('transportStdio'),
       copyValue: commandSummary(server, t),
-      enabledApps: visibleClients.filter((client) => server.apps[client.id]).map((client) => client.id),
+      enabledApps: visibleClients.filter((client) => isServerAppEnabled(server, client.id)).map((client) => client.id),
+      placements: visibleClients
+        .flatMap((client) =>
+          getServerPlacements(server)
+            .filter((placement) => placement.app === client.id)
+            .map((placement) => ({
+              app: client.id,
+              label: client.label,
+              path: placement.path,
+              scope: placement.scope,
+              scopeLabel: placementScopeLabel(placement.scope),
+            })),
+        ),
     })),
   }
 }
@@ -106,6 +184,7 @@ export function createEmptyEditorDraft(): EditorDraft {
     homepage: '',
     name: '',
     enabled: true,
+    placements: [],
     transportType: 'stdio',
     program: '',
     args: [],
@@ -134,6 +213,7 @@ export function serverToEditorDraft(server: MCPServer | null | undefined): Edito
     url: server.transport.url ?? '',
     envEntries,
     apps: { ...server.apps },
+    placements: getServerPlacements(server),
   }
 }
 
@@ -155,6 +235,9 @@ export function editorDraftToServer(draft: EditorDraft): MCPServer {
     return acc
   }, {})
 
+  const placements = draft.placements.filter((placement) => placement.enabled)
+  const apps = { ...draft.apps }
+
   return {
     description: draft.description.trim() || undefined,
     homepage: draft.homepage.trim() || undefined,
@@ -171,10 +254,32 @@ export function editorDraftToServer(draft: EditorDraft): MCPServer {
             program: draft.program.trim(),
             args: draft.args,
             env,
-          }
+        }
         : undefined,
-    apps: { ...draft.apps },
+    apps,
+    placements,
   }
+}
+
+export function workspacePlacementPath(app: SupportedApp, workspace: WorkspaceContext): string | null {
+  return workspace.root.trim() ? workspace.placementPaths[app] ?? null : null
+}
+
+/** Enables or disables the project-level placement of `app` at `path`, adding it if missing. */
+export function setWorkspacePlacement(
+  placements: ServerPlacement[],
+  app: SupportedApp,
+  path: string,
+  enabled: boolean,
+): ServerPlacement[] {
+  const isTarget = (placement: ServerPlacement) =>
+    placement.app === app && placement.scope === 'workspace' && placement.path === path
+
+  if (placements.some(isTarget)) {
+    return placements.map((placement) => (isTarget(placement) ? { ...placement, enabled } : placement))
+  }
+
+  return [...placements, { app, scope: 'workspace', path, enabled, managed: true }]
 }
 
 export function serverToJsonText(server: MCPServer | null | undefined): string {

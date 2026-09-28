@@ -1,5 +1,13 @@
 import { describe, expect, it } from 'vitest'
-import { mapConfigToWorkspaceView, serverToEditorDraft, editorDraftToServer } from './workspace'
+import {
+  editorDraftToServer,
+  mapConfigToWorkspaceView,
+  serverToEditorDraft,
+  setServerAppEnabled,
+  setWorkspacePlacement,
+  workspacePlacementPath,
+} from './workspace'
+import type { MCPServer } from '../types/config'
 
 describe('workspace view-models', () => {
   it('maps canonical config into workspace stats and rows', () => {
@@ -111,5 +119,149 @@ describe('workspace view-models', () => {
 
     expect(view.stats.map((stat) => stat.id)).toEqual(['cursor', 'kiro', 'vscode'])
     expect(view.rows[0].enabledApps).toEqual(['cursor', 'kiro', 'vscode'])
+  })
+
+  it('maps placements into workspace rows and stats', () => {
+    const view = mapConfigToWorkspaceView(
+      {
+        version: 1,
+        servers: [
+          {
+            id: 'playwright',
+            name: 'Playwright',
+            enabled: true,
+            transport: { type: 'stdio' },
+            command: { program: 'npx', args: ['@playwright/mcp@latest'], env: {} },
+            apps: {
+              vscode: false,
+              cursor: false,
+              claudeCode: false,
+              claudeDesktop: false,
+              codex: false,
+              openCode: false,
+              githubCopilot: false,
+              geminiCli: false,
+              antigravity: false,
+              iFlow: false,
+              qwenCode: false,
+              cline: false,
+              windsurf: false,
+              kiro: false,
+            },
+            placements: [
+              {
+                app: 'vscode',
+                scope: 'workspace',
+                path: '/workspace/project/.vscode/mcp.json',
+                enabled: true,
+              },
+              {
+                app: 'cursor',
+                scope: 'user',
+                path: '/Users/test/.cursor/mcp.json',
+                enabled: true,
+              },
+            ],
+          },
+        ],
+      },
+      ['vscode', 'cursor'],
+      ((key: string) => key) as never,
+    )
+
+    expect(view.rows[0].enabledApps).toEqual(['cursor', 'vscode'])
+    expect(view.rows[0].placements).toEqual([
+      {
+        app: 'cursor',
+        label: 'Cursor',
+        path: '/Users/test/.cursor/mcp.json',
+        scope: 'user',
+        scopeLabel: 'placementScopeUser',
+      },
+      {
+        app: 'vscode',
+        label: 'VS Code',
+        path: '/workspace/project/.vscode/mcp.json',
+        scope: 'workspace',
+        scopeLabel: 'placementScopeWorkspace',
+      },
+    ])
+    expect(view.stats.find((stat) => stat.id === 'vscode')?.count).toBe(1)
+    expect(view.stats.find((stat) => stat.id === 'cursor')?.count).toBe(1)
+  })
+
+  it('reads workspace placement paths from the backend-provided table', () => {
+    const workspace = {
+      root: '/workspace/project',
+      placementPaths: { vscode: '/workspace/project/.vscode/mcp.json' },
+    }
+
+    expect(workspacePlacementPath('vscode', workspace)).toBe('/workspace/project/.vscode/mcp.json')
+    expect(workspacePlacementPath('codex', workspace)).toBeNull()
+    expect(workspacePlacementPath('vscode', { root: '', placementPaths: {} })).toBeNull()
+  })
+
+  it('adds or updates only the matching workspace placement', () => {
+    const userPlacement = {
+      app: 'vscode' as const,
+      scope: 'user' as const,
+      path: '/Users/test/Library/Application Support/Code/User/mcp.json',
+      enabled: true,
+      managed: true,
+    }
+    const workspacePath = '/workspace/project/.vscode/mcp.json'
+
+    const added = setWorkspacePlacement([userPlacement], 'vscode', workspacePath, true)
+    expect(added).toEqual([
+      userPlacement,
+      { app: 'vscode', scope: 'workspace', path: workspacePath, enabled: true, managed: true },
+    ])
+
+    const disabled = setWorkspacePlacement(added, 'vscode', workspacePath, false)
+    expect(disabled).toEqual([
+      userPlacement,
+      { app: 'vscode', scope: 'workspace', path: workspacePath, enabled: false, managed: true },
+    ])
+  })
+
+  it('turns an app off at every scope but back on only at user level', () => {
+    const server: MCPServer = {
+      id: 'playwright',
+      name: 'Playwright',
+      enabled: true,
+      transport: { type: 'stdio' },
+      command: { program: 'npx', args: ['@playwright/mcp@latest'], env: {} },
+      apps: {
+        vscode: true,
+        cursor: false,
+        claudeCode: false,
+        claudeDesktop: false,
+        codex: false,
+        openCode: false,
+        githubCopilot: false,
+        geminiCli: false,
+        antigravity: false,
+        iFlow: false,
+        qwenCode: false,
+        cline: false,
+        windsurf: false,
+        kiro: false,
+      },
+      placements: [
+        { app: 'vscode', scope: 'user', path: '/user/mcp.json', enabled: true, managed: true },
+        { app: 'vscode', scope: 'workspace', path: '/workspace/project/.vscode/mcp.json', enabled: true, managed: true },
+      ],
+    }
+
+    const off = setServerAppEnabled(server, 'vscode', false, { includeWorkspace: true })
+    expect(off.apps.vscode).toBe(false)
+    expect(off.placements?.map((placement) => placement.enabled)).toEqual([false, false])
+
+    const on = setServerAppEnabled(off, 'vscode', true, { includeWorkspace: true })
+    expect(on.apps.vscode).toBe(true)
+    expect(on.placements?.map((placement) => placement.enabled)).toEqual([true, false])
+
+    const userOnlyOff = setServerAppEnabled(server, 'vscode', false)
+    expect(userOnlyOff.placements?.map((placement) => placement.enabled)).toEqual([false, true])
   })
 })

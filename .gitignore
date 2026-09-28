@@ -47,3 +47,7 @@ config/
 tmp
 *superpowers/
 openspec
+.playwright-mcp/
+
+# Local Claude Code settings
+.claude/

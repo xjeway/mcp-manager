@@ -18,6 +18,7 @@ export const SUPPORTED_APPS = [
 export type SupportedApp = (typeof SUPPORTED_APPS)[number]
 
 export type TransportType = 'stdio' | 'http'
+export type PlacementScope = 'user' | 'workspace'
 
 export interface CommandSpec {
   program: string
@@ -37,6 +38,25 @@ export interface MCPServer {
   }
   command?: CommandSpec
   apps: Record<SupportedApp, boolean>
+  placements?: ServerPlacement[]
+}
+
+/** The project the app was started from, as reported by the backend. */
+export interface WorkspaceContext {
+  /** Empty when there is no current project. */
+  root: string
+  /** Project-level config file per app that supports one. */
+  placementPaths: Partial<Record<SupportedApp, string>>
+}
+
+export const EMPTY_WORKSPACE: WorkspaceContext = { root: '', placementPaths: {} }
+
+export interface ServerPlacement {
+  app: SupportedApp
+  scope: PlacementScope
+  path?: string
+  enabled: boolean
+  managed?: boolean
 }
 
 export interface MCPConfig {

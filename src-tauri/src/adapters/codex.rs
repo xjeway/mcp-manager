@@ -1,6 +1,6 @@
-use crate::adapters::{managed_toml_field_write, standard_mcp_servers, AppAdapter, ParsedSources};
+use crate::adapters::{managed_toml_field_writes, scope_for_path, AppAdapter, ParsedSources};
 use crate::core::{LocalConfigSource, MCPConfig, SupportedApp, WriteOperation};
-use crate::parser::{enable_servers_for_app, extract_codex_mcp_json, parse_mcp_json};
+use crate::parser::{enable_servers_for_app_at, extract_codex_mcp_json, parse_mcp_json};
 use crate::platform::PlatformContext;
 
 pub struct CodexAdapter;
@@ -30,7 +30,7 @@ impl AppAdapter for CodexAdapter {
 
     fn parse_source(
         &self,
-        _ctx: &PlatformContext,
+        ctx: &PlatformContext,
         path: &str,
         priority: u32,
         content: &str,
@@ -67,10 +67,15 @@ impl AppAdapter for CodexAdapter {
                 priority,
                 content: Some(normalized),
             }],
-            servers: enable_servers_for_app(parsed.servers, SupportedApp::Codex)
-                .into_iter()
-                .map(|server| (server, priority))
-                .collect(),
+            servers: enable_servers_for_app_at(
+                parsed.servers,
+                SupportedApp::Codex,
+                scope_for_path(ctx, path),
+                path.to_string(),
+            )
+            .into_iter()
+            .map(|server| (server, priority))
+            .collect(),
             warnings: parsed.warnings,
             errors: parsed.errors,
         }
@@ -81,13 +86,10 @@ impl AppAdapter for CodexAdapter {
         ctx: &PlatformContext,
         config: &MCPConfig,
         previous_config: Option<&MCPConfig>,
-    ) -> WriteOperation {
-        managed_toml_field_write(
-            ctx.user_app_config_path(SupportedApp::Codex)
-                .to_string_lossy()
-                .to_string(),
+    ) -> Vec<WriteOperation> {
+        managed_toml_field_writes(
+            ctx,
             "mcp_servers",
-            standard_mcp_servers(config, SupportedApp::Codex),
             SupportedApp::Codex,
             config,
             previous_config,
@@ -131,7 +133,7 @@ args = ["@playwright/mcp@latest"]
     fn plans_codex_toml_merge() {
         let mut apps = empty_apps();
         apps.insert(SupportedApp::Codex, true);
-        let op = CodexAdapter.plan_apply(
+        let operations = CodexAdapter.plan_apply(
             &ctx(),
             &MCPConfig {
                 version: 1,
@@ -151,11 +153,12 @@ args = ["@playwright/mcp@latest"]
                         env: HashMap::new(),
                     }),
                     apps,
+                    placements: vec![],
                 }],
             },
             None,
         );
-        assert_eq!(op.mode, "merge_toml_table_entries");
-        assert_eq!(op.field.as_deref(), Some("mcp_servers"));
+        assert_eq!(operations[0].mode, "merge_toml_table_entries");
+        assert_eq!(operations[0].field.as_deref(), Some("mcp_servers"));
     }
 }

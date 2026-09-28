@@ -51,6 +51,15 @@ impl PlatformContext {
         self.workspace_root.join(candidate)
     }
 
+    /// The process cwd only identifies a project when the app is started from a
+    /// project directory. GUI launches (Finder, Dock, Start menu) start in the
+    /// filesystem root or the home directory; neither they nor any other ancestor
+    /// of the home directory may be treated as a project, or every user-level
+    /// config file would be classified as project-level.
+    pub fn has_workspace(&self) -> bool {
+        self.workspace_root.is_absolute() && !self.home_dir.starts_with(&self.workspace_root)
+    }
+
     pub fn workspace_file(&self, relative: &str) -> PathBuf {
         self.workspace_root.join(relative)
     }
@@ -343,6 +352,23 @@ mod tests {
             ctx.resolve_path(".vscode/mcp.json").to_string_lossy(),
             "/workspace/project/.vscode/mcp.json"
         );
+    }
+
+    #[test]
+    fn treats_only_real_project_directories_as_workspaces() {
+        assert!(ctx(PlatformOs::MacOS).has_workspace());
+
+        let mut launched_from_finder = ctx(PlatformOs::MacOS);
+        launched_from_finder.workspace_root = PathBuf::from("/");
+        assert!(!launched_from_finder.has_workspace());
+
+        let mut launched_from_home = ctx(PlatformOs::MacOS);
+        launched_from_home.workspace_root = PathBuf::from("/Users/test");
+        assert!(!launched_from_home.has_workspace());
+
+        let mut launched_from_users = ctx(PlatformOs::MacOS);
+        launched_from_users.workspace_root = PathBuf::from("/Users");
+        assert!(!launched_from_users.has_workspace());
     }
 
     #[test]

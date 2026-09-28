@@ -1,6 +1,6 @@
-use crate::adapters::{managed_json_field_write, standard_mcp_servers, AppAdapter, ParsedSources};
+use crate::adapters::{managed_json_field_writes, scope_for_path, AppAdapter, ParsedSources};
 use crate::core::{LocalConfigSource, MCPConfig, SupportedApp, WriteOperation};
-use crate::parser::{enable_servers_for_app, extract_claude_mcp_json, parse_mcp_json};
+use crate::parser::{enable_servers_for_app_at, extract_claude_mcp_json, parse_mcp_json};
 use crate::platform::PlatformContext;
 
 pub struct ClaudeCodeAdapter;
@@ -67,10 +67,15 @@ impl AppAdapter for ClaudeCodeAdapter {
                 priority,
                 content: Some(normalized),
             }],
-            servers: enable_servers_for_app(parsed.servers, SupportedApp::ClaudeCode)
-                .into_iter()
-                .map(|server| (server, priority))
-                .collect(),
+            servers: enable_servers_for_app_at(
+                parsed.servers,
+                SupportedApp::ClaudeCode,
+                scope_for_path(ctx, path),
+                path.to_string(),
+            )
+            .into_iter()
+            .map(|server| (server, priority))
+            .collect(),
             warnings: parsed.warnings,
             errors: parsed.errors,
         }
@@ -81,13 +86,10 @@ impl AppAdapter for ClaudeCodeAdapter {
         ctx: &PlatformContext,
         config: &MCPConfig,
         previous_config: Option<&MCPConfig>,
-    ) -> WriteOperation {
-        managed_json_field_write(
-            ctx.user_app_config_path(SupportedApp::ClaudeCode)
-                .to_string_lossy()
-                .to_string(),
+    ) -> Vec<WriteOperation> {
+        managed_json_field_writes(
+            ctx,
             "mcpServers",
-            standard_mcp_servers(config, SupportedApp::ClaudeCode),
             SupportedApp::ClaudeCode,
             config,
             previous_config,
@@ -133,7 +135,7 @@ mod tests {
         let mut current_apps = empty_apps();
         current_apps.insert(SupportedApp::ClaudeCode, true);
 
-        let op = ClaudeCodeAdapter.plan_apply(
+        let operations = ClaudeCodeAdapter.plan_apply(
             &ctx(),
             &MCPConfig {
                 version: 1,
@@ -153,6 +155,7 @@ mod tests {
                         env: HashMap::new(),
                     }),
                     apps: current_apps,
+                    placements: vec![],
                 }],
             },
             Some(&MCPConfig {
@@ -173,13 +176,14 @@ mod tests {
                         env: HashMap::new(),
                     }),
                     apps: previous_apps,
+                    placements: vec![],
                 }],
             }),
         );
-        assert_eq!(op.mode, "merge_json_object_entries");
-        assert_eq!(op.field.as_deref(), Some("mcpServers"));
+        assert_eq!(operations[0].mode, "merge_json_object_entries");
+        assert_eq!(operations[0].field.as_deref(), Some("mcpServers"));
         assert_eq!(
-            op.remove_keys.as_deref(),
+            operations[0].remove_keys.as_deref(),
             Some(&["legacy".to_string(), "playwright".to_string()][..])
         );
     }
@@ -189,7 +193,7 @@ mod tests {
         let mut apps = empty_apps();
         apps.insert(SupportedApp::ClaudeCode, true);
 
-        let op = ClaudeCodeAdapter.plan_apply(
+        let operations = ClaudeCodeAdapter.plan_apply(
             &ctx(),
             &MCPConfig {
                 version: 1,
@@ -210,6 +214,7 @@ mod tests {
                             env: HashMap::new(),
                         }),
                         apps: apps.clone(),
+                        placements: vec![],
                     },
                     MCPServer {
                         description: None,
@@ -223,13 +228,14 @@ mod tests {
                         },
                         command: None,
                         apps,
+                        placements: vec![],
                     },
                 ],
             },
             None,
         );
 
-        let payload: Value = serde_json::from_str(&op.content).expect("payload");
+        let payload: Value = serde_json::from_str(&operations[0].content).expect("payload");
         assert_eq!(payload["playwright"]["type"], "stdio");
         assert_eq!(payload["linear"]["type"], "sse");
         assert_eq!(payload["linear"]["url"], "https://mcp.linear.app/sse");

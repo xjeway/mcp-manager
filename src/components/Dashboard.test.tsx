@@ -24,6 +24,7 @@ describe('Dashboard', () => {
               transportLabel: 'STDIO',
               copyValue: 'npx example',
               enabledApps: ['vscode'],
+              placements: [],
             },
           ],
         }}
@@ -111,6 +112,11 @@ describe('Dashboard', () => {
               transportLabel: 'STDIO',
               copyValue: 'npx example',
               enabledApps: ['cursor', 'kiro', 'vscode'],
+              placements: [
+                { app: 'cursor', label: 'Cursor', scope: 'user', scopeLabel: 'placementScopeUser' },
+                { app: 'kiro', label: 'Kiro', scope: 'user', scopeLabel: 'placementScopeUser' },
+                { app: 'vscode', label: 'VS Code', scope: 'user', scopeLabel: 'placementScopeUser' },
+              ],
             },
           ],
         }}
@@ -128,5 +134,45 @@ describe('Dashboard', () => {
 
     expect(html.indexOf('alt="Cursor"')).toBeLessThan(html.indexOf('alt="Kiro"'))
     expect(html.indexOf('alt="Kiro"')).toBeLessThan(html.indexOf('alt="VS Code"'))
+  })
+
+  it('keeps placement scope details out of the compact server list', () => {
+    const html = renderToStaticMarkup(
+      <Dashboard
+        busy="idle"
+        canRollback={false}
+        visibleApps={['vscode', 'cursor']}
+        workspace={{
+          stats: [],
+          rows: [
+            {
+              id: 'server-1',
+              name: 'Server 1',
+              transportLabel: 'STDIO',
+              copyValue: 'npx example',
+              enabledApps: ['cursor', 'vscode'],
+              placements: [
+                { app: 'cursor', label: 'Cursor', scope: 'workspace', scopeLabel: 'placementScopeWorkspace' },
+                { app: 'vscode', label: 'VS Code', scope: 'user', scopeLabel: 'placementScopeUser' },
+              ],
+            },
+          ],
+        }}
+        onAdd={() => {}}
+        onOpenRepository={() => {}}
+        onSyncLocalConfig={() => {}}
+        onOpenSettings={() => {}}
+        onDelete={() => {}}
+        onEdit={() => {}}
+        onRollback={() => {}}
+        onToggleApp={() => {}}
+        onCopyCommand={() => {}}
+      />,
+    )
+
+    expect(html).toContain('alt="Cursor"')
+    expect(html).toContain('alt="VS Code"')
+    expect(html).not.toContain('placementScopeUser')
+    expect(html).not.toContain('placementScopeWorkspace')
   })
 })
