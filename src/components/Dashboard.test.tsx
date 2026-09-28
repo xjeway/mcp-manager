@@ -180,4 +180,41 @@ describe('Dashboard', () => {
     expect(html).not.toContain('placementScopeUser')
     expect(html).not.toContain('placementScopeWorkspace')
   })
+
+  it('renders a server search box and clickable client filter cards', () => {
+    const html = renderToStaticMarkup(
+      <Dashboard
+        busy="idle"
+        canRollback={false}
+        visibleApps={['vscode']}
+        workspace={{
+          stats: [{ id: 'vscode', label: 'VS Code', accent: 'client-vscode', icon: null, count: 1 }],
+          rows: [
+            {
+              id: 'server-1',
+              name: 'Server 1',
+              transportLabel: 'STDIO',
+              copyValue: 'npx example',
+              enabledApps: ['vscode'],
+              placements: [],
+            },
+          ],
+        }}
+        onAdd={() => {}}
+        onOpenRepository={() => {}}
+        onSyncLocalConfig={() => {}}
+        onOpenSettings={() => {}}
+        onDelete={() => {}}
+        onEdit={() => {}}
+        onRollback={() => {}}
+        onToggleApp={() => {}}
+        onBatchSetApp={() => {}}
+        onCopyCommand={() => {}}
+      />,
+    )
+
+    expect(html).toContain('type="search"')
+    expect(html).toContain('placeholder="serverSearchPlaceholder"')
+    expect(html).toMatch(/<button[^>]*class="stat-card client-vscode"[^>]*aria-pressed="false"/)
+  })
 })

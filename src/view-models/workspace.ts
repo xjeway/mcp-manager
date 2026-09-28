@@ -141,6 +141,22 @@ export function setServerAppEnabled<T extends AppPlacementTarget>(
   }
 }
 
+export interface WorkspaceRowFilter {
+  app: SupportedApp | null
+  query: string
+}
+
+export function filterWorkspaceRows(rows: WorkspaceRowViewModel[], filter: WorkspaceRowFilter): WorkspaceRowViewModel[] {
+  const terms = filter.query.trim().toLowerCase().split(/\s+/).filter(Boolean)
+  return rows.filter((row) => {
+    if (filter.app && !row.enabledApps.includes(filter.app)) {
+      return false
+    }
+    const haystack = [row.name, row.copyValue, row.transportLabel].join(' ').toLowerCase()
+    return terms.every((term) => haystack.includes(term))
+  })
+}
+
 function placementScopeLabel(scope: PlacementScope): string {
   return scope === 'workspace' ? 'placementScopeWorkspace' : 'placementScopeUser'
 }
