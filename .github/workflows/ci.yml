@@ -98,7 +98,7 @@ jobs:
         run: cargo fmt --all --check
 
       - name: Run clippy
-        run: cargo clippy --workspace --all-targets -- -D warnings
+        run: cargo clippy --locked --workspace --all-targets -- -D warnings
 
       - name: Run Rust tests
-        run: cargo test --workspace
+        run: cargo test --locked --workspace
