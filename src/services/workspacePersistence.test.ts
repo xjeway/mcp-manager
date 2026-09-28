@@ -25,6 +25,7 @@ const previousConfig = {
         cline: false,
         windsurf: false,
         kiro: false,
+        qoder: false,
       },
     },
   ],

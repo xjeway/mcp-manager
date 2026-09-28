@@ -36,6 +36,7 @@ describe('workspace view-models', () => {
               cline: false,
               windsurf: false,
               kiro: false,
+              qoder: false,
             },
           },
         ],
@@ -72,6 +73,7 @@ describe('workspace view-models', () => {
         cline: false,
         windsurf: false,
         kiro: true,
+        qoder: false,
       },
     })
 
@@ -109,6 +111,7 @@ describe('workspace view-models', () => {
               cline: false,
               windsurf: false,
               kiro: true,
+              qoder: false,
             },
           },
         ],
@@ -147,6 +150,7 @@ describe('workspace view-models', () => {
               cline: false,
               windsurf: false,
               kiro: false,
+              qoder: false,
             },
             placements: [
               {
@@ -246,6 +250,7 @@ describe('workspace view-models', () => {
         cline: false,
         windsurf: false,
         kiro: false,
+        qoder: false,
       },
       placements: [
         { app: 'vscode', scope: 'user', path: '/user/mcp.json', enabled: true, managed: true },

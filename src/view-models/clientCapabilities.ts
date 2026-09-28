@@ -129,6 +129,7 @@ export const CLIENT_CAPABILITIES: Record<SupportedApp, ClientCapability> = {
   },
   cline: userOnly('cline', 'json', 'mergeJsonField'),
   windsurf: userOnly('windsurf', 'json', 'mergeJsonField'),
+  qoder: userOnly('qoder', 'json', 'mergeJsonField'),
   kiro: {
     app: 'kiro',
     configFormat: 'json',

@@ -22,6 +22,7 @@ export function useAppStats(config: MCPConfig): Record<SupportedApp, number> {
       cline: 0,
       windsurf: 0,
       kiro: 0,
+      qoder: 0,
     })
   }, [config.servers])
 }

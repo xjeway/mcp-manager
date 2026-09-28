@@ -202,6 +202,7 @@ make dev
 | Cline | ✅ | ✅ |
 | Windsurf | ✅ | ✅ |
 | Kiro | ✅ | ✅ |
+| Qoder | ✅ | ✅ |
 | VS Code | ✅ | ✅ |
 
 ## How It Works
