@@ -47,4 +47,31 @@ describe('ServerEditor', () => {
 
     expect(html).not.toContain('appScopeProject')
   })
+
+  it('prefills a new server from initialServer while staying in add mode', () => {
+    const html = renderToStaticMarkup(
+      <ServerEditor
+        busy={false}
+        server={null}
+        initialServer={{
+          id: 'context7',
+          name: 'Context7',
+          enabled: true,
+          transport: { type: 'stdio' },
+          command: { program: 'npx', args: ['-y', '@upstash/context7-mcp@4.1.1'], env: {} },
+          apps: { vscode: false } as never,
+        }}
+        workspace={{ root: '', placementPaths: {} }}
+        visibleApps={['vscode']}
+        onCancel={() => {}}
+        onDraftChange={() => {}}
+        onSave={() => {}}
+        onSaveMany={() => {}}
+      />,
+    )
+
+    expect(html).toContain('<h1>add</h1>')
+    expect(html).toContain('value="Context7"')
+    expect(html).toContain('value="@upstash/context7-mcp@4.1.1"')
+  })
 })

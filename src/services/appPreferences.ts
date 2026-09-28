@@ -15,3 +15,21 @@ export function saveAutoImportOnLaunchPreference(enabled: boolean): void {
 
   window.localStorage.setItem(AUTO_IMPORT_ON_LAUNCH_KEY, String(enabled))
 }
+
+const MARKETPLACE_ENABLED_KEY = 'ui-marketplace-enabled'
+
+export function readMarketplaceEnabledPreference(): boolean {
+  if (typeof window === 'undefined') {
+    return true
+  }
+
+  return window.localStorage.getItem(MARKETPLACE_ENABLED_KEY) !== 'false'
+}
+
+export function saveMarketplaceEnabledPreference(enabled: boolean): void {
+  if (typeof window === 'undefined') {
+    return
+  }
+
+  window.localStorage.setItem(MARKETPLACE_ENABLED_KEY, String(enabled))
+}

@@ -28,6 +28,7 @@
 
 - Keep a unified MCP workspace for all configured servers
 - Import existing entries from local client configuration
+- Find servers in the GitHub MCP Registry or the official MCP Registry and add them in a few clicks
 - Edit servers in form mode or raw JSON mode
 - Apply generated configuration to multiple supported clients
 - Review risky writes before files change
@@ -209,6 +210,11 @@ make dev
 
 - The app reads local client configuration and converts it into the internal model
 - Apply writes client-specific output with atomic updates, backup, and rollback support
+- The online marketplace turns a registry entry (npm, PyPI, Docker image, or remote URL) into a server draft you review in the editor; every client starts turned off
+
+### Network Access
+
+MCP Manager only goes online to check for updates and, while the marketplace page is open, to query MCP registries. Registry results are cached for 6 hours so the marketplace still works offline with the last data. Turn the marketplace off under **Settings → Online marketplace** to stop those requests entirely.
 
 ## Scope
 
@@ -232,6 +238,7 @@ mcp-manager/
 - `core`: canonical config model and merge behavior
 - `parser`: YAML / JSON / TOML parsing and extraction
 - `storage`: atomic write, backup, and rollback
+- `marketplace`: registry sources, response normalization, install-command conversion, and cache
 - `commands`: Tauri commands exposed to the frontend
 
 ## Development

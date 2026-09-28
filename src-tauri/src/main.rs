@@ -1,6 +1,7 @@
 mod adapters;
 mod commands;
 mod core;
+mod marketplace;
 mod parser;
 mod platform;
 mod security;
@@ -8,7 +9,8 @@ mod storage;
 
 use commands::{
     apply_config, current_workspace, detect_installed_apps, import_detected_configs,
-    load_yaml_config, open_path, open_releases_link, open_repository_link, restart_app,
+    load_yaml_config, marketplace_open_url, marketplace_search, marketplace_set_enabled,
+    marketplace_sources, open_path, open_releases_link, open_repository_link, restart_app,
     rollback_from_backups, save_yaml_config,
 };
 
@@ -28,7 +30,11 @@ fn main() {
             detect_installed_apps,
             apply_config,
             rollback_from_backups,
-            restart_app
+            restart_app,
+            marketplace_set_enabled,
+            marketplace_sources,
+            marketplace_search,
+            marketplace_open_url
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

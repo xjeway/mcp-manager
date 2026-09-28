@@ -1,0 +1,1395 @@
+{
+  "github": [
+    {
+      "description": "Up-to-date code docs for any prompt",
+      "id": "io.github.upstash/context7",
+      "installOptions": [
+        {
+          "argGroups": [
+            [
+              "-y"
+            ],
+            [
+              "@upstash/context7-mcp@4.1.1"
+            ]
+          ],
+          "env": {
+            "CONTEXT7_API_KEY": "{CONTEXT7_API_KEY}"
+          },
+          "identifier": "@upstash/context7-mcp",
+          "inferred": false,
+          "inputs": [
+            {
+              "defaultValue": null,
+              "description": "API key for authentication",
+              "key": "CONTEXT7_API_KEY",
+              "required": false,
+              "secret": true
+            }
+          ],
+          "kind": "stdio",
+          "packageType": "npm",
+          "program": "npx"
+        },
+        {
+          "identifier": "https://github.com/upstash/context7/releases/download/mcpb-v4.1.1/context7.mcpb",
+          "kind": "unsupported",
+          "packageType": "mcpb"
+        },
+        {
+          "headers": {
+            "Authorization": "{Authorization}"
+          },
+          "inputs": [
+            {
+              "defaultValue": null,
+              "description": "API key for authentication. Accepts \"Bearer <key>\" or the raw key.",
+              "key": "Authorization",
+              "required": false,
+              "secret": true
+            }
+          ],
+          "kind": "http",
+          "transport": "streamable-http",
+          "url": "https://mcp.context7.com/mcp"
+        }
+      ],
+      "readmeExcerpt": "LLMs rely on outdated or generic information about the libraries you use. You get:\n\n- ❌ Code examples are outdated and based on year-old training data - ❌ Hallucinated APIs that don't even exist - ❌ Generic answers for old package versions\n\nContext7 pulls up-to-date, version-specific documentation and code examples straight from the source — and places the",
+      "repositoryUrl": "https://github.com/upstash/context7",
+      "sourceId": "github",
+      "stars": 62492,
+      "title": "Context7",
+      "version": "4.1.1",
+      "websiteUrl": "https://context7.com"
+    },
+    {
+      "description": "Connect AI assistants to GitHub - manage repos, issues, PRs, and workflows through natural language.",
+      "id": "io.github.github/github-mcp-server",
+      "installOptions": [
+        {
+          "argGroups": [
+            [
+              "run",
+              "-i",
+              "--rm"
+            ],
+            [
+              "-p",
+              "127.0.0.1:8085:8085"
+            ],
+            [
+              "-e",
+              "GITHUB_OAUTH_CALLBACK_PORT=8085"
+            ],
+            [
+              "-e",
+              "GITHUB_PERSONAL_ACCESS_TOKEN={token}"
+            ],
+            [
+              "ghcr.io/github/github-mcp-server:1.12.2"
+            ]
+          ],
+          "env": {},
+          "identifier": "ghcr.io/github/github-mcp-server:1.12.2",
+          "inferred": true,
+          "inputs": [
+            {
+              "defaultValue": null,
+              "description": null,
+              "key": "token",
+              "required": false,
+              "secret": true
+            }
+          ],
+          "kind": "stdio",
+          "packageType": "oci",
+          "program": "docker"
+        },
+        {
+          "headers": {
+            "Authorization": "{Authorization}"
+          },
+          "inputs": [
+            {
+              "defaultValue": null,
+              "description": "Authorization header with authentication token (PAT or App token)",
+              "key": "Authorization",
+              "required": false,
+              "secret": true
+            }
+          ],
+          "kind": "http",
+          "transport": "streamable-http",
+          "url": "https://api.githubcopilot.com/mcp/"
+        }
+      ],
+      "readmeExcerpt": "The GitHub MCP Server connects AI tools directly to GitHub's platform. This gives AI agents, assistants, and chatbots the ability to read repositories and code files, manage issues and PRs, analyze code, and automate workflows. All through natural language interactions.\n\n- Repository Management: Browse and query code, search files, analyze commits, and understand project structure across any repository you have access to. - Issue & PR Automation: Create, update, and manage issues and pull requests. Let AI help triage bugs, review code changes, and maintain project boards. - CI/CD & Workflow In…",
+      "repositoryUrl": "https://github.com/github/github-mcp-server",
+      "sourceId": "github",
+      "stars": 33255,
+      "title": "GitHub",
+      "version": "1.12.2",
+      "websiteUrl": null
+    },
+    {
+      "description": "Semantic code retrieval & editing tools for coding agents.",
+      "id": "oraios/serena",
+      "installOptions": [
+        {
+          "argGroups": [
+            [
+              "--from",
+              "{from}"
+            ],
+            [
+              "git+https://github.com/oraios/serena"
+            ],
+            [
+              "serena"
+            ],
+            [
+              "start-mcp-server"
+            ],
+            [
+              "serena"
+            ],
+            [
+              "--context",
+              "{context}"
+            ],
+            [
+              "ide-assistant"
+            ]
+          ],
+          "env": {},
+          "identifier": "serena",
+          "inferred": false,
+          "inputs": [
+            {
+              "defaultValue": null,
+              "description": null,
+              "key": "from",
+              "required": true,
+              "secret": false
+            },
+            {
+              "defaultValue": null,
+              "description": null,
+              "key": "context",
+              "required": true,
+              "secret": false
+            }
+          ],
+          "kind": "stdio",
+          "packageType": "pypi",
+          "program": "uvx"
+        }
+      ],
+      "readmeExcerpt": "See the contributing guide for instructions on setting up your development environment and tools for formatting and type checking.\n\n1. Ensure clean git status. 2. Set the version for release. Normally, the version to be released is the one already reserved by the current .dev0 version (e.g. 1.8.0 when the repository is at 1.8.0.dev0):\n\npython scripts/bumpversion.py release current\n\nTo release a version beyond the reserved one, name the part to bump instead, e.g.\n\npython scripts/bumpversion.py release patch python scripts/bumpversion.py release minor\n\nThis updates CHANGELOG.md, commits the rele…",
+      "repositoryUrl": "https://github.com/oraios/serena",
+      "sourceId": "github",
+      "stars": 29870,
+      "title": "Serena",
+      "version": "1.0.0",
+      "websiteUrl": "https://oraios.github.io/serena"
+    },
+    {
+      "description": "Real-time infrastructure monitoring with metrics, logs, alerts, and ML-based anomaly detection.",
+      "id": "io.github.netdata/mcp-server",
+      "installOptions": [
+        {
+          "headers": {
+            "Authorization": "Bearer {NETDATA_CLOUD_API_TOKEN}"
+          },
+          "inputs": [
+            {
+              "defaultValue": null,
+              "description": "Netdata Cloud API token (create at app.netdata.cloud > User Settings > API Tokens with scope:mcp)",
+              "key": "NETDATA_CLOUD_API_TOKEN",
+              "required": false,
+              "secret": true
+            }
+          ],
+          "kind": "http",
+          "transport": "streamable-http",
+          "url": "https://app.netdata.cloud/api/v1/mcp"
+        }
+      ],
+      "readmeExcerpt": "Model Context Protocol (MCP) works in two directions with Netdata:\n\n- Netdata as an MCP server — AI assistants and clients (Claude, Cursor, VS Code, CLIs, and more) connect to Netdata to query your infrastructure. This page covers server setup; for per-client instructions see Supported AI Clients. - Netdata as an MCP client — Netdata Cloud connects out to your own MCP servers (GitHub, PagerDuty, Atlassian, or any custom HTTPS MCP server) so Netdata AI can pull your team's institutional context into troubleshooting. See MCP Connections.\n\nThe rest of this page covers Netdata as an MCP server.\n\nN…",
+      "repositoryUrl": "https://github.com/netdata/netdata",
+      "sourceId": "github",
+      "stars": 80677,
+      "title": "Netdata",
+      "version": "2.11.1",
+      "websiteUrl": "https://www.netdata.cloud"
+    },
+    {
+      "description": "MCP server for advanced web search using Tavily",
+      "id": "io.github.tavily-ai/tavily-mcp",
+      "installOptions": [
+        {
+          "argGroups": [
+            [
+              "-y"
+            ],
+            [
+              "tavily-mcp@0.2.15"
+            ]
+          ],
+          "env": {
+            "DEFAULT_PARAMETERS": "{DEFAULT_PARAMETERS}",
+            "TAVILY_API_KEY": "{TAVILY_API_KEY}"
+          },
+          "identifier": "tavily-mcp",
+          "inferred": true,
+          "inputs": [
+            {
+              "defaultValue": null,
+              "description": "Your Tavily API key from tavily.com",
+              "key": "TAVILY_API_KEY",
+              "required": true,
+              "secret": true
+            },
+            {
+              "defaultValue": null,
+              "description": "JSON string with default search parameters (e.g., {\"include_images\": true, \"max_results\": 15})",
+              "key": "DEFAULT_PARAMETERS",
+              "required": false,
+              "secret": false
+            }
+          ],
+          "kind": "stdio",
+          "packageType": "npm",
+          "program": "npx"
+        }
+      ],
+      "readmeExcerpt": "The Tavily MCP server provides: - search, extract, map, crawl tools - Real-time web search capabilities through the tavily-search tool - Intelligent data extraction from web pages via the tavily-extract tool - Powerful web mapping tool that creates a structured map of website - Web crawler that systematically explores websites\n\n- Tutorial on combining Tavily MCP with Neo4j MCP server - Tutorial on integrating Tavily MCP with Cline in VS Code\n\nConnect directly to Tavily's remote MCP server instead of running it locally. This provides a seamless experience without requiring local installation or…",
+      "repositoryUrl": "https://github.com/tavily-ai/tavily-mcp",
+      "sourceId": "github",
+      "stars": 2411,
+      "title": "Tavily",
+      "version": "0.2.15",
+      "websiteUrl": null
+    },
+    {
+      "description": "A Model Context Protocol (MCP) server for NuGet.",
+      "id": "com.microsoft/nuget",
+      "installOptions": [
+        {
+          "identifier": "NuGet.Mcp.Server",
+          "kind": "unsupported",
+          "packageType": "nuget"
+        }
+      ],
+      "readmeExcerpt": "Contains a Model Context Protocol (MCP) server for NuGet, enabling advanced tooling and automation scenarios for NuGet package management. See the official NuGet MCP documentation for the latest information.\n\n- Uses your configured NuGet feeds to get real-time information about packages. - Provides conservative remediation planning for packages with known vulnerabilities, including transitive dependencies. - Provides package upgrade planning based on a project's package graph and target frameworks. - Reviews your repository's NuGet supply-chain posture (Central Package Management, NuGet Audit,…",
+      "repositoryUrl": "https://github.com/NuGet/Home",
+      "sourceId": "github",
+      "stars": 1554,
+      "title": "Microsoft NuGet",
+      "version": "1.4.16",
+      "websiteUrl": null
+    },
+    {
+      "description": "MongoDB Model Context Protocol Server",
+      "id": "io.github.mongodb-js/mongodb-mcp-server",
+      "installOptions": [
+        {
+          "argGroups": [
+            [
+              "-y"
+            ],
+            [
+              "mongodb-mcp-server@2.1.0"
+            ]
+          ],
+          "env": {
+            "MDB_MCP_ALLOW_REQUEST_OVERRIDES": "{MDB_MCP_ALLOW_REQUEST_OVERRIDES}",
+            "MDB_MCP_API_CLIENT_ID": "{MDB_MCP_API_CLIENT_ID}",
+            "MDB_MCP_API_CLIENT_SECRET": "{MDB_MCP_API_CLIENT_SECRET}",
+            "MDB_MCP_ASSISTANT_BASE_URL": "{MDB_MCP_ASSISTANT_BASE_URL}",
+            "MDB_MCP_ATLAS_TEMPORARY_DATABASE_USER_LIFETIME_MS": "{MDB_MCP_ATLAS_TEMPORARY_DATABASE_USER_LIFETIME_MS}",
+            "MDB_MCP_CONFIRMATION_REQUIRED_TOOLS": "{MDB_MCP_CONFIRMATION_REQUIRED_TOOLS}",
+            "MDB_MCP_CONNECTION_SCOPE": "{MDB_MCP_CONNECTION_SCOPE}",
+            "MDB_MCP_CONNECTION_STRING": "{MDB_MCP_CONNECTION_STRING}",
+            "MDB_MCP_DISABLED_TOOLS": "{MDB_MCP_DISABLED_TOOLS}",
+            "MDB_MCP_DISABLE_SERVER_SIDE_JS": "{MDB_MCP_DISABLE_SERVER_SIDE_JS}",
+            "MDB_MCP_DRY_RUN": "{MDB_MCP_DRY_RUN}",
+            "MDB_MCP_ELICITATION_TIMEOUT_MS": "{MDB_MCP_ELICITATION_TIMEOUT_MS}",
+            "MDB_MCP_EXPORTS_PATH": "{MDB_MCP_EXPORTS_PATH}",
+            "MDB_MCP_EXPORT_CLEANUP_INTERVAL_MS": "{MDB_MCP_EXPORT_CLEANUP_INTERVAL_MS}",
+            "MDB_MCP_EXPORT_TIMEOUT_MS": "{MDB_MCP_EXPORT_TIMEOUT_MS}",
+            "MDB_MCP_EXTERNALLY_MANAGED_SESSIONS": "{MDB_MCP_EXTERNALLY_MANAGED_SESSIONS}",
+            "MDB_MCP_HEALTH_CHECK_HOST": "{MDB_MCP_HEALTH_CHECK_HOST}",
+            "MDB_MCP_HEALTH_CHECK_PORT": "{MDB_MCP_HEALTH_CHECK_PORT}",
+            "MDB_MCP_HTTP_BODY_LIMIT": "{MDB_MCP_HTTP_BODY_LIMIT}",
+            "MDB_MCP_HTTP_HEADERS": "{MDB_MCP_HTTP_HEADERS}",
+            "MDB_MCP_HTTP_HOST": "{MDB_MCP_HTTP_HOST}",
+            "MDB_MCP_HTTP_PORT": "{MDB_MCP_HTTP_PORT}",
+            "MDB_MCP_HTTP_RESPONSE_TYPE": "{MDB_MCP_HTTP_RESPONSE_TYPE}",
+            "MDB_MCP_IDLE_TIMEOUT_MS": "{MDB_MCP_IDLE_TIMEOUT_MS}",
+            "MDB_MCP_INDEX_CHECK": "{MDB_MCP_INDEX_CHECK}",
+            "MDB_MCP_LOGGERS": "{MDB_MCP_LOGGERS}",
+            "MDB_MCP_LOG_PATH": "{MDB_MCP_LOG_PATH}",
+            "MDB_MCP_MAX_ACTIVE_CONNECTIONS": "{MDB_MCP_MAX_ACTIVE_CONNECTIONS}",
+            "MDB_MCP_MAX_BYTES_PER_QUERY": "{MDB_MCP_MAX_BYTES_PER_QUERY}",
+            "MDB_MCP_MAX_DOCUMENTS_PER_QUERY": "{MDB_MCP_MAX_DOCUMENTS_PER_QUERY}",
+            "MDB_MCP_MAX_SESSIONS": "{MDB_MCP_MAX_SESSIONS}",
+            "MDB_MCP_MAX_TIME_M_S": "{MDB_MCP_MAX_TIME_M_S}",
+            "MDB_MCP_MCP_CLIENT_LOG_LEVEL": "{MDB_MCP_MCP_CLIENT_LOG_LEVEL}",
+            "MDB_MCP_MONITORING_SERVER_FEATURES": "{MDB_MCP_MONITORING_SERVER_FEATURES}",
+            "MDB_MCP_MONITORING_SERVER_HOST": "{MDB_MCP_MONITORING_SERVER_HOST}",
+            "MDB_MCP_MONITORING_SERVER_PORT": "{MDB_MCP_MONITORING_SERVER_PORT}",
+            "MDB_MCP_NOTIFICATION_TIMEOUT_MS": "{MDB_MCP_NOTIFICATION_TIMEOUT_MS}",
+            "MDB_MCP_PREVIEW_FEATURES": "{MDB_MCP_PREVIEW_FEATURES}",
+            "MDB_MCP_READ_ONLY": "{MDB_MCP_READ_ONLY}",
+            "MDB_MCP_TELEMETRY": "{MDB_MCP_TELEMETRY}",
+            "MDB_MCP_TRANSPORT": "{MDB_MCP_TRANSPORT}",
+            "MDB_MCP_VOYAGE_API_KEY": "{MDB_MCP_VOYAGE_API_KEY}"
+          },
+          "identifier": "mongodb-mcp-server",
+          "inferred": true,
+          "inputs": [
+            {
+              "defaultValue": null,
+              "description": "When set to true, allows configuration values to be overridden via request headers and query parameters.",
+              "key": "MDB_MCP_ALLOW_REQUEST_OVERRIDES",
+              "required": false,
+              "secret": false
+            },
+            {
+              "defaultValue": null,
+              "description": "Atlas API client ID for authentication. Required for running Atlas tools.",
+              "key": "MDB_MCP_API_CLIENT_ID",
+              "required": false,
+              "secret": true
+            },
+            {
+              "defaultValue": null,
+              "description": "Atlas API client secret for authentication. Required for running Atlas tools.",
+              "key": "MDB_MCP_API_CLIENT_SECRET",
+              "required": false,
+              "secret": true
+            },
+            {
+              "defaultValue": null,
+              "description": "Base URL for the MongoDB Assistant API.",
+              "key": "MDB_MCP_ASSISTANT_BASE_URL",
+              "required": false,
+              "secret": false
+            },
+            {
+              "defaultValue": null,
+              "description": "Time in milliseconds that temporary database users created when connecting to MongoDB Atlas clusters will remain active before being automatically deleted.",
+              "key": "MDB_MCP_ATLAS_TEMPORARY_DATABASE_USER_LIFETIME_MS",
+              "required": false,
+              "secret": false
+            },
+            {
+              "defaultValue": null,
+              "description": "Comma separated values of tool names that require user confirmation before execution. Requires the client to support elicitation.",
+              "key": "MDB_MCP_CONFIRMATION_REQUIRED_TOOLS",
+              "required": false,
+              "secret": false
+            },
+            {
+              "defaultValue": null,
+              "description": "Visibility scope for MongoDB connections created at runtime. With 'session' (the default), each MCP session only sees the connections it created (plus the shared 'preconfigured' one) and they are closed when the session ends — recommended when the HTTP transport is exposed to multiple clients without authentication. With 'global', connections are shared across all sessions and survive session rotation.",
+              "key": "MDB_MCP_CONNECTION_SCOPE",
+              "required": false,
+              "secret": false
+            },
+            {
+              "defaultValue": null,
+              "description": "MongoDB connection string for direct database connections. Optional, if not set, you'll need to call the connect tool before interacting with MongoDB data.",
+              "key": "MDB_MCP_CONNECTION_STRING",
+              "required": false,
+              "secret": true
+            },
+            {
+              "defaultValue": null,
+              "description": "When set to true, disallows the use of server-side JavaScript operators (such as $where, $function, and $accumulator) in query filters and aggregation pipelines.",
+              "key": "MDB_MCP_DISABLE_SERVER_SIDE_JS",
+              "required": false,
+              "secret": false
+            },
+            {
+              "defaultValue": null,
+              "description": "Comma separated values of tool names, operation types, and/or categories of tools that will be disabled.",
+              "key": "MDB_MCP_DISABLED_TOOLS",
+              "required": false,
+              "secret": false
+            },
+            {
+              "defaultValue": null,
+              "description": "When true, runs the server in dry mode: dumps configuration and enabled tools, then exits without starting the server.",
+              "key": "MDB_MCP_DRY_RUN",
+              "required": false,
+              "secret": false
+            },
+            {
+              "defaultValue": null,
+              "description": "Time in milliseconds the user has to respond to an elicitation request (such as a tool confirmation prompt) before it fails.",
+              "key": "MDB_MCP_ELICITATION_TIMEOUT_MS",
+              "required": false,
+              "secret": false
+            },
+            {
+              "defaultValue": null,
+              "description": "Time in milliseconds between export cleanup cycles that remove expired export files.",
+              "key": "MDB_MCP_EXPORT_CLEANUP_INTERVAL_MS",
+              "required": false,
+              "secret": false
+            },
+            {
+              "defaultValue": null,
+              "description": "Time in milliseconds after which an export is considered expired and eligible for cleanup.",
+              "key": "MDB_MCP_EXPORT_TIMEOUT_MS",
+              "required": false,
+              "secret": false
+            },
+            {
+              "defaultValue": null,
+              "description": "Folder to store exported data files.",
+              "key": "MDB_MCP_EXPORTS_PATH",
+              "required": false,
+              "secret": false
+            },
+            {
+              "defaultValue": null,
+              "description": "When true, the HTTP transport allows requests with a session ID supplied externally through the 'mcp-session-id' header. When an external ID is supplied, the initialization request is optional.",
+              "key": "MDB_MCP_EXTERNALLY_MANAGED_SESSIONS",
+              "required": false,
+              "secret": false
+            },
+            {
+              "defaultValue": null,
+              "description": "Deprecated. Use `monitoringServerHost` instead. Host address to bind the healthCheck HTTP server to (only used when transport is 'http'). If provided, `healthCheckPort` must also be set.",
+              "key": "MDB_MCP_HEALTH_CHECK_HOST",
+              "required": false,
+              "secret": false
+            },
+            {
+              "defaultValue": null,
+              "description": "Deprecated. Use `monitoringServerPort` instead. Port number for the healthCheck HTTP server (only used when transport is 'http'). If provided, `healthCheckHost` must also be set.",
+              "key": "MDB_MCP_HEALTH_CHECK_PORT",
+              "required": false,
+              "secret": false
+            },
+            {
+              "defaultValue": null,
+              "description": "Maximum size of the HTTP request body in bytes (only used when transport is 'http'). This value is passed as the optional limit parameter to the Express.js json() middleware.",
+              "key": "MDB_MCP_HTTP_BODY_LIMIT",
+              "required": false,
+              "secret": false
+            },
+            {
+              "defaultValue": null,
+              "description": "Header that the HTTP server will validate when making requests (only used when transport is 'http').",
+              "key": "MDB_MCP_HTTP_HEADERS",
+              "required": false,
+              "secret": false
+            },
+            {
+              "defaultValue": null,
+              "description": "Host address to bind the HTTP server to (only used when transport is 'http').",
+              "key": "MDB_MCP_HTTP_HOST",
+              "required": false,
+              "secret": false
+            },
+            {
+              "defaultValue": null,
+              "description": "Port number for the HTTP server (only used when transport is 'http'). Use 0 for a random port.",
+              "key": "MDB_MCP_HTTP_PORT",
+              "required": false,
+              "secret": false
+            },
+            {
+              "defaultValue": null,
+              "description": "The HTTP response type for tool responses: 'sse' for Server-Sent Events, 'json' for standard JSON responses.",
+              "key": "MDB_MCP_HTTP_RESPONSE_TYPE",
+              "required": false,
+              "secret": false
+            },
+            {
+              "defaultValue": null,
+              "description": "Idle timeout for a client to disconnect (only applies to http transport).",
+              "key": "MDB_MCP_IDLE_TIMEOUT_MS",
+              "required": false,
+              "secret": false
+            },
+            {
+              "defaultValue": null,
+              "description": "When set to true, enforces that query operations must use an index, rejecting queries that perform a collection scan.",
+              "key": "MDB_MCP_INDEX_CHECK",
+              "required": false,
+              "secret": false
+            },
+            {
+              "defaultValue": null,
+              "description": "Folder to store logs.",
+              "key": "MDB_MCP_LOG_PATH",
+              "required": false,
+              "secret": false
+            },
+            {
+              "defaultValue": null,
+              "description": "Comma separated values of logger types.",
+              "key": "MDB_MCP_LOGGERS",
+              "required": false,
+              "secret": false
+            },
+            {
+              "defaultValue": null,
+              "description": "Maximum number of MongoDB connections a single scope (an MCP session by default, see connectionScope) can hold open. When exceeded, the scope's least-recently-used connection is closed and its connectionId revoked. The preconfigured connection does not count towards the limit.",
+              "key": "MDB_MCP_MAX_ACTIVE_CONNECTIONS",
+              "required": false,
+              "secret": false
+            },
+            {
+              "defaultValue": null,
+              "description": "The maximum size in bytes for results from a find or aggregate tool call. This serves as an upper bound for the responseBytesLimit parameter in those tools.",
+              "key": "MDB_MCP_MAX_BYTES_PER_QUERY",
+              "required": false,
+              "secret": false
+            },
+            {
+              "defaultValue": null,
+              "description": "The maximum number of documents that can be returned by a find or aggregate tool call. For the find tool, the effective limit will be the smaller of this value and the tool's limit parameter.",
+              "key": "MDB_MCP_MAX_DOCUMENTS_PER_QUERY",
+              "required": false,
+              "secret": false
+            },
+            {
+              "defaultValue": null,
+              "description": "Maximum number of concurrent sessions the HTTP transport will hold in memory (only used when transport is 'http'). Each session holds a full server instance, transport, and timers, so choose a value based on your deployment's available memory; the default is a conservative safety net rather than a recommended production value.",
+              "key": "MDB_MCP_MAX_SESSIONS",
+              "required": false,
+              "secret": false
+            },
+            {
+              "defaultValue": null,
+              "description": "The maximum time in milliseconds that operations are allowed to run on the MongoDB server. When set, this value is passed as the maxTimeMS option to read operations such as find, aggregate, and count.",
+              "key": "MDB_MCP_MAX_TIME_M_S",
+              "required": false,
+              "secret": false
+            },
+            {
+              "defaultValue": null,
+              "description": "Minimum severity level for log messages forwarded to the MCP client.",
+              "key": "MDB_MCP_MCP_CLIENT_LOG_LEVEL",
+              "required": false,
+              "secret": false
+            },
+            {
+              "defaultValue": null,
+              "description": "Features to expose on the monitoring server (only used when transport is 'http' and monitoringServerHost/monitoringServerPort are set).",
+              "key": "MDB_MCP_MONITORING_SERVER_FEATURES",
+              "required": false,
+              "secret": false
+            },
+            {
+              "defaultValue": null,
+              "description": "Host address to bind the monitoring HTTP server to (only used when transport is 'http'). If provided, `monitoringServerPort` must also be set.",
+              "key": "MDB_MCP_MONITORING_SERVER_HOST",
+              "required": false,
+              "secret": false
+            },
+            {
+              "defaultValue": null,
+              "description": "Port number for the monitoring HTTP server (only used when transport is 'http'). If provided, `monitoringServerHost` must also be set.",
+              "key": "MDB_MCP_MONITORING_SERVER_PORT",
+              "required": false,
+              "secret": false
+            },
+            {
+              "defaultValue": null,
+              "description": "Notification timeout for a client to be aware of disconnect (only applies to http transport).",
+              "key": "MDB_MCP_NOTIFICATION_TIMEOUT_MS",
+              "required": false,
+              "secret": false
+            },
+            {
+              "defaultValue": null,
+              "description": "Comma separated values of preview features that are enabled.",
+              "key": "MDB_MCP_PREVIEW_FEATURES",
+              "required": false,
+              "secret": false
+            },
+            {
+              "defaultValue": null,
+              "description": "When set to true, only allows read, connect, and metadata operation types, disabling create/update/delete operations.",
+              "key": "MDB_MCP_READ_ONLY",
+              "required": false,
+              "secret": false
+            },
+            {
+              "defaultValue": null,
+              "description": "When set to disabled, disables telemetry collection.",
+              "key": "MDB_MCP_TELEMETRY",
+              "required": false,
+              "secret": false
+            },
+            {
+              "defaultValue": null,
+              "description": "Either 'stdio' or 'http'.",
+              "key": "MDB_MCP_TRANSPORT",
+              "required": false,
+              "secret": false
+            },
+            {
+              "defaultValue": null,
+              "description": "API key for Voyage AI embeddings service (required for creating Atlas Local deployments with auto-embed vector search capabilities).",
+              "key": "MDB_MCP_VOYAGE_API_KEY",
+              "required": false,
+              "secret": true
+            }
+          ],
+          "kind": "stdio",
+          "packageType": "npm",
+          "program": "npx"
+        },
+        {
+          "argGroups": [
+            [
+              "run",
+              "-i",
+              "--rm"
+            ],
+            [
+              "-e",
+              "MDB_MCP_ALLOW_REQUEST_OVERRIDES"
+            ],
+            [
+              "-e",
+              "MDB_MCP_API_CLIENT_ID"
+            ],
+            [
+              "-e",
+              "MDB_MCP_API_CLIENT_SECRET"
+            ],
+            [
+              "-e",
+              "MDB_MCP_ASSISTANT_BASE_URL"
+            ],
+            [
+              "-e",
+              "MDB_MCP_ATLAS_TEMPORARY_DATABASE_USER_LIFETIME_MS"
+            ],
+            [
+              "-e",
+              "MDB_MCP_CONFIRMATION_REQUIRED_TOOLS"
+            ],
+            [
+              "-e",
+              "MDB_MCP_CONNECTION_SCOPE"
+            ],
+            [
+              "-e",
+              "MDB_MCP_CONNECTION_STRING"
+            ],
+            [
+              "-e",
+              "MDB_MCP_DISABLED_TOOLS"
+            ],
+            [
+              "-e",
+              "MDB_MCP_DISABLE_SERVER_SIDE_JS"
+            ],
+            [
+              "-e",
+              "MDB_MCP_DRY_RUN"
+            ],
+            [
+              "-e",
+              "MDB_MCP_ELICITATION_TIMEOUT_MS"
+            ],
+            [
+              "-e",
+              "MDB_MCP_EXPORTS_PATH"
+            ],
+            [
+              "-e",
+              "MDB_MCP_EXPORT_CLEANUP_INTERVAL_MS"
+            ],
+            [
+              "-e",
+              "MDB_MCP_EXPORT_TIMEOUT_MS"
+            ],
+            [
+              "-e",
+              "MDB_MCP_EXTERNALLY_MANAGED_SESSIONS"
+            ],
+            [
+              "-e",
+              "MDB_MCP_HEALTH_CHECK_HOST"
+            ],
+            [
+              "-e",
+              "MDB_MCP_HEALTH_CHECK_PORT"
+            ],
+            [
+              "-e",
+              "MDB_MCP_HTTP_BODY_LIMIT"
+            ],
+            [
+              "-e",
+              "MDB_MCP_HTTP_HEADERS"
+            ],
+            [
+              "-e",
+              "MDB_MCP_HTTP_HOST"
+            ],
+            [
+              "-e",
+              "MDB_MCP_HTTP_PORT"
+            ],
+            [
+              "-e",
+              "MDB_MCP_HTTP_RESPONSE_TYPE"
+            ],
+            [
+              "-e",
+              "MDB_MCP_IDLE_TIMEOUT_MS"
+            ],
+            [
+              "-e",
+              "MDB_MCP_INDEX_CHECK"
+            ],
+            [
+              "-e",
+              "MDB_MCP_LOGGERS"
+            ],
+            [
+              "-e",
+              "MDB_MCP_LOG_PATH"
+            ],
+            [
+              "-e",
+              "MDB_MCP_MAX_ACTIVE_CONNECTIONS"
+            ],
+            [
+              "-e",
+              "MDB_MCP_MAX_BYTES_PER_QUERY"
+            ],
+            [
+              "-e",
+              "MDB_MCP_MAX_DOCUMENTS_PER_QUERY"
+            ],
+            [
+              "-e",
+              "MDB_MCP_MAX_SESSIONS"
+            ],
+            [
+              "-e",
+              "MDB_MCP_MAX_TIME_M_S"
+            ],
+            [
+              "-e",
+              "MDB_MCP_MCP_CLIENT_LOG_LEVEL"
+            ],
+            [
+              "-e",
+              "MDB_MCP_MONITORING_SERVER_FEATURES"
+            ],
+            [
+              "-e",
+              "MDB_MCP_MONITORING_SERVER_HOST"
+            ],
+            [
+              "-e",
+              "MDB_MCP_MONITORING_SERVER_PORT"
+            ],
+            [
+              "-e",
+              "MDB_MCP_NOTIFICATION_TIMEOUT_MS"
+            ],
+            [
+              "-e",
+              "MDB_MCP_PREVIEW_FEATURES"
+            ],
+            [
+              "-e",
+              "MDB_MCP_READ_ONLY"
+            ],
+            [
+              "-e",
+              "MDB_MCP_TELEMETRY"
+            ],
+            [
+              "-e",
+              "MDB_MCP_TRANSPORT"
+            ],
+            [
+              "-e",
+              "MDB_MCP_VOYAGE_API_KEY"
+            ],
+            [
+              "docker.io/mongodb/mongodb-mcp-server:2.1.0"
+            ]
+          ],
+          "env": {
+            "MDB_MCP_ALLOW_REQUEST_OVERRIDES": "{MDB_MCP_ALLOW_REQUEST_OVERRIDES}",
+            "MDB_MCP_API_CLIENT_ID": "{MDB_MCP_API_CLIENT_ID}",
+            "MDB_MCP_API_CLIENT_SECRET": "{MDB_MCP_API_CLIENT_SECRET}",
+            "MDB_MCP_ASSISTANT_BASE_URL": "{MDB_MCP_ASSISTANT_BASE_URL}",
+            "MDB_MCP_ATLAS_TEMPORARY_DATABASE_USER_LIFETIME_MS": "{MDB_MCP_ATLAS_TEMPORARY_DATABASE_USER_LIFETIME_MS}",
+            "MDB_MCP_CONFIRMATION_REQUIRED_TOOLS": "{MDB_MCP_CONFIRMATION_REQUIRED_TOOLS}",
+            "MDB_MCP_CONNECTION_SCOPE": "{MDB_MCP_CONNECTION_SCOPE}",
+            "MDB_MCP_CONNECTION_STRING": "{MDB_MCP_CONNECTION_STRING}",
+            "MDB_MCP_DISABLED_TOOLS": "{MDB_MCP_DISABLED_TOOLS}",
+            "MDB_MCP_DISABLE_SERVER_SIDE_JS": "{MDB_MCP_DISABLE_SERVER_SIDE_JS}",
+            "MDB_MCP_DRY_RUN": "{MDB_MCP_DRY_RUN}",
+            "MDB_MCP_ELICITATION_TIMEOUT_MS": "{MDB_MCP_ELICITATION_TIMEOUT_MS}",
+            "MDB_MCP_EXPORTS_PATH": "{MDB_MCP_EXPORTS_PATH}",
+            "MDB_MCP_EXPORT_CLEANUP_INTERVAL_MS": "{MDB_MCP_EXPORT_CLEANUP_INTERVAL_MS}",
+            "MDB_MCP_EXPORT_TIMEOUT_MS": "{MDB_MCP_EXPORT_TIMEOUT_MS}",
+            "MDB_MCP_EXTERNALLY_MANAGED_SESSIONS": "{MDB_MCP_EXTERNALLY_MANAGED_SESSIONS}",
+            "MDB_MCP_HEALTH_CHECK_HOST": "{MDB_MCP_HEALTH_CHECK_HOST}",
+            "MDB_MCP_HEALTH_CHECK_PORT": "{MDB_MCP_HEALTH_CHECK_PORT}",
+            "MDB_MCP_HTTP_BODY_LIMIT": "{MDB_MCP_HTTP_BODY_LIMIT}",
+            "MDB_MCP_HTTP_HEADERS": "{MDB_MCP_HTTP_HEADERS}",
+            "MDB_MCP_HTTP_HOST": "{MDB_MCP_HTTP_HOST}",
+            "MDB_MCP_HTTP_PORT": "{MDB_MCP_HTTP_PORT}",
+            "MDB_MCP_HTTP_RESPONSE_TYPE": "{MDB_MCP_HTTP_RESPONSE_TYPE}",
+            "MDB_MCP_IDLE_TIMEOUT_MS": "{MDB_MCP_IDLE_TIMEOUT_MS}",
+            "MDB_MCP_INDEX_CHECK": "{MDB_MCP_INDEX_CHECK}",
+            "MDB_MCP_LOGGERS": "{MDB_MCP_LOGGERS}",
+            "MDB_MCP_LOG_PATH": "{MDB_MCP_LOG_PATH}",
+            "MDB_MCP_MAX_ACTIVE_CONNECTIONS": "{MDB_MCP_MAX_ACTIVE_CONNECTIONS}",
+            "MDB_MCP_MAX_BYTES_PER_QUERY": "{MDB_MCP_MAX_BYTES_PER_QUERY}",
+            "MDB_MCP_MAX_DOCUMENTS_PER_QUERY": "{MDB_MCP_MAX_DOCUMENTS_PER_QUERY}",
+            "MDB_MCP_MAX_SESSIONS": "{MDB_MCP_MAX_SESSIONS}",
+            "MDB_MCP_MAX_TIME_M_S": "{MDB_MCP_MAX_TIME_M_S}",
+            "MDB_MCP_MCP_CLIENT_LOG_LEVEL": "{MDB_MCP_MCP_CLIENT_LOG_LEVEL}",
+            "MDB_MCP_MONITORING_SERVER_FEATURES": "{MDB_MCP_MONITORING_SERVER_FEATURES}",
+            "MDB_MCP_MONITORING_SERVER_HOST": "{MDB_MCP_MONITORING_SERVER_HOST}",
+            "MDB_MCP_MONITORING_SERVER_PORT": "{MDB_MCP_MONITORING_SERVER_PORT}",
+            "MDB_MCP_NOTIFICATION_TIMEOUT_MS": "{MDB_MCP_NOTIFICATION_TIMEOUT_MS}",
+            "MDB_MCP_PREVIEW_FEATURES": "{MDB_MCP_PREVIEW_FEATURES}",
+            "MDB_MCP_READ_ONLY": "{MDB_MCP_READ_ONLY}",
+            "MDB_MCP_TELEMETRY": "{MDB_MCP_TELEMETRY}",
+            "MDB_MCP_TRANSPORT": "{MDB_MCP_TRANSPORT}",
+            "MDB_MCP_VOYAGE_API_KEY": "{MDB_MCP_VOYAGE_API_KEY}"
+          },
+          "identifier": "docker.io/mongodb/mongodb-mcp-server:2.1.0",
+          "inferred": true,
+          "inputs": [
+            {
+              "defaultValue": null,
+              "description": "When set to true, allows configuration values to be overridden via request headers and query parameters.",
+              "key": "MDB_MCP_ALLOW_REQUEST_OVERRIDES",
+              "required": false,
+              "secret": false
+            },
+            {
+              "defaultValue": null,
+              "description": "Atlas API client ID for authentication. Required for running Atlas tools.",
+              "key": "MDB_MCP_API_CLIENT_ID",
+              "required": false,
+              "secret": true
+            },
+            {
+              "defaultValue": null,
+              "description": "Atlas API client secret for authentication. Required for running Atlas tools.",
+              "key": "MDB_MCP_API_CLIENT_SECRET",
+              "required": false,
+              "secret": true
+            },
+            {
+              "defaultValue": null,
+              "description": "Base URL for the MongoDB Assistant API.",
+              "key": "MDB_MCP_ASSISTANT_BASE_URL",
+              "required": false,
+              "secret": false
+            },
+            {
+              "defaultValue": null,
+              "description": "Time in milliseconds that temporary database users created when connecting to MongoDB Atlas clusters will remain active before being automatically deleted.",
+              "key": "MDB_MCP_ATLAS_TEMPORARY_DATABASE_USER_LIFETIME_MS",
+              "required": false,
+              "secret": false
+            },
+            {
+              "defaultValue": null,
+              "description": "Comma separated values of tool names that require user confirmation before execution. Requires the client to support elicitation.",
+              "key": "MDB_MCP_CONFIRMATION_REQUIRED_TOOLS",
+              "required": false,
+              "secret": false
+            },
+            {
+              "defaultValue": null,
+              "description": "Visibility scope for MongoDB connections created at runtime. With 'session' (the default), each MCP session only sees the connections it created (plus the shared 'preconfigured' one) and they are closed when the session ends — recommended when the HTTP transport is exposed to multiple clients without authentication. With 'global', connections are shared across all sessions and survive session rotation.",
+              "key": "MDB_MCP_CONNECTION_SCOPE",
+              "required": false,
+              "secret": false
+            },
+            {
+              "defaultValue": null,
+              "description": "MongoDB connection string for direct database connections. Optional, if not set, you'll need to call the connect tool before interacting with MongoDB data.",
+              "key": "MDB_MCP_CONNECTION_STRING",
+              "required": false,
+              "secret": true
+            },
+            {
+              "defaultValue": null,
+              "description": "When set to true, disallows the use of server-side JavaScript operators (such as $where, $function, and $accumulator) in query filters and aggregation pipelines.",
+              "key": "MDB_MCP_DISABLE_SERVER_SIDE_JS",
+              "required": false,
+              "secret": false
+            },
+            {
+              "defaultValue": null,
+              "description": "Comma separated values of tool names, operation types, and/or categories of tools that will be disabled.",
+              "key": "MDB_MCP_DISABLED_TOOLS",
+              "required": false,
+              "secret": false
+            },
+            {
+              "defaultValue": null,
+              "description": "When true, runs the server in dry mode: dumps configuration and enabled tools, then exits without starting the server.",
+              "key": "MDB_MCP_DRY_RUN",
+              "required": false,
+              "secret": false
+            },
+            {
+              "defaultValue": null,
+              "description": "Time in milliseconds the user has to respond to an elicitation request (such as a tool confirmation prompt) before it fails.",
+              "key": "MDB_MCP_ELICITATION_TIMEOUT_MS",
+              "required": false,
+              "secret": false
+            },
+            {
+              "defaultValue": null,
+              "description": "Time in milliseconds between export cleanup cycles that remove expired export files.",
+              "key": "MDB_MCP_EXPORT_CLEANUP_INTERVAL_MS",
+              "required": false,
+              "secret": false
+            },
+            {
+              "defaultValue": null,
+              "description": "Time in milliseconds after which an export is considered expired and eligible for cleanup.",
+              "key": "MDB_MCP_EXPORT_TIMEOUT_MS",
+              "required": false,
+              "secret": false
+            },
+            {
+              "defaultValue": null,
+              "description": "Folder to store exported data files.",
+              "key": "MDB_MCP_EXPORTS_PATH",
+              "required": false,
+              "secret": false
+            },
+            {
+              "defaultValue": null,
+              "description": "When true, the HTTP transport allows requests with a session ID supplied externally through the 'mcp-session-id' header. When an external ID is supplied, the initialization request is optional.",
+              "key": "MDB_MCP_EXTERNALLY_MANAGED_SESSIONS",
+              "required": false,
+              "secret": false
+            },
+            {
+              "defaultValue": null,
+              "description": "Deprecated. Use `monitoringServerHost` instead. Host address to bind the healthCheck HTTP server to (only used when transport is 'http'). If provided, `healthCheckPort` must also be set.",
+              "key": "MDB_MCP_HEALTH_CHECK_HOST",
+              "required": false,
+              "secret": false
+            },
+            {
+              "defaultValue": null,
+              "description": "Deprecated. Use `monitoringServerPort` instead. Port number for the healthCheck HTTP server (only used when transport is 'http'). If provided, `healthCheckHost` must also be set.",
+              "key": "MDB_MCP_HEALTH_CHECK_PORT",
+              "required": false,
+              "secret": false
+            },
+            {
+              "defaultValue": null,
+              "description": "Maximum size of the HTTP request body in bytes (only used when transport is 'http'). This value is passed as the optional limit parameter to the Express.js json() middleware.",
+              "key": "MDB_MCP_HTTP_BODY_LIMIT",
+              "required": false,
+              "secret": false
+            },
+            {
+              "defaultValue": null,
+              "description": "Header that the HTTP server will validate when making requests (only used when transport is 'http').",
+              "key": "MDB_MCP_HTTP_HEADERS",
+              "required": false,
+              "secret": false
+            },
+            {
+              "defaultValue": null,
+              "description": "Host address to bind the HTTP server to (only used when transport is 'http').",
+              "key": "MDB_MCP_HTTP_HOST",
+              "required": false,
+              "secret": false
+            },
+            {
+              "defaultValue": null,
+              "description": "Port number for the HTTP server (only used when transport is 'http'). Use 0 for a random port.",
+              "key": "MDB_MCP_HTTP_PORT",
+              "required": false,
+              "secret": false
+            },
+            {
+              "defaultValue": null,
+              "description": "The HTTP response type for tool responses: 'sse' for Server-Sent Events, 'json' for standard JSON responses.",
+              "key": "MDB_MCP_HTTP_RESPONSE_TYPE",
+              "required": false,
+              "secret": false
+            },
+            {
+              "defaultValue": null,
+              "description": "Idle timeout for a client to disconnect (only applies to http transport).",
+              "key": "MDB_MCP_IDLE_TIMEOUT_MS",
+              "required": false,
+              "secret": false
+            },
+            {
+              "defaultValue": null,
+              "description": "When set to true, enforces that query operations must use an index, rejecting queries that perform a collection scan.",
+              "key": "MDB_MCP_INDEX_CHECK",
+              "required": false,
+              "secret": false
+            },
+            {
+              "defaultValue": null,
+              "description": "Folder to store logs.",
+              "key": "MDB_MCP_LOG_PATH",
+              "required": false,
+              "secret": false
+            },
+            {
+              "defaultValue": null,
+              "description": "Comma separated values of logger types.",
+              "key": "MDB_MCP_LOGGERS",
+              "required": false,
+              "secret": false
+            },
+            {
+              "defaultValue": null,
+              "description": "Maximum number of MongoDB connections a single scope (an MCP session by default, see connectionScope) can hold open. When exceeded, the scope's least-recently-used connection is closed and its connectionId revoked. The preconfigured connection does not count towards the limit.",
+              "key": "MDB_MCP_MAX_ACTIVE_CONNECTIONS",
+              "required": false,
+              "secret": false
+            },
+            {
+              "defaultValue": null,
+              "description": "The maximum size in bytes for results from a find or aggregate tool call. This serves as an upper bound for the responseBytesLimit parameter in those tools.",
+              "key": "MDB_MCP_MAX_BYTES_PER_QUERY",
+              "required": false,
+              "secret": false
+            },
+            {
+              "defaultValue": null,
+              "description": "The maximum number of documents that can be returned by a find or aggregate tool call. For the find tool, the effective limit will be the smaller of this value and the tool's limit parameter.",
+              "key": "MDB_MCP_MAX_DOCUMENTS_PER_QUERY",
+              "required": false,
+              "secret": false
+            },
+            {
+              "defaultValue": null,
+              "description": "Maximum number of concurrent sessions the HTTP transport will hold in memory (only used when transport is 'http'). Each session holds a full server instance, transport, and timers, so choose a value based on your deployment's available memory; the default is a conservative safety net rather than a recommended production value.",
+              "key": "MDB_MCP_MAX_SESSIONS",
+              "required": false,
+              "secret": false
+            },
+            {
+              "defaultValue": null,
+              "description": "The maximum time in milliseconds that operations are allowed to run on the MongoDB server. When set, this value is passed as the maxTimeMS option to read operations such as find, aggregate, and count.",
+              "key": "MDB_MCP_MAX_TIME_M_S",
+              "required": false,
+              "secret": false
+            },
+            {
+              "defaultValue": null,
+              "description": "Minimum severity level for log messages forwarded to the MCP client.",
+              "key": "MDB_MCP_MCP_CLIENT_LOG_LEVEL",
+              "required": false,
+              "secret": false
+            },
+            {
+              "defaultValue": null,
+              "description": "Features to expose on the monitoring server (only used when transport is 'http' and monitoringServerHost/monitoringServerPort are set).",
+              "key": "MDB_MCP_MONITORING_SERVER_FEATURES",
+              "required": false,
+              "secret": false
+            },
+            {
+              "defaultValue": null,
+              "description": "Host address to bind the monitoring HTTP server to (only used when transport is 'http'). If provided, `monitoringServerPort` must also be set.",
+              "key": "MDB_MCP_MONITORING_SERVER_HOST",
+              "required": false,
+              "secret": false
+            },
+            {
+              "defaultValue": null,
+              "description": "Port number for the monitoring HTTP server (only used when transport is 'http'). If provided, `monitoringServerHost` must also be set.",
+              "key": "MDB_MCP_MONITORING_SERVER_PORT",
+              "required": false,
+              "secret": false
+            },
+            {
+              "defaultValue": null,
+              "description": "Notification timeout for a client to be aware of disconnect (only applies to http transport).",
+              "key": "MDB_MCP_NOTIFICATION_TIMEOUT_MS",
+              "required": false,
+              "secret": false
+            },
+            {
+              "defaultValue": null,
+              "description": "Comma separated values of preview features that are enabled.",
+              "key": "MDB_MCP_PREVIEW_FEATURES",
+              "required": false,
+              "secret": false
+            },
+            {
+              "defaultValue": null,
+              "description": "When set to true, only allows read, connect, and metadata operation types, disabling create/update/delete operations.",
+              "key": "MDB_MCP_READ_ONLY",
+              "required": false,
+              "secret": false
+            },
+            {
+              "defaultValue": null,
+              "description": "When set to disabled, disables telemetry collection.",
+              "key": "MDB_MCP_TELEMETRY",
+              "required": false,
+              "secret": false
+            },
+            {
+              "defaultValue": null,
+              "description": "Either 'stdio' or 'http'.",
+              "key": "MDB_MCP_TRANSPORT",
+              "required": false,
+              "secret": false
+            },
+            {
+              "defaultValue": null,
+              "description": "API key for Voyage AI embeddings service (required for creating Atlas Local deployments with auto-embed vector search capabilities).",
+              "key": "MDB_MCP_VOYAGE_API_KEY",
+              "required": false,
+              "secret": true
+            }
+          ],
+          "kind": "stdio",
+          "packageType": "oci",
+          "program": "docker"
+        }
+      ],
+      "readmeExcerpt": "MongoDB MCP server",
+      "repositoryUrl": "https://github.com/mongodb-js/mongodb-mcp-server",
+      "sourceId": "github",
+      "stars": 1138,
+      "title": "Mongodb",
+      "version": "2.1.0",
+      "websiteUrl": null
+    }
+  ],
+  "official": [
+    {
+      "description": "Up-to-date code docs for any prompt",
+      "id": "io.github.upstash/context7",
+      "installOptions": [
+        {
+          "argGroups": [
+            [
+              "-y"
+            ],
+            [
+              "@upstash/context7-mcp@4.1.1"
+            ]
+          ],
+          "env": {
+            "CONTEXT7_API_KEY": "{CONTEXT7_API_KEY}"
+          },
+          "identifier": "@upstash/context7-mcp",
+          "inferred": false,
+          "inputs": [
+            {
+              "defaultValue": null,
+              "description": "API key for authentication",
+              "key": "CONTEXT7_API_KEY",
+              "required": false,
+              "secret": true
+            }
+          ],
+          "kind": "stdio",
+          "packageType": "npm",
+          "program": "npx"
+        },
+        {
+          "identifier": "https://github.com/upstash/context7/releases/download/mcpb-v4.1.1/context7.mcpb",
+          "kind": "unsupported",
+          "packageType": "mcpb"
+        },
+        {
+          "headers": {
+            "Authorization": "{Authorization}"
+          },
+          "inputs": [
+            {
+              "defaultValue": null,
+              "description": "API key for authentication. Accepts \"Bearer <key>\" or the raw key.",
+              "key": "Authorization",
+              "required": false,
+              "secret": true
+            }
+          ],
+          "kind": "http",
+          "transport": "streamable-http",
+          "url": "https://mcp.context7.com/mcp"
+        }
+      ],
+      "readmeExcerpt": null,
+      "repositoryUrl": "https://github.com/upstash/context7",
+      "sourceId": "official",
+      "stars": null,
+      "title": "Context7",
+      "version": "4.1.1",
+      "websiteUrl": "https://context7.com"
+    },
+    {
+      "description": "Manage Docker (containers, images, Compose, Swarm, registries) via the Docker SDK and CLI.",
+      "id": "io.github.GavinLucas/docker-mcp-server",
+      "installOptions": [
+        {
+          "argGroups": [
+            [
+              "docker-mcp-server==2.1.1"
+            ]
+          ],
+          "env": {},
+          "identifier": "docker-mcp-server",
+          "inferred": false,
+          "inputs": [],
+          "kind": "stdio",
+          "packageType": "pypi",
+          "program": "uvx"
+        },
+        {
+          "argGroups": [
+            [
+              "run",
+              "-i",
+              "--rm"
+            ],
+            [
+              "ghcr.io/gavinlucas/docker-mcp-server:2.1.1"
+            ]
+          ],
+          "env": {},
+          "identifier": "ghcr.io/gavinlucas/docker-mcp-server:2.1.1",
+          "inferred": false,
+          "inputs": [],
+          "kind": "stdio",
+          "packageType": "oci",
+          "program": "docker"
+        },
+        {
+          "identifier": "https://github.com/GavinLucas/docker-mcp/releases/download/v2.1.1/docker-mcp-server-2.1.1.mcpb",
+          "kind": "unsupported",
+          "packageType": "mcpb"
+        }
+      ],
+      "readmeExcerpt": null,
+      "repositoryUrl": "https://github.com/GavinLucas/docker-mcp",
+      "sourceId": "official",
+      "stars": null,
+      "title": "Docker MCP Server",
+      "version": "2.1.1",
+      "websiteUrl": null
+    },
+    {
+      "description": "Premium agentic endpoint for dockerfile-credential-mcp.",
+      "id": "io.github.Evozim/dockerfile-credential-mcp",
+      "installOptions": [
+        {
+          "headers": {
+            "Payment-Signature": "{Payment-Signature}"
+          },
+          "inputs": [
+            {
+              "defaultValue": null,
+              "description": "Base64-encoded EIP-3009 TransferWithAuthorization signature for x402 V2 settlement on Base Mainnet ($0.08 USDC).",
+              "key": "Payment-Signature",
+              "required": false,
+              "secret": true
+            }
+          ],
+          "kind": "http",
+          "transport": "sse",
+          "url": "https://api.m2mcent.com/dockerfile-credential-mcp/sse"
+        }
+      ],
+      "readmeExcerpt": null,
+      "repositoryUrl": null,
+      "sourceId": "official",
+      "stars": null,
+      "title": "Execute dockerfile-credential-mcp",
+      "version": "2.0.0",
+      "websiteUrl": null
+    },
+    {
+      "description": "Docker for AI agents — containers, compose stacks, logs and databases, locally or over SSH.",
+      "id": "io.github.hypnosis/docker-mcp-server",
+      "installOptions": [
+        {
+          "argGroups": [
+            [
+              "-y"
+            ],
+            [
+              "@hypnosis/docker-mcp-server@2.0.1"
+            ]
+          ],
+          "env": {
+            "DOCKER_MCP_ALLOW_SSH_FALLBACK": "{DOCKER_MCP_ALLOW_SSH_FALLBACK}",
+            "DOCKER_MCP_PROFILES_FILE": "{DOCKER_MCP_PROFILES_FILE}",
+            "DOCKER_PROFILES": "{DOCKER_PROFILES}",
+            "LOG_LEVEL": "{LOG_LEVEL}"
+          },
+          "identifier": "@hypnosis/docker-mcp-server",
+          "inferred": false,
+          "inputs": [
+            {
+              "defaultValue": null,
+              "description": "Absolute path to the JSON file describing the Docker hosts this agent may reach. Without it the server answers about the Docker on this machine.",
+              "key": "DOCKER_MCP_PROFILES_FILE",
+              "required": false,
+              "secret": false
+            },
+            {
+              "defaultValue": null,
+              "description": "The same profiles JSON inline, used when no profiles file is set.",
+              "key": "DOCKER_PROFILES",
+              "required": false,
+              "secret": false
+            },
+            {
+              "defaultValue": null,
+              "description": "Keep going when a profile's SSH key is missing, instead of refusing the profile. Defaults to false.",
+              "key": "DOCKER_MCP_ALLOW_SSH_FALLBACK",
+              "required": false,
+              "secret": false
+            },
+            {
+              "defaultValue": null,
+              "description": "Log verbosity: error, warn, info or debug. Defaults to info.",
+              "key": "LOG_LEVEL",
+              "required": false,
+              "secret": false
+            }
+          ],
+          "kind": "stdio",
+          "packageType": "npm",
+          "program": "npx"
+        }
+      ],
+      "readmeExcerpt": null,
+      "repositoryUrl": "https://github.com/hypnosis/docker-mcp-server",
+      "sourceId": "official",
+      "stars": null,
+      "title": "Docker MCP Server",
+      "version": "2.0.1",
+      "websiteUrl": "https://github.com/hypnosis/docker-mcp-server#readme"
+    }
+  ]
+}

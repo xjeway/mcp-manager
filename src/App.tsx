@@ -3,6 +3,7 @@ import { getCurrentWindow } from '@tauri-apps/api/window'
 import { useTranslation } from 'react-i18next'
 import { CLIENTS } from './components/clientMeta'
 import { Dashboard } from './components/Dashboard'
+import { MarketplacePage } from './components/MarketplacePage'
 import { SettingsPage } from './components/SettingsPage'
 import { ServerEditor } from './components/ServerEditor'
 import { ToastViewport } from './components/ToastViewport'
@@ -18,7 +19,13 @@ import {
   type SupportedApp,
   type WorkspaceContext,
 } from './types/config'
-import { readAutoImportOnLaunchPreference, saveAutoImportOnLaunchPreference } from './services/appPreferences'
+import {
+  readAutoImportOnLaunchPreference,
+  readMarketplaceEnabledPreference,
+  saveAutoImportOnLaunchPreference,
+  saveMarketplaceEnabledPreference,
+} from './services/appPreferences'
+import { setMarketplaceEnabled as syncMarketplaceEnabled } from './services/marketplaceService'
 import {
   applyConfig,
   detectInstalledApps,
@@ -56,7 +63,7 @@ import {
   toggleServerAppInConfig,
 } from './services/workspacePersistence'
 
-type View = 'dashboard' | 'editor' | 'settings'
+type View = 'dashboard' | 'editor' | 'settings' | 'marketplace'
 type ThemeMode = 'light' | 'dark' | 'system'
 type ActionState =
   | 'idle'
@@ -113,6 +120,11 @@ function MainApp() {
   const [actionState, setActionState] = useState<ActionState>('loading')
   const [config, setConfig] = useState<MCPConfig>({ version: 1, servers: [] })
   const [editingServer, setEditingServer] = useState<MCPServer | null>(null)
+  // A new server prefilled from the marketplace; the editor still treats it as "add".
+  const [prefillServer, setPrefillServer] = useState<MCPServer | null>(null)
+  // Where the editor's cancel button returns to.
+  const [editorOrigin, setEditorOrigin] = useState<'dashboard' | 'marketplace'>('dashboard')
+  const [marketplaceEnabled, setMarketplaceEnabled] = useState(readMarketplaceEnabledPreference)
   const [feedbacks, setFeedbacks] = useState<FeedbackItem[]>([])
   const [backups, setBackups] = useState<string[]>([])
   const [visibleApps, setVisibleApps] = useState<SupportedApp[]>([...SUPPORTED_APPS])
@@ -191,8 +203,15 @@ function MainApp() {
 
   const clearEditorState = () => {
     setEditingServer(null)
+    setPrefillServer(null)
+    setEditorOrigin('dashboard')
     setEditorDirty(false)
   }
+
+  // The backend refuses marketplace requests until told the user allows them.
+  useEffect(() => {
+    void syncMarketplaceEnabled(marketplaceEnabled)
+  }, [marketplaceEnabled])
 
   const navigateToView = (nextView: View) => {
     if (nextView !== 'editor') {
@@ -477,8 +496,14 @@ function MainApp() {
   }
 
   const openCreate = () => {
-    setEditingServer(null)
-    setEditorDirty(false)
+    clearEditorState()
+    setView('editor')
+  }
+
+  const openFromMarketplace = (server: MCPServer) => {
+    clearEditorState()
+    setPrefillServer(server)
+    setEditorOrigin('marketplace')
     setView('editor')
   }
 
@@ -487,8 +512,8 @@ function MainApp() {
     if (!server) {
       return
     }
+    clearEditorState()
     setEditingServer(server)
-    setEditorDirty(false)
     setView('editor')
   }
 
@@ -634,15 +659,16 @@ function MainApp() {
   }
 
   const handleEditorCancel = async () => {
+    const destination = editorOrigin
     if (
       !shouldPromptForPendingChanges({
         currentView: view,
-        nextAction: { kind: 'view', view: 'dashboard' },
+        nextAction: { kind: 'view', view: destination },
         workspaceDirty: false,
         editorDirty,
       })
     ) {
-      navigateToView('dashboard')
+      navigateToView(destination)
       return
     }
 
@@ -658,7 +684,12 @@ function MainApp() {
       return
     }
 
-    navigateToView('dashboard')
+    navigateToView(destination)
+  }
+
+  const handleMarketplaceEnabledChange = (enabled: boolean) => {
+    setMarketplaceEnabled(enabled)
+    saveMarketplaceEnabledPreference(enabled)
   }
 
   const handleAutoImportOnLaunchChange = (enabled: boolean) => {
@@ -674,6 +705,7 @@ function MainApp() {
       {view === 'editor' ? (
         <ServerEditor
           server={editingServer}
+          initialServer={prefillServer}
           busy={isBusy}
           workspace={currentWorkspace}
           visibleApps={visibleApps}
@@ -689,6 +721,8 @@ function MainApp() {
           busy={isBusy}
           checkingUpdates={actionState === 'checking-updates'}
           language={i18n.language}
+          marketplaceEnabled={marketplaceEnabled}
+          onMarketplaceEnabledChange={handleMarketplaceEnabledChange}
           onOpenRepository={() => void handleOpenRepository()}
           onAutoImportOnLaunchChange={handleAutoImportOnLaunchChange}
           theme={theme}
@@ -696,6 +730,12 @@ function MainApp() {
           onCheckUpdates={() => void handleCheckUpdates()}
           onLanguageChange={(language) => void i18n.changeLanguage(language)}
           onThemeChange={setTheme}
+        />
+      ) : view === 'marketplace' && marketplaceEnabled ? (
+        <MarketplacePage
+          servers={config.servers}
+          onBack={() => navigateToView('dashboard')}
+          onInstall={openFromMarketplace}
         />
       ) : (
         <Dashboard
@@ -708,6 +748,7 @@ function MainApp() {
           onOpenSettings={() => navigateToView('settings')}
           onCopyCommand={(serverId) => void handleCopyCommand(serverId)}
           onAdd={openCreate}
+          onOpenMarketplace={marketplaceEnabled ? () => navigateToView('marketplace') : undefined}
           onEdit={openEdit}
           onDelete={(serverId) => void handleDelete(serverId)}
           onToggleApp={(serverId, app) => void handleToggleApp(serverId, app)}

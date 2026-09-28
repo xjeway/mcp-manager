@@ -17,6 +17,8 @@ describe('SettingsPage', () => {
         busy={false}
         checkingUpdates={false}
         language="zh-CN"
+        marketplaceEnabled
+        onMarketplaceEnabledChange={() => {}}
         onOpenRepository={() => {}}
         onAutoImportOnLaunchChange={() => {}}
         theme="system"
@@ -41,6 +43,8 @@ describe('SettingsPage', () => {
         busy={false}
         checkingUpdates={false}
         language="zh-CN"
+        marketplaceEnabled
+        onMarketplaceEnabledChange={() => {}}
         onOpenRepository={() => {}}
         onAutoImportOnLaunchChange={() => {}}
         theme="system"
@@ -68,6 +72,8 @@ describe('SettingsPage', () => {
         busy={false}
         checkingUpdates={false}
         language="zh-CN"
+        marketplaceEnabled
+        onMarketplaceEnabledChange={() => {}}
         onOpenRepository={() => {}}
         onAutoImportOnLaunchChange={() => {}}
         theme="system"
@@ -91,6 +97,8 @@ describe('SettingsPage', () => {
         busy={false}
         checkingUpdates={false}
         language="zh-CN"
+        marketplaceEnabled
+        onMarketplaceEnabledChange={() => {}}
         onOpenRepository={() => {}}
         onAutoImportOnLaunchChange={() => {}}
         theme="system"
@@ -113,6 +121,8 @@ describe('SettingsPage', () => {
         busy={false}
         checkingUpdates
         language="zh-CN"
+        marketplaceEnabled
+        onMarketplaceEnabledChange={() => {}}
         onOpenRepository={() => {}}
         onAutoImportOnLaunchChange={() => {}}
         theme="system"
@@ -128,5 +138,29 @@ describe('SettingsPage', () => {
     expect(html).toContain('aria-busy="true"')
     expect(html).toContain('disabled=""')
     expect(html).toContain('checkingUpdates')
+  })
+
+  it('renders the online marketplace switch in its current state', () => {
+    const html = renderToStaticMarkup(
+      <SettingsPage
+        appVersion="9.9.9"
+        autoImportOnLaunch
+        busy={false}
+        checkingUpdates={false}
+        language="zh-CN"
+        marketplaceEnabled={false}
+        onMarketplaceEnabledChange={() => {}}
+        onOpenRepository={() => {}}
+        onAutoImportOnLaunchChange={() => {}}
+        theme="system"
+        onBack={() => {}}
+        onCheckUpdates={() => {}}
+        onLanguageChange={() => {}}
+        onThemeChange={() => {}}
+      />,
+    )
+
+    expect(html).toContain('settingsMarketplaceHelp')
+    expect(html).toMatch(/aria-pressed="false" aria-label="settingsMarketplace"/)
   })
 })

@@ -25,6 +25,8 @@ import {
 interface ServerEditorProps {
   busy: boolean
   server: MCPServer | null
+  /** Prefills a new server (e.g. from the marketplace); ignored when `server` is set. */
+  initialServer?: MCPServer | null
   workspace: WorkspaceContext
   onCancel: () => void
   onDraftChange: (draft: EditorDraft, dirty: boolean) => void
@@ -143,6 +145,7 @@ function ClientTag({
 export function ServerEditor({
   busy,
   server,
+  initialServer = null,
   workspace,
   onCancel,
   onDraftChange,
@@ -152,8 +155,9 @@ export function ServerEditor({
 }: ServerEditorProps) {
   const { t } = useTranslation()
   const [mode, setMode] = useState<EditorMode>('form')
-  const [draft, setDraft] = useState<EditorDraft>(() => serverToEditorDraft(server))
-  const [jsonText, setJsonText] = useState(() => serverToJsonText(server))
+  const seed = server ?? initialServer
+  const [draft, setDraft] = useState<EditorDraft>(() => serverToEditorDraft(seed))
+  const [jsonText, setJsonText] = useState(() => serverToJsonText(seed))
   const [warnings, setWarnings] = useState<string[]>([])
   const [errors, setErrors] = useState<string[]>([])
   const [openPathError, setOpenPathError] = useState<string | null>(null)
@@ -202,14 +206,14 @@ export function ServerEditor({
   }
 
   useEffect(() => {
-    const nextDraft = server ? serverToEditorDraft(server) : createEmptyEditorDraft()
+    const nextDraft = seed ? serverToEditorDraft(seed) : createEmptyEditorDraft()
     setDraft(nextDraft)
-    setJsonText(server ? serverToJsonText(server) : '')
+    setJsonText(seed ? serverToJsonText(seed) : '')
     setWarnings([])
     setErrors([])
     setBatchServers([])
     setMode('form')
-  }, [server])
+  }, [seed])
 
   const jsonPlaceholder = serverToJsonText(null)
 

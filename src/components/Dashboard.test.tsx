@@ -180,4 +180,32 @@ describe('Dashboard', () => {
     expect(html).not.toContain('placementScopeUser')
     expect(html).not.toContain('placementScopeWorkspace')
   })
+
+  it('shows marketplace entry points only when a handler is provided', () => {
+    const render = (onOpenMarketplace?: () => void) =>
+      renderToStaticMarkup(
+        <Dashboard
+          busy="idle"
+          canRollback={false}
+          visibleApps={['vscode']}
+          workspace={{ stats: [], rows: [] }}
+          onAdd={() => {}}
+          onOpenMarketplace={onOpenMarketplace}
+          onOpenRepository={() => {}}
+          onSyncLocalConfig={() => {}}
+          onOpenSettings={() => {}}
+          onDelete={() => {}}
+          onEdit={() => {}}
+          onRollback={() => {}}
+          onToggleApp={() => {}}
+          onBatchSetApp={() => {}}
+          onCopyCommand={() => {}}
+        />,
+      )
+
+    expect(render(() => {})).toContain('aria-label="marketplace"')
+    expect(render(() => {})).toContain('marketplaceOpen')
+    expect(render()).not.toContain('aria-label="marketplace"')
+    expect(render()).not.toContain('marketplaceOpen')
+  })
 })

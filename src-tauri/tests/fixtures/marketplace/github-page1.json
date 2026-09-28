@@ -1,0 +1,492 @@
+{
+  "servers": [
+    {
+      "name": "io.github.upstash/context7",
+      "description": "Up-to-date code docs for any prompt",
+      "status": "active",
+      "repository": {
+        "url": "https://github.com/upstash/context7",
+        "source": "github",
+        "id": ""
+      },
+      "version": "4.1.1",
+      "created_at": "2025-12-12T23:04:50Z",
+      "updated_at": "2026-09-28T13:28:40Z",
+      "$schema": "https://static.modelcontextprotocol.io/schemas/2025-07-09/server.schema.json",
+      "packages": [
+        {
+          "identifier": "@upstash/context7-mcp",
+          "version": "4.1.1",
+          "environment_variables": [
+            {
+              "description": "API key for authentication",
+              "is_secret": true,
+              "name": "CONTEXT7_API_KEY"
+            }
+          ]
+        },
+        {
+          "identifier": "https://github.com/upstash/context7/releases/download/mcpb-v4.1.1/context7.mcpb",
+          "version": "4.1.1",
+          "file_sha256": "887f32c140ca9fa85a0363191f5ee7a443dac17649aaf1f96cdf505e4dc9d26f",
+          "environment_variables": [
+            {
+              "description": "API key for authentication",
+              "is_secret": true,
+              "name": "CONTEXT7_API_KEY"
+            }
+          ]
+        }
+      ],
+      "remotes": [
+        {
+          "transport_type": "streamable-http",
+          "url": "https://mcp.context7.com/mcp",
+          "headers": [
+            {
+              "description": "API key for authentication. Accepts \"Bearer <key>\" or the raw key.",
+              "is_secret": true,
+              "name": "Authorization"
+            }
+          ]
+        }
+      ],
+      "_meta": {
+        "io.modelcontextprotocol.registry/official": {
+          "id": "c27ba8bf06944b429d937360de1c992d",
+          "is_latest": true,
+          "published_at": "2026-09-14T14:53:08Z",
+          "updated_at": "2026-09-14T14:53:08Z"
+        },
+        "io.modelcontextprotocol.registry/publisher-provided": {
+          "github": {
+            "default_branch": "master",
+            "display_name": "Context7",
+            "homepage_url": "https://context7.com",
+            "is_in_organization": true,
+            "license": "MIT License",
+            "name": "context7",
+            "name_with_owner": "upstash/context7",
+            "opengraph_image_url": "https://opengraph.githubassets.com/eb726703fe9a4ea00f2e5688b14e41114a922b359366422723b5c1968c51a574/upstash/context7",
+            "owner_avatar_url": "https://avatars.githubusercontent.com/u/74989412?v=4",
+            "preferred_image": "https://raw.githubusercontent.com/upstash/context7/master/public/icon.png",
+            "primary_language": "TypeScript",
+            "primary_language_color": "#3178c6",
+            "pushed_at": "2026-09-28T13:26:15Z",
+            "readme": "![Cover](https://github.com/upstash/context7/blob/master/public/cover.png?raw=true)\n\n[![Install MCP Server](https://cursor.com/deeplink/mcp-install-dark.svg)](https://cursor.com/en/install-mcp?name=context7&config=eyJ1cmwiOiJodHRwczovL21jcC5jb250ZXh0Ny5jb20vbWNwIn0%3D)\n\n# Context7 Platform - Up-to-date Code Docs For Any Prompt\n\n[![Website](https://img.shields.io/badge/Website-context7.com-blue)](https://context7.com) [![NPM Version](https://img.shields.io/npm/v/%40upstash%2Fcontext7-mcp?color=red)](https://www.npmjs.com/package/@upstash/context7-mcp) [![MIT licensed](https://img.shields.io/npm/l/%40upstash%2Fcontext7-mcp)](./LICENSE)\n\n[![繁體中文](https://img.shields.io/badge/docs-繁體中文-yellow)](./i18n/README.zh-TW.md) [![简体中文](https://img.shields.io/badge/docs-简体中文-yellow)](./i18n/README.zh-CN.md) [![日本語](https://img.shields.io/badge/docs-日本語-b7003a)](./i18n/README.ja.md) [![한국어 문서](https://img.shields.io/badge/docs-한국어-green)](./i18n/README.ko.md) [![Documentación en Español](https://img.shields.io/badge/docs-Español-orange)](./i18n/README.es.md) [![Documentation en Français](https://img.shields.io/badge/docs-Français-blue)](./i18n/README.fr.md) [![Documentação em Português (Brasil)](<https://img.shields.io/badge/docs-Português%20(Brasil)-purple>)](./i18n/README.pt-BR.md) [![Documentazione in italiano](https://img.shields.io/badge/docs-Italian-red)](./i18n/README.it.md) [![Dokumentasi Bahasa Indonesia](https://img.shields.io/badge/docs-Bahasa%20Indonesia-pink)](./i18n/README.id-ID.md) [![Dokumentation auf Deutsch](https://img.shields.io/badge/docs-Deutsch-darkgreen)](./i18n/README.de.md) [![Документация на русском языке](https://img.shields.io/badge/docs-Русский-darkblue)](./i18n/README.ru.md) [![Українська документація](https://img.shields.io/badge/docs-Українська-lightblue)](./i18n/README.uk.md) [![Türkçe Doküman](https://img.shields.io/badge/docs-Türkçe-blue)](./i18n/README.tr.md) [![Arabic Documentation](https://img.shields.io/badge/docs-Arabic-white)](./i18n/README.ar.md) [![Tiếng Việt](https://img.shields.io/badge/docs-Tiếng%20Việt-red)](./i18n/README.vi.md)\n\n## ❌ Without Context7\n\nLLMs rely on outdated or generic information about the libraries you use. You get:\n\n- ❌ Code examples are outdated and based on year-old training data\n- ❌ Hallucinated APIs that don't even exist\n- ❌ Generic answers for old package versions\n\n## ✅ With Context7\n\nContext7 pulls up-to-date, version-specific documentation and code examples straight from the source — and places the",
+            "readme_updated_at": "2026-09-14T14:53:08Z",
+            "readme_version": "4.1.1",
+            "stargazer_count": 62492,
+            "topics": [
+              "llm",
+              "mcp",
+              "mcp-server",
+              "vibe-coding"
+            ],
+            "uses_custom_open_graph_image": false
+          }
+        }
+      }
+    },
+    {
+      "name": "io.github.github/github-mcp-server",
+      "description": "Connect AI assistants to GitHub - manage repos, issues, PRs, and workflows through natural language.",
+      "status": "active",
+      "repository": {
+        "url": "https://github.com/github/github-mcp-server",
+        "source": "github",
+        "id": ""
+      },
+      "version": "1.12.2",
+      "created_at": "2025-12-12T23:04:50Z",
+      "updated_at": "2026-09-28T13:27:05Z",
+      "$schema": "https://static.modelcontextprotocol.io/schemas/2025-07-09/server.schema.json",
+      "packages": [
+        {
+          "identifier": "ghcr.io/github/github-mcp-server:1.12.2",
+          "runtime_arguments": [
+            {
+              "description": "Publish the OAuth callback port to loopback so the in-container login callback is reachable",
+              "value": "127.0.0.1:8085:8085",
+              "type": "named",
+              "name": "-p"
+            },
+            {
+              "description": "Fixed OAuth callback port, matching the published port above",
+              "value": "GITHUB_OAUTH_CALLBACK_PORT=8085",
+              "type": "named",
+              "name": "-e"
+            },
+            {
+              "description": "Optional GitHub Personal Access Token. Omit to log in with OAuth on first use.",
+              "value": "GITHUB_PERSONAL_ACCESS_TOKEN={token}",
+              "variables": {
+                "token": {
+                  "format": "string",
+                  "is_secret": true
+                }
+              },
+              "type": "named",
+              "name": "-e"
+            }
+          ]
+        }
+      ],
+      "remotes": [
+        {
+          "transport_type": "streamable-http",
+          "url": "https://api.githubcopilot.com/mcp/",
+          "headers": [
+            {
+              "description": "Authorization header with authentication token (PAT or App token)",
+              "is_secret": true,
+              "name": "Authorization"
+            }
+          ]
+        }
+      ],
+      "_meta": {
+        "io.modelcontextprotocol.registry/official": {
+          "id": "4577dd51316f4398a012110a0ce7ff9e",
+          "is_latest": true,
+          "published_at": "2026-09-16T10:57:24Z",
+          "updated_at": "2026-09-16T10:57:24Z"
+        },
+        "io.modelcontextprotocol.registry/publisher-provided": {
+          "github": {
+            "default_branch": "main",
+            "display_name": "GitHub",
+            "is_in_organization": true,
+            "license": "MIT License",
+            "name": "github-mcp-server",
+            "name_with_owner": "github/github-mcp-server",
+            "opengraph_image_url": "https://opengraph.githubassets.com/3d8d6be201c38d601cb99f061265f74e5978bebd730e83e6e2b2cb33f938f9d4/github/github-mcp-server",
+            "owner_avatar_url": "https://avatars.githubusercontent.com/u/9919?v=4",
+            "preferred_image": "https://avatars.githubusercontent.com/u/9919?v=4",
+            "primary_language": "Go",
+            "primary_language_color": "#00ADD8",
+            "pushed_at": "2026-09-28T09:47:24Z",
+            "readme": "[![Go Report Card](https://goreportcard.com/badge/github.com/github/github-mcp-server)](https://goreportcard.com/report/github.com/github/github-mcp-server)\n\n# GitHub MCP Server\n\nThe GitHub MCP Server connects AI tools directly to GitHub's platform. This gives AI agents, assistants, and chatbots the ability to read repositories and code files, manage issues and PRs, analyze code, and automate workflows. All through natural language interactions.\n\n### Use Cases\n\n- Repository Management: Browse and query code, search files, analyze commits, and understand project structure across any repository you have access to.\n- Issue & PR Automation: Create, update, and manage issues and pull requests. Let AI help triage bugs, review code changes, and maintain project boards.\n- CI/CD & Workflow Intelligence: Monitor GitHub Actions workflow runs, analyze build failures, manage releases, and get insights into your development pipeline.\n- Code Analysis: Examine security findings, review Dependabot alerts, understand code patterns, and get comprehensive insights into your codebase.\n- Team Collaboration: Access discussions, manage notifications, analyze team activity, and streamline processes for your team.\n\nBuilt for developers who want to connect their AI tools to GitHub context and capabilities, from simple natural language queries to complex multi-step agent workflows.\n\n---\n\n## Remote GitHub MCP Server\n\n[![Install in VS Code](https://img.shields.io/badge/VS_Code-Install_Server-0098FF?style=flat-square&logo=visualstudiocode&logoColor=white)](https://insiders.vscode.dev/redirect/mcp/install?name=github&config=%7B%22type%22%3A%20%22http%22%2C%22url%22%3A%20%22https%3A%2F%2Fapi.githubcopilot.com%2Fmcp%2F%22%7D) [![Install in VS Code Insiders](https://img.shields.io/badge/VS_Code_Insiders-Install_Server-24bfa5?style=flat-square&logo=visualstudiocode&logoColor=white)](https://insiders.vscode.dev/redirect/mcp/install?name=github&config=%7B%22type%22%3A%20%22http%22%2C%22url%22%3A%20%22https%3A%2F%2Fapi.githubcopilot.com%2Fmcp%2F%22%7D&quality=insiders) [![Install in Visual Studio](https://img.shields.io/badge/Visual_Studio-Install_Server-C16FDE?style=flat-square&logo=visualstudio&logoColor=white)](https://aka.ms/vs/mcp-install?%7B%22name%22%3A%22github%22%2C%22gallery%22%3Atrue%2C%22url%22%3A%22https%3A%2F%2Fapi.githubcopilot.com%2Fmcp%2F%22%7D)\n\nThe remote GitHub MCP Server is hosted by GitHub and provides the easiest method for getting up and running. If your MCP host does no",
+            "readme_updated_at": "2026-09-16T10:57:24Z",
+            "readme_version": "1.12.2",
+            "stargazer_count": 33255,
+            "topics": [
+              "github",
+              "mcp",
+              "mcp-server"
+            ],
+            "uses_custom_open_graph_image": false
+          }
+        }
+      }
+    },
+    {
+      "name": "oraios/serena",
+      "description": "Semantic code retrieval & editing tools for coding agents.",
+      "status": "active",
+      "repository": {
+        "url": "https://github.com/oraios/serena",
+        "source": "github",
+        "id": "953683578"
+      },
+      "version": "1.0.0",
+      "created_at": "2025-12-08T18:42:00Z",
+      "updated_at": "2026-01-14T17:47:30Z",
+      "$schema": "https://static.modelcontextprotocol.io/schemas/2025-07-09/server.schema.json",
+      "packages": [
+        {
+          "identifier": "serena",
+          "version": "latest",
+          "runtime_hint": "uvx",
+          "runtime_arguments": [
+            {
+              "is_required": true,
+              "format": "string",
+              "type": "named",
+              "name": "--from"
+            },
+            {
+              "is_required": true,
+              "format": "string",
+              "value": "git+https://github.com/oraios/serena",
+              "type": "positional",
+              "name": "git+https://github.com/oraios/serena"
+            },
+            {
+              "is_required": true,
+              "format": "string",
+              "value": "serena",
+              "type": "positional",
+              "name": "serena",
+              "value_hint": "cli"
+            },
+            {
+              "is_required": true,
+              "format": "string",
+              "value": "start-mcp-server",
+              "type": "positional",
+              "name": "start-mcp-server",
+              "value_hint": "subcommand"
+            }
+          ],
+          "package_arguments": [
+            {
+              "is_required": true,
+              "format": "string",
+              "type": "named",
+              "name": "--context"
+            },
+            {
+              "is_required": true,
+              "format": "string",
+              "value": "ide-assistant",
+              "type": "positional",
+              "name": "ide-assistant"
+            }
+          ]
+        }
+      ],
+      "_meta": {
+        "io.modelcontextprotocol.registry/official": {
+          "id": "0658e3427ae7493ab378a324363ee322",
+          "is_latest": true,
+          "published_at": "2025-09-09T17:55:23Z",
+          "updated_at": "2025-09-09T17:55:23Z"
+        },
+        "io.modelcontextprotocol.registry/publisher-provided": {
+          "github": {
+            "default_branch": "main",
+            "display_name": "Serena",
+            "homepage_url": "https://oraios.github.io/serena",
+            "is_in_organization": true,
+            "license": "Other",
+            "name": "serena",
+            "name_with_owner": "oraios/serena",
+            "opengraph_image_url": "https://opengraph.githubassets.com/0800c790661cd0367f13c866fc462214512d38cd7d4ff405493e261f6fb8f073/oraios/serena",
+            "owner_avatar_url": "https://avatars.githubusercontent.com/u/181485370?v=4",
+            "preferred_image": "https://avatars.githubusercontent.com/u/181485370?v=4",
+            "primary_language": "Python",
+            "primary_language_color": "#3572A5",
+            "pushed_at": "2026-09-24T08:57:40Z",
+            "readme": "# Developer Instructions\n\n## Python Environment & Development Tools\n\nSee [the contributing guide](CONTRIBUTING.md) for instructions on setting up your development environment\nand tools for formatting and type checking.\n\n## Release Process\n\n1. Ensure clean git status.\n2. Set the version for release. Normally, the version to be released is the one already reserved by the\n   current `.dev0` version (e.g. `1.8.0` when the repository is at `1.8.0.dev0`):\n\n       python scripts/bump_version.py release current\n\n   To release a version beyond the reserved one, name the part to bump instead, e.g.\n\n       python scripts/bump_version.py release patch\n       python scripts/bump_version.py release minor\n\n   This updates `CHANGELOG.md`, commits the release version, creates the git tag, and then\n   commits the subsequent `.dev0` version for the next iteration.\n3. Push to GitHub:\n\n       git push\n       git push --tags\n\n   Important: This must push a single tag only!\n   Pushing the single tag triggers the `create-release` workflow for the tag, which creates a\n   **draft release** on GitHub.\n4. Review the draft release on the\n   [GitHub Releases page](https://github.com/oraios/serena/releases).\n   When ready, publish it (click *Publish release*).\n   This triggers the `publish` workflow, which builds and publishes the\n   package to PyPI.\n\n### Bumping the Development Version\n\nIndependently of a release, the development version can be bumped, e.g. when work on `main`\nbegins to target a new minor or major version:\n\n    python scripts/bump_version.py dev minor\n    python scripts/bump_version.py dev major\n\nThis sets the version to the respective new `.dev0` version (e.g. `1.8.0.dev0`) and commits it as\n\"Set version to vX\"; it creates no tag and does not modify `CHANGELOG.md`.\n\nThe subsequent release of that version is then performed with `release current`.\n\nBoth commands require a clean git status and support `--dry-run` to preview the changes.",
+            "readme_updated_at": "2025-09-09T10:55:23Z",
+            "readme_version": "1.0.0",
+            "stargazer_count": 29870,
+            "topics": [
+              "agent",
+              "ai",
+              "vibe-coding",
+              "mcp-server",
+              "ai-coding",
+              "language-server",
+              "programming",
+              "claude",
+              "claude-code",
+              "codex"
+            ],
+            "uses_custom_open_graph_image": false
+          }
+        }
+      }
+    },
+    {
+      "name": "io.github.netdata/mcp-server",
+      "description": "Real-time infrastructure monitoring with metrics, logs, alerts, and ML-based anomaly detection.",
+      "status": "active",
+      "repository": {
+        "url": "https://github.com/netdata/netdata",
+        "source": "github",
+        "id": "",
+        "subfolder": "docs/netdata-ai/mcp"
+      },
+      "version": "2.11.1",
+      "created_at": "2025-12-12T23:04:50Z",
+      "updated_at": "2026-09-28T13:27:45Z",
+      "$schema": "https://static.modelcontextprotocol.io/schemas/2025-07-09/server.schema.json",
+      "remotes": [
+        {
+          "transport_type": "streamable-http",
+          "url": "https://app.netdata.cloud/api/v1/mcp",
+          "headers": [
+            {
+              "description": "Netdata Cloud API token with scope:mcp",
+              "is_required": true,
+              "value": "Bearer {NETDATA_CLOUD_API_TOKEN}",
+              "is_secret": true,
+              "variables": {
+                "NETDATA_CLOUD_API_TOKEN": {
+                  "description": "Netdata Cloud API token (create at app.netdata.cloud > User Settings > API Tokens with scope:mcp)",
+                  "is_secret": true
+                }
+              },
+              "name": "Authorization"
+            }
+          ]
+        }
+      ],
+      "_meta": {
+        "io.modelcontextprotocol.registry/official": {
+          "id": "aeb82f9f182a4473998a1e3ad3849e3f",
+          "is_latest": true,
+          "published_at": "2026-09-16T16:35:43Z",
+          "updated_at": "2026-09-16T16:35:43Z"
+        },
+        "io.modelcontextprotocol.registry/publisher-provided": {
+          "github": {
+            "default_branch": "master",
+            "display_name": "Netdata",
+            "homepage_url": "https://www.netdata.cloud",
+            "is_in_organization": true,
+            "license": "GNU General Public License v3.0",
+            "name": "netdata",
+            "name_with_owner": "netdata/netdata",
+            "opengraph_image_url": "https://repository-images.githubusercontent.com/10744183/8d08ea53-6359-45fe-bc4d-067cfe1673a1",
+            "owner_avatar_url": "https://avatars.githubusercontent.com/u/43390781?v=4",
+            "preferred_image": "https://avatars.githubusercontent.com/u/43390781?v=4",
+            "primary_language": "Go",
+            "primary_language_color": "#00ADD8",
+            "pushed_at": "2026-09-28T10:41:29Z",
+            "readme": "# Netdata MCP\n\n[Model Context Protocol (MCP)](https://modelcontextprotocol.io/) works in **two directions** with Netdata:\n\n- **Netdata as an MCP server** — AI assistants and clients (Claude, Cursor, VS Code, CLIs, and more) connect *to* Netdata to query your infrastructure. **This page** covers server setup; for per-client instructions see [Supported AI Clients](/docs/netdata-ai/mcp/mcp-clients/ai-devops-copilot.md).\n- **Netdata as an MCP client** — Netdata Cloud connects *out* to your own MCP servers (GitHub, PagerDuty, Atlassian, or any custom HTTPS MCP server) so Netdata AI can pull your team's institutional context into troubleshooting. See [MCP Connections](/docs/netdata-ai/mcp/mcp-connections.md).\n\nThe rest of this page covers **Netdata as an MCP server**.\n\nNetdata provides MCP servers that enable AI assistants to interact with your infrastructure monitoring data. You can connect via:\n\n- **[Netdata Cloud](#netdata-cloud-mcp)** — A single cloud-hosted endpoint at `https://app.netdata.cloud/api/v1/mcp` with full visibility across all your nodes. No bridges, no firewall changes.\n- **[Local Agent or Parent](#local-agent-or-parent-mcp)** —\n  Connect directly to any Netdata Agent or Parent\n  (v2.6.0+) on your network at\n  `http://YOUR_IP:19999/mcp`.\n\nBoth options provide comprehensive access to all\navailable observability data through MCP:\n\n- **Node Discovery** - Hardware specifications, operating system details, version information, streaming topology, and associated metadata\n- **Metrics Discovery** - Full-text search capabilities across contexts, instances, dimensions, and labels\n- **Function Discovery** - Access to system functions including `processes`, `network-connections`, `streaming`, `systemd-journal`, `windows-events`, etc.\n- **Alert Discovery** - Real-time visibility into active and raised alerts\n- **Metrics Queries** - Complex aggregations and groupings with ML-powered anomaly detection\n- **Metrics Scoring** - Root cause analysis leveraging anomaly detection and metric correlations\n- **Alert History** - Complete alert transition logs and state changes\n- **Function Execution** - Execute Netdata functions on any connected node (requires Netdata Parent)\n- **Log Exploration** - Access logs from any connected node (requires Netdata Parent)\n\nAI assistants have different visibility depending on where they connect:\n\n| Connection | Visibility |\n|------------|-----------|\n| **Netdata Cloud** | All nodes across your entire infrastructure |\n| **Netdata Par",
+            "readme_updated_at": "2026-09-16T16:35:43Z",
+            "readme_version": "2.11.1",
+            "stargazer_count": 80677,
+            "topics": [
+              "monitoring",
+              "docker",
+              "kubernetes",
+              "cncf",
+              "prometheus",
+              "netdata",
+              "devops",
+              "observability",
+              "alerting",
+              "influxdb"
+            ],
+            "uses_custom_open_graph_image": true
+          }
+        }
+      }
+    },
+    {
+      "name": "io.github.tavily-ai/tavily-mcp",
+      "description": "MCP server for advanced web search using Tavily",
+      "status": "active",
+      "repository": {
+        "url": "https://github.com/tavily-ai/tavily-mcp",
+        "source": "github",
+        "id": ""
+      },
+      "version": "0.2.15",
+      "created_at": "2026-02-02T07:44:27Z",
+      "updated_at": "2026-09-28T13:28:38Z",
+      "$schema": "https://static.modelcontextprotocol.io/schemas/2025-07-09/server.schema.json",
+      "packages": [
+        {
+          "identifier": "tavily-mcp",
+          "version": "0.2.15",
+          "environment_variables": [
+            {
+              "description": "Your Tavily API key from tavily.com",
+              "is_required": true,
+              "format": "string",
+              "is_secret": true,
+              "name": "TAVILY_API_KEY"
+            },
+            {
+              "description": "JSON string with default search parameters (e.g., {\"include_images\": true, \"max_results\": 15})",
+              "format": "string",
+              "name": "DEFAULT_PARAMETERS"
+            }
+          ]
+        }
+      ],
+      "_meta": {
+        "io.modelcontextprotocol.registry/official": {
+          "id": "84aaa17c3ca74786b65cc8b6fe2684c3",
+          "is_latest": true,
+          "published_at": "2026-01-27T05:26:43Z",
+          "updated_at": "2026-01-27T05:26:43Z"
+        },
+        "io.modelcontextprotocol.registry/publisher-provided": {
+          "github": {
+            "default_branch": "main",
+            "display_name": "Tavily",
+            "is_in_organization": true,
+            "license": "MIT License",
+            "name": "tavily-mcp",
+            "name_with_owner": "tavily-ai/tavily-mcp",
+            "opengraph_image_url": "https://opengraph.githubassets.com/1ce75c7adaae0c79d8d3d91052fcde48f929e122de440df16ce56dd00b4add4e/tavily-ai/tavily-mcp",
+            "owner_avatar_url": "https://avatars.githubusercontent.com/u/170207473?v=4",
+            "preferred_image": "https://avatars.githubusercontent.com/u/170207473?v=4",
+            "primary_language": "TypeScript",
+            "primary_language_color": "#3178c6",
+            "pushed_at": "2026-09-16T20:56:42Z",
+            "readme": "# Tavily MCP Server\n![GitHub Repo stars](https://img.shields.io/github/stars/tavily-ai/tavily-mcp?style=social)\n![npm](https://img.shields.io/npm/dt/tavily-mcp)\n![smithery badge](https://smithery.ai/badge/@tavily-ai/tavily-mcp)\n\nThe Tavily MCP server provides:\n- search, extract, map, crawl tools\n- Real-time web search capabilities through the tavily-search tool\n- Intelligent data extraction from web pages via the tavily-extract tool\n- Powerful web mapping tool that creates a structured map of website \n- Web crawler that systematically explores websites \n\n\n### 📚 Helpful Resources\n- [Tutorial](https://medium.com/@dustin_36183/building-a-knowledge-graph-assistant-combining-tavily-and-neo4j-mcp-servers-with-claude-db92de075df9) on combining Tavily MCP with Neo4j MCP server\n- [Tutorial](https://medium.com/@dustin_36183/connect-your-coding-assistant-to-the-web-integrating-tavily-mcp-with-cline-in-vs-code-5f923a4983d1) on integrating Tavily MCP with Cline in VS Code\n\n## Remote MCP Server\n\nConnect directly to Tavily's remote MCP server instead of running it locally. This provides a seamless experience without requiring local installation or configuration.\n\nSimply use the remote MCP server URL with your Tavily API key:\n\n``` \nhttps://mcp.tavily.com/mcp/?tavilyApiKey=<your-api-key> \n```\n Get your Tavily API key from [tavily.com](https://www.tavily.com/).\n\nAlternatively, you can pass your API key through an Authorization header if the MCP client supports this:\n\n```\nAuthorization: Bearer <your-api-key>\n```\n**Note:** When using the remote MCP, you can specify default parameters for all requests by including a `DEFAULT_PARAMETERS` header containing a JSON object with your desired defaults. Example:\n\n\n```json\n{\"include_images\":true, \"search_depth\": \"basic\", \"max_results\": 10}\n```\n\n## Connect to Claude Code\n\n[Claude Code](https://docs.anthropic.com/en/docs/claude-code) is Anthropic's official CLI tool for Claude. You can add the Tavily MCP server using the `claude mcp add` command. There are two ways to authenticate:\n\n#### Option 1: API Key in URL\n\nPass your API key directly in the URL. Replace `<your-api-key>` with your actual [Tavily API key](https://www.tavily.com/):\n\n```bash\nclaude mcp add --transport http tavily https://mcp.tavily.com/mcp/?tavilyApiKey=<your-api-key>\n```\n\n#### Option 2: OAuth Authentication Flow\n\nAdd the server without an API key in the URL:\n\n```bash\nclaude mcp add --transport http tavily https://mcp.tavily.com/mcp\n```\n\nAfter adding, you'll need to co",
+            "readme_updated_at": "2026-01-26T21:26:43Z",
+            "readme_version": "0.2.15",
+            "stargazer_count": 2411,
+            "uses_custom_open_graph_image": false
+          }
+        }
+      }
+    },
+    {
+      "name": "com.microsoft/nuget",
+      "description": "A Model Context Protocol (MCP) server for NuGet.",
+      "status": "active",
+      "repository": {
+        "url": "https://github.com/NuGet/Home",
+        "source": "github",
+        "id": "",
+        "subfolder": "mcp"
+      },
+      "version": "1.4.16",
+      "created_at": "2026-03-16T20:24:21Z",
+      "updated_at": "2026-09-28T13:23:51Z",
+      "$schema": "https://static.modelcontextprotocol.io/schemas/2025-07-09/server.schema.json",
+      "packages": [
+        {
+          "registry_base_url": "https://api.nuget.org/v3/index.json",
+          "identifier": "NuGet.Mcp.Server",
+          "version": "1.4.16"
+        }
+      ],
+      "_meta": {
+        "io.modelcontextprotocol.registry/official": {
+          "id": "44503566cbfe47a6a1cc77ccfa7ebb7f",
+          "is_latest": true,
+          "published_at": "2026-07-01T00:07:27Z",
+          "updated_at": "2026-07-01T00:07:27Z"
+        },
+        "io.modelcontextprotocol.registry/publisher-provided": {
+          "github": {
+            "default_branch": "dev",
+            "display_name": "Microsoft NuGet",
+            "is_in_organization": true,
+            "license": "Other",
+            "name": "Home",
+            "name_with_owner": "NuGet/Home",
+            "opengraph_image_url": "https://opengraph.githubassets.com/c53b338c7decc5ac68c4cde88802fa1b37f73fa92e532f0785b71211248d3a41/NuGet/Home",
+            "owner_avatar_url": "https://avatars.githubusercontent.com/u/968310?v=4",
+            "preferred_image": "https://avatars.githubusercontent.com/u/968310?v=4",
+            "primary_language": "HTML",
+            "primary_language_color": "#e34c26",
+            "pushed_at": "2026-09-17T22:35:00Z",
+            "readme": "<!-- mcp-name: com.microsoft/nuget -->\n\n# NuGet MCP Server\n\nContains a [Model Context Protocol](https://modelcontextprotocol.io/introduction) (MCP) server for NuGet, enabling advanced tooling and automation scenarios for NuGet package management.\nSee the [official NuGet MCP documentation](https://learn.microsoft.com/nuget/concepts/nuget-mcp-server) for the latest information.\n\n## Capabilities\n\n- Uses your configured NuGet feeds to get real-time information about packages.\n- Provides conservative remediation planning for packages with known vulnerabilities, including transitive dependencies.\n- Provides package upgrade planning based on a project's package graph and target frameworks.\n- Reviews your repository's NuGet supply-chain posture (Central Package Management, NuGet Audit, Package Source Mapping, and `NuGet.Config` validity) and recommends hardening steps.\n\n## Requirements\n\nTo run the MCP server, you must have **[.NET 10 Preview 6 or later](https://dotnet.microsoft.com/en-us/download/dotnet/10.0)** installed.\nThis version of .NET adds a command, `dnx`, which is used to download, install, and run the MCP server from [nuget.org](https://nuget.org).\n\nTo verify your .NET version, run the following command in your terminal:\n```bash\ndotnet --info\n```\n\n## Getting Started\n\nTo configure the NuGet MCP server, you will need to modify an `mcp.json` file or other configuration.\nThe following table provides links to documentation for configuring MCP servers in different environments:\n\n| Environment | Documentation |\n|---|---|\n| Visual Studio | [File locations for automatic discovery of MCP configuration](https://learn.microsoft.com/visualstudio/ide/mcp-servers?view=vs-2022#file-locations-for-automatic-discovery-of-mcp-configuration) |\n| VS Code | [MCP configuration in VS Code](https://code.visualstudio.com/docs/copilot/chat/mcp-servers#_add-an-mcp-server) |\n| GitHub Copilot Coding Agent | [Setting up MCP servers in a repository](https://docs.github.com/en/copilot/how-tos/agents/copilot-coding-agent/extending-copilot-coding-agent-with-mcp#setting-up-mcp-servers-in-a-repository)\n\n### Visual Studio 2026\n\nThe NuGet MCP server ships in-box with Visual Studio 2026.\nYou must enable it the first time in the GitHub Copilot chat tools menu.\n\nIf you'd like to use a newer version of the NuGet MCP server than the one included with Visual Studio, you can configure it with the following snippet and include it in your `mcp.json`:\n\n\n```jsonc\n{\n  \"servers\": {\n    \"nuget\": {\n      \"t",
+            "readme_updated_at": "2026-07-01T00:07:27Z",
+            "readme_version": "1.4.16",
+            "stargazer_count": 1554,
+            "uses_custom_open_graph_image": false
+          }
+        }
+      }
+    }
+  ],
+  "metadata": {
+    "count": 6,
+    "next_cursor": "page-2",
+    "per_page": 100,
+    "total": 288,
+    "total_pages": 3
+  }
+}
