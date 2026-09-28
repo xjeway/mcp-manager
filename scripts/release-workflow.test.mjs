@@ -49,4 +49,14 @@ describe('release workflow structure', () => {
       ),
     ).toBe(true)
   })
+
+  it('publishes the Homebrew cask after the release is complete', () => {
+    const workflow = readWorkflow()
+    const job = workflow.jobs['publish-homebrew']
+
+    expect(job.uses).toBe('./.github/workflows/homebrew.yml')
+    expect(job.needs).toBe('publish-updater')
+    expect(job.with.release_tag).toBe('${{ github.ref_name }}')
+    expect(job.secrets.HOMEBREW_TAP_PAT).toBe('${{ secrets.HOMEBREW_TAP_PAT }}')
+  })
 })

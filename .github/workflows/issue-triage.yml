@@ -50,7 +50,8 @@ jobs:
           GITHUB_TOKEN: ''
         with:
           gemini_api_key: ${{ secrets.GEMINI_API_KEY }}
-          gemini_model: ${{ vars.GEMINI_MODEL }}
+          # Labeling needs little reasoning; the lite model is far less often overloaded (503).
+          gemini_model: ${{ vars.GEMINI_MODEL || 'gemini-3.5-flash-lite' }}
           workflow_name: issue-triage
           github_issue_number: ${{ github.event.issue.number }}
           settings: |-
@@ -59,6 +60,22 @@ jobs:
               "tools": { "core": [] }
             }
           prompt: /issue-triage
+
+      # The action reports API errors as its output, so check it before labeling.
+      - name: Check Gemini output
+        env:
+          RESPONSE: ${{ steps.gemini.outputs.summary }}
+          ERROR: ${{ steps.gemini.outputs.error }}
+        run: |
+          if [ -n "$ERROR" ]; then
+            echo "::error title=Gemini triage failed::Gemini returned an error, see the Run Gemini step log."
+            exit 1
+          fi
+          RESPONSE="${RESPONSE%$'\n'}"
+          if [ -n "$RESPONSE" ] && [[ ! "$RESPONSE" =~ ^[a-z:,\ -]+$ ]]; then
+            echo "::error title=Gemini triage failed::Gemini did not return a label list, see the Run Gemini step log."
+            exit 1
+          fi
 
   label:
     name: Apply labels
