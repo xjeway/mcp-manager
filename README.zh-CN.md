@@ -209,8 +209,8 @@ make dev
 命令行工具 `mcpmgr` 与桌面应用共用同一份 server 列表，在任一端的修改另一端都能看到。可以直接用 `npx` 运行，也可以通过 npm 或 Homebrew 安装：
 
 ```bash
-npx mcpmgr list
-npm install -g mcpmgr
+npx @mcpmgr/cli list
+npm install -g @mcpmgr/cli
 brew install xjeway/mcp-manager/mcpmgr
 ```
 

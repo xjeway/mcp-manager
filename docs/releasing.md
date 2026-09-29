@@ -137,20 +137,20 @@ The Homebrew workflow is intentionally separate from the tag-driven release work
 
 ## npm Publishing
 
-The CLI is published as `mcpmgr` plus one package per platform (`@mcpmgr/darwin-arm64`, `@mcpmgr/linux-x64`, …). npm installs only the platform package that matches the machine, and the `mcpmgr` package's launcher runs its binary. `scripts/npm-packages.mjs` builds the packages from the release binaries and publishes the platform packages before the launcher. Versions already on the registry are skipped, so rerunning a failed job is safe. Prerelease tags publish under the `next` dist-tag instead of `latest`.
+The CLI is published as `@mcpmgr/cli` plus one package per platform (`@mcpmgr/darwin-arm64`, `@mcpmgr/linux-x64`, …); installing `@mcpmgr/cli` gives the `mcpmgr` command. npm rejects an unscoped `mcpmgr` as too similar to the existing `mcp-mgr`, so everything lives under the `@mcpmgr` scope. npm installs only the platform package that matches the machine, and the `@mcpmgr/cli` launcher runs its binary. `scripts/npm-packages.mjs` builds the packages from the release binaries and publishes the platform packages before the launcher. Versions already on the registry are skipped, so rerunning a failed job is safe. Prerelease tags publish under the `next` dist-tag instead of `latest`.
 
 Publishing uses [npm trusted publishing](https://docs.npmjs.com/trusted-publishers): the `publish-npm` job exchanges a GitHub OIDC token, so no npm token is stored in the repository.
 
 One-time setup before the first release that ships the CLI:
 
 1. Create the `mcpmgr` organization on npmjs.com (free for public packages).
-2. Claim every package name with an empty placeholder:
+2. Claim every package name with an empty placeholder. Publishing needs two-factor authentication enabled on the npm account.
 
    ```bash
    node scripts/npm-packages.mjs bootstrap --out /tmp/mcpmgr-placeholders
    ```
 
-   It prints one `npm publish` command per package; run each while logged in to npm.
+   It prints one `npm publish` command for each name not yet on npm; run each while logged in (`npm login`).
 3. For each of the seven packages, open **Settings → Trusted publishing** on npmjs.com and add a GitHub Actions publisher: repository `xjeway/mcp-manager`, workflow `release.yml`.
 
 ## Release Process

@@ -211,8 +211,8 @@ make dev
 A command-line tool, `mcpmgr`, shares the desktop app's server list, so changes made in either show up in the other. Run it with `npx`, or install it with npm or Homebrew:
 
 ```bash
-npx mcpmgr list
-npm install -g mcpmgr
+npx @mcpmgr/cli list
+npm install -g @mcpmgr/cli
 brew install xjeway/mcp-manager/mcpmgr
 ```
 
