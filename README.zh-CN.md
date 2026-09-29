@@ -206,16 +206,24 @@ make dev
 
 ## 命令行（预览）
 
-命令行工具与桌面应用共用同一份 server 列表，在任一端的修改另一端都能看到。命令名为 `mcpmgr`，目前尚未发布，可在源码目录中运行：
+命令行工具 `mcpmgr` 与桌面应用共用同一份 server 列表，在任一端的修改另一端都能看到。可以直接用 `npx` 运行，也可以通过 npm 或 Homebrew 安装：
 
 ```bash
-cargo run --bin mcpmgr -- add context7 -- npx -y @upstash/context7-mcp@latest
-cargo run --bin mcpmgr -- add linear --url https://mcp.linear.app/mcp -a cursor,claude-code
-cargo run --bin mcpmgr -- add --from mcp.json --project
-cargo run --bin mcpmgr -- list
-cargo run --bin mcpmgr -- remove context7 -a codex
-cargo run --bin mcpmgr -- rollback
+npx mcpmgr list
+npm install -g mcpmgr
+brew install xjeway/mcp-manager/mcpmgr
 ```
+
+```bash
+mcpmgr add context7 -- npx -y @upstash/context7-mcp@latest
+mcpmgr add linear --url https://mcp.linear.app/mcp -a cursor,claude-code
+mcpmgr add --from mcp.json --project
+mcpmgr list
+mcpmgr remove context7 -a codex
+mcpmgr rollback
+```
+
+在源码目录中可用 `cargo run --bin mcpmgr -- <命令>` 运行。
 
 在终端中，`add` 会分步引导你选择 server、客户端和用户级或项目级配置，并在写入前列出每个客户端文件将发生的变化。每一步都可以用参数直接回答（`--server`、`--env`、`--app`、`--global`/`--project`、`--yes`）；`--dry-run` 只预览，`--json` 输出机器可读结果。在 Claude Code、Codex 等 AI 编程工具中运行时，会跳过提问并默认写入该工具的配置。
 

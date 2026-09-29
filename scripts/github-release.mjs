@@ -398,14 +398,35 @@ async function uploadUpdaterManifest(releaseId) {
   await uploadReleaseAsset(release, 'latest.json', latestJson, 'application/json')
 }
 
+// Replaces same-named assets so a rerun of a failed build can upload again.
+async function uploadAssets(releaseId, filePaths) {
+  const { owner, repo } = getRepositoryContext()
+  const release = await githubJson(`/repos/${owner}/${repo}/releases/${releaseId}`)
+  const assets = await githubJson(`/repos/${owner}/${repo}/releases/${releaseId}/assets?per_page=100`)
+
+  for (const filePath of filePaths) {
+    const name = path.basename(filePath)
+    const existingAsset = assets.find((asset) => asset.name === name)
+
+    if (existingAsset) {
+      console.log(`Deleting existing ${name}...`)
+      await deleteReleaseAsset(owner, repo, existingAsset.id)
+    }
+
+    console.log(`Uploading ${name}...`)
+    await uploadReleaseAsset(release, name, fs.readFileSync(filePath), 'application/octet-stream')
+  }
+}
+
 function printUsage() {
   console.error('Usage:')
   console.error('  node scripts/github-release.mjs ensure <tag-name>')
   console.error('  node scripts/github-release.mjs upload-updater <release-id>')
+  console.error('  node scripts/github-release.mjs upload-assets <release-id> <file>...')
 }
 
 async function main() {
-  const [command, value] = process.argv.slice(2)
+  const [command, value, ...rest] = process.argv.slice(2)
 
   try {
     if (command === 'ensure') {
@@ -427,6 +448,17 @@ async function main() {
       }
 
       await uploadUpdaterManifest(releaseId)
+      return
+    }
+
+    if (command === 'upload-assets') {
+      const releaseId = Number(value)
+
+      if (!Number.isInteger(releaseId) || releaseId <= 0 || rest.length === 0) {
+        throw new Error('Usage: upload-assets <release-id> <file>...')
+      }
+
+      await uploadAssets(releaseId, rest)
       return
     }
 

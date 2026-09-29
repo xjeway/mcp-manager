@@ -2,6 +2,8 @@ import crypto from 'node:crypto'
 import fs from 'node:fs'
 import path from 'node:path'
 
+import { collectCliFormulaAssets, renderFormula } from './homebrew-formula.mjs'
+
 const REQUIRED_ARCHES = ['arm', 'intel']
 
 function assetArch(assetName) {
@@ -231,6 +233,30 @@ async function publish(args) {
     }),
   )
   console.log(`Rendered Homebrew cask for ${release.tag_name}: ${caskPath}`)
+
+  const cliAssets = collectCliFormulaAssets(release.assets)
+  if (!cliAssets) {
+    console.log(`No CLI archives in ${release.tag_name}; leaving the mcpmgr formula as is.`)
+    return
+  }
+  for (const byArch of Object.values(cliAssets)) {
+    for (const [arch, asset] of Object.entries(byArch)) {
+      byArch[arch] = { name: asset.name, sha256: await sha256ForAsset(asset) }
+    }
+  }
+
+  const formulaPath = path.join(args.tapDir, 'Formula', 'mcpmgr.rb')
+  fs.mkdirSync(path.dirname(formulaPath), { recursive: true })
+  fs.writeFileSync(
+    formulaPath,
+    renderFormula({
+      version,
+      assets: cliAssets,
+      owner: args.owner,
+      repo: args.repo,
+    }),
+  )
+  console.log(`Rendered Homebrew formula for ${release.tag_name}: ${formulaPath}`)
 }
 
 async function main() {

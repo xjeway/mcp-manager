@@ -3,6 +3,8 @@ import path from 'node:path'
 import { describe, expect, it } from 'vitest'
 import YAML from 'yaml'
 
+import { cliTargets } from './cli-targets.mjs'
+
 const repoRoot = path.resolve(import.meta.dirname, '..')
 const workflowPath = path.join(repoRoot, '.github', 'workflows', 'release.yml')
 
@@ -55,9 +57,44 @@ describe('release workflow structure', () => {
     const job = workflow.jobs['publish-homebrew']
 
     expect(job.uses).toBe('./.github/workflows/homebrew.yml')
-    expect(job.needs).toBe('publish-updater')
+    expect(job.needs).toEqual(['build-cli', 'publish-updater'])
     expect(job.with.release_tag).toBe('${{ github.ref_name }}')
     expect(job.secrets.HOMEBREW_TAP_PAT).toBe('${{ secrets.HOMEBREW_TAP_PAT }}')
+  })
+
+  it('builds the CLI for every target the npm and Homebrew packages expect', () => {
+    const workflow = readWorkflow()
+    const job = workflow.jobs['build-cli']
+
+    expect(job.needs).toBe('prepare-release')
+    expect(job.strategy.matrix.include.map((entry) => entry.target).sort()).toEqual(
+      cliTargets.map((entry) => entry.target).sort(),
+    )
+    expect(
+      job.steps.some(
+        (step) =>
+          typeof step.run === 'string' &&
+          step.run.includes('node scripts/github-release.mjs upload-assets') &&
+          step.run.includes('needs.prepare-release.outputs.release_id'),
+      ),
+    ).toBe(true)
+    expect(job.steps.some((step) => step.with?.name === 'mcpmgr-${{ matrix.target }}')).toBe(true)
+  })
+
+  it('publishes npm packages with trusted publishing once the whole release succeeds', () => {
+    const workflow = readWorkflow()
+    const job = workflow.jobs['publish-npm']
+
+    expect(job.needs).toEqual(['build-cli', 'publish-updater'])
+    expect(job.permissions['id-token']).toBe('write')
+    expect(job.steps.some((step) => step.with?.pattern === 'mcpmgr-*')).toBe(true)
+    expect(
+      job.steps.some(
+        (step) => typeof step.run === 'string' && step.run.includes('node scripts/npm-packages.mjs publish'),
+      ),
+    ).toBe(true)
+    // No long-lived npm token: trusted publishing only.
+    expect(JSON.stringify(job)).not.toMatch(/NPM_TOKEN|NODE_AUTH_TOKEN/)
   })
 
   // tauri-action v1 renames includeUpdaterJson, adds the version to .app.tar.gz

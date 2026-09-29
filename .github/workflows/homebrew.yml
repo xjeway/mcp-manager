@@ -1,4 +1,4 @@
-name: Publish Homebrew Cask
+name: Publish Homebrew Cask and Formula
 
 on:
   release:
@@ -48,25 +48,28 @@ jobs:
           token: ${{ secrets.HOMEBREW_TAP_PAT }}
           path: tap
 
-      - name: Render cask
+      - name: Render cask and formula
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           RELEASE_TAG: ${{ github.event.release.tag_name || inputs.release_tag }}
         run: node scripts/homebrew-cask.mjs publish --tap-dir tap --owner xjeway --repo mcp-manager --tag "$RELEASE_TAG"
 
-      - name: Commit cask update
+      - name: Commit tap update
         working-directory: tap
         shell: bash
         env:
           RELEASE_TAG: ${{ github.event.release.tag_name || inputs.release_tag }}
         run: |
-          if [[ -z "$(git status --porcelain)" ]]; then
-            echo "Homebrew cask is already up to date."
+          git add Casks/mcp-manager.rb
+          if [[ -f Formula/mcpmgr.rb ]]; then
+            git add Formula/mcpmgr.rb
+          fi
+          if git diff --cached --quiet; then
+            echo "Homebrew tap is already up to date."
             exit 0
           fi
 
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add Casks/mcp-manager.rb
-          git commit -m "Update mcp-manager cask to $RELEASE_TAG"
+          git commit -m "Update mcp-manager cask and mcpmgr formula to $RELEASE_TAG"
           git push

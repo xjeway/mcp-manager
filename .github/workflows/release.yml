@@ -197,6 +197,92 @@ jobs:
           args: ${{ steps.release_args.outputs.args }}
           includeUpdaterJson: false
 
+  build-cli:
+    name: CLI (${{ matrix.target }})
+    needs: prepare-release
+    strategy:
+      fail-fast: false
+      matrix:
+        # Keep in sync with scripts/cli-targets.mjs.
+        include:
+          - target: aarch64-apple-darwin
+            platform: macos-latest
+          - target: x86_64-apple-darwin
+            platform: macos-latest
+          - target: aarch64-unknown-linux-musl
+            platform: ubuntu-24.04-arm
+          - target: x86_64-unknown-linux-musl
+            platform: ubuntu-22.04
+          - target: aarch64-pc-windows-msvc
+            platform: windows-11-arm
+          - target: x86_64-pc-windows-msvc
+            platform: windows-latest
+
+    runs-on: ${{ matrix.platform }}
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      - name: Install musl tools
+        if: contains(matrix.target, '-linux-musl')
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y musl-tools
+
+      - name: Setup Rust
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: ${{ matrix.target }}
+
+      - name: Cache Rust dependencies
+        uses: swatinem/rust-cache@v2
+        with:
+          key: cli-${{ matrix.target }}
+
+      - name: Build mcpmgr
+        shell: bash
+        env:
+          # Static CRT so the Windows binary runs without the VC++ redistributable.
+          RUSTFLAGS: ${{ contains(matrix.target, '-windows-msvc') && '-C target-feature=+crt-static' || '' }}
+        run: cargo build --release --locked -p mcp-manager-cli --target ${{ matrix.target }}
+
+      - name: Package archive
+        id: package
+        shell: bash
+        env:
+          TARGET: ${{ matrix.target }}
+        run: |
+          bin_dir="target/$TARGET/release"
+          mkdir -p cli-dist
+          cp LICENSE "$bin_dir/"
+          if [[ "$TARGET" == *-windows-msvc ]]; then
+            archive="mcpmgr-$TARGET.zip"
+            pwsh -NoProfile -Command "Compress-Archive -Path '$bin_dir/mcpmgr.exe','$bin_dir/LICENSE' -DestinationPath 'cli-dist/$archive'"
+          else
+            archive="mcpmgr-$TARGET.tar.gz"
+            tar -C "$bin_dir" -czf "cli-dist/$archive" mcpmgr LICENSE
+          fi
+          echo "archive=cli-dist/$archive" >> "$GITHUB_OUTPUT"
+
+      - name: Upload binary for npm
+        uses: actions/upload-artifact@v7
+        with:
+          name: mcpmgr-${{ matrix.target }}
+          path: target/${{ matrix.target }}/release/mcpmgr${{ contains(matrix.target, '-windows-msvc') && '.exe' || '' }}
+          if-no-files-found: error
+          retention-days: 7
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v7
+        with:
+          node-version: 20
+
+      - name: Upload archive to release
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: node scripts/github-release.mjs upload-assets "${{ needs.prepare-release.outputs.release_id }}" "${{ steps.package.outputs.archive }}"
+
   publish-updater:
     name: Publish updater metadata
     needs:
@@ -218,9 +304,45 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: node scripts/github-release.mjs upload-updater "${{ needs.prepare-release.outputs.release_id }}"
 
+  publish-npm:
+    name: Publish npm packages
+    needs:
+      - build-cli
+      - publish-updater
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      # npm trusted publishing exchanges this OIDC token; no npm secret is stored.
+      id-token: write
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v7
+        with:
+          # Trusted publishing needs npm 11.5.1 or later, which ships with Node 24.
+          node-version: 24
+          registry-url: https://registry.npmjs.org
+
+      - name: Download CLI binaries
+        uses: actions/download-artifact@v8
+        with:
+          pattern: mcpmgr-*
+          path: cli-bin
+
+      - name: Build npm packages
+        run: node scripts/npm-packages.mjs build --tag "${{ github.ref_name }}" --binaries cli-bin --out npm-dist
+
+      - name: Publish npm packages
+        run: node scripts/npm-packages.mjs publish --out npm-dist
+
   publish-homebrew:
-    name: Publish Homebrew cask
-    needs: publish-updater
+    name: Publish Homebrew cask and formula
+    needs:
+      - build-cli
+      - publish-updater
     # Same rule as isPrereleaseRef: tags like v1.2.3-beta.1 are prereleases.
     if: ${{ !contains(github.ref_name, '-') }}
     uses: ./.github/workflows/homebrew.yml
