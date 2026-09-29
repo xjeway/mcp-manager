@@ -4,6 +4,7 @@ use super::cache::fnv1a;
 use super::{MarketplaceError, MarketplaceSource};
 use std::fs;
 use std::path::PathBuf;
+use std::sync::atomic::{AtomicU64, Ordering};
 
 /// Longest label kept for a user source, so the source tabs stay readable.
 const MAX_LABEL_CHARS: usize = 40;
@@ -39,8 +40,14 @@ impl SourceStore {
             fs::create_dir_all(dir).map_err(io_error)?;
         }
         // Written aside and renamed over the target, so a failed write never leaves a
-        // truncated file. Callers hold the source list lock, so the name cannot clash.
-        let temp = self.path.with_extension("json.tmp");
+        // truncated file. The name is unique per process and write, so saves from other
+        // app instances never share a temporary file.
+        static NEXT: AtomicU64 = AtomicU64::new(0);
+        let temp = self.path.with_extension(format!(
+            "json.{}-{}.tmp",
+            std::process::id(),
+            NEXT.fetch_add(1, Ordering::Relaxed)
+        ));
         let result = fs::write(&temp, content).and_then(|()| fs::rename(&temp, &self.path));
         if result.is_err() {
             let _ = fs::remove_file(&temp);
@@ -188,13 +195,30 @@ mod tests {
     }
 
     #[test]
+    fn saving_leaves_no_temporary_files() {
+        let dir = tempfile::tempdir().unwrap();
+        let store = SourceStore::new(dir.path().join("sources.json"));
+        store.save(&[]).unwrap();
+        store.save(&[]).unwrap();
+        let names: Vec<_> = fs::read_dir(dir.path())
+            .unwrap()
+            .map(|entry| entry.unwrap().file_name())
+            .collect();
+        assert_eq!(names, ["sources.json"]);
+    }
+
+    #[cfg(unix)]
+    #[test]
     fn a_failed_save_keeps_the_previous_file() {
+        use std::os::unix::fs::PermissionsExt;
         let dir = tempfile::tempdir().unwrap();
         let path = dir.path().join("sources.json");
         fs::write(&path, "[]").unwrap();
-        // A directory where the temporary file should go makes the write fail.
-        fs::create_dir(dir.path().join("sources.json.tmp")).unwrap();
-        assert!(SourceStore::new(path.clone()).save(&[]).is_err());
+        // A read-only directory makes writing the temporary file fail.
+        fs::set_permissions(dir.path(), fs::Permissions::from_mode(0o555)).unwrap();
+        let result = SourceStore::new(path.clone()).save(&[]);
+        fs::set_permissions(dir.path(), fs::Permissions::from_mode(0o755)).unwrap();
+        assert!(result.is_err());
         assert_eq!(fs::read_to_string(&path).unwrap(), "[]");
     }
 
