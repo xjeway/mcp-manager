@@ -111,7 +111,7 @@ pub fn atomic_write_bytes(path: &Path, content: &[u8]) -> Result<(), String> {
     ensure_parent(path)?;
     let mut tmp = path.as_os_str().to_owned();
     tmp.push(format!(
-        ".{}.{}.tmp",
+        ".{TEMP_MARKER}{}-{}.tmp",
         std::process::id(),
         NEXT_TEMP_ID.fetch_add(1, Ordering::Relaxed)
     ));
@@ -124,8 +124,13 @@ pub fn atomic_write_bytes(path: &Path, content: &[u8]) -> Result<(), String> {
     })
 }
 
-/// How old a leftover `<file>.<pid>.<n>.tmp` must be before a later write
-/// deletes it, so a write still in progress in another process is never hit.
+/// Marks a temporary file as this app's own, so cleanup never deletes another
+/// program's file that happens to end in `.<digits>.<digits>.tmp`. It is part of
+/// the name, so it survives the crash that left the file behind.
+const TEMP_MARKER: &str = "mcp-manager-";
+
+/// How old a leftover `<file>.mcp-manager-<pid>-<n>.tmp` must be before a later
+/// write deletes it, so a write still in progress in another process is never hit.
 const STALE_TEMP_AGE: Duration = Duration::from_secs(60 * 60);
 
 /// Deletes temporary files of `path` that a killed process left behind
@@ -138,7 +143,7 @@ fn remove_stale_temp_files(path: &Path) {
     let Ok(entries) = fs::read_dir(parent) else {
         return;
     };
-    let prefix = format!("{name}.");
+    let prefix = format!("{name}.{TEMP_MARKER}");
     for entry in entries.flatten() {
         let file_name = entry.file_name();
         let Some(file_name) = file_name.to_str() else {
@@ -147,7 +152,7 @@ fn remove_stale_temp_files(path: &Path) {
         let is_temp = file_name
             .strip_prefix(&prefix)
             .and_then(|rest| rest.strip_suffix(".tmp"))
-            .and_then(|ids| ids.split_once('.'))
+            .and_then(|ids| ids.split_once('-'))
             .is_some_and(|(pid, n)| {
                 !pid.is_empty()
                     && !n.is_empty()
@@ -652,14 +657,16 @@ mod tests {
     fn a_write_removes_only_old_leftover_temp_files() {
         let dir = tempfile::tempdir().expect("tmpdir");
         let target = dir.path().join("mcp.json");
-        let old = dir.path().join("mcp.json.4242.0.tmp");
-        let recent = dir.path().join("mcp.json.4242.1.tmp");
+        let old = dir.path().join("mcp.json.mcp-manager-4242-0.tmp");
+        let recent = dir.path().join("mcp.json.mcp-manager-4242-1.tmp");
         let unrelated = dir.path().join("mcp.json.notes.tmp");
-        for file in [&old, &recent, &unrelated] {
+        // Same digits pattern but written by some other program: not ours to delete.
+        let foreign = dir.path().join("mcp.json.4242.0.tmp");
+        for file in [&old, &recent, &unrelated, &foreign] {
             fs::write(file, "x").expect("seed");
         }
         let two_hours_ago = std::time::SystemTime::now() - std::time::Duration::from_secs(7200);
-        for file in [&old, &unrelated] {
+        for file in [&old, &unrelated, &foreign] {
             fs::File::options()
                 .write(true)
                 .open(file)
@@ -672,6 +679,7 @@ mod tests {
         assert!(!old.exists());
         assert!(recent.exists(), "might belong to a write in progress");
         assert!(unrelated.exists(), "not one of our temp file names");
+        assert!(foreign.exists(), "lacks the mcp-manager marker");
         assert_eq!(fs::read_to_string(&target).expect("read"), "{}");
     }
 
