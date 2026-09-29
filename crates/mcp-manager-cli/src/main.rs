@@ -42,7 +42,9 @@ fn main() -> ExitCode {
             ExitCode::FAILURE
         }
         Err(Failure::Error(message)) => {
-            report(&message, &session);
+            // The prefix is for the app to recognise the error, not for people.
+            let too_new = format!("{}: ", mcp_manager_core::store::TOO_NEW_ERROR);
+            report(message.strip_prefix(&too_new).unwrap_or(&message), &session);
             ExitCode::FAILURE
         }
     }

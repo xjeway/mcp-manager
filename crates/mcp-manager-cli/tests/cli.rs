@@ -419,3 +419,35 @@ fn rollback_refuses_to_discard_a_later_edit_of_a_client_file() {
         "nothing was rolled back"
     );
 }
+
+#[test]
+fn keeps_what_a_newer_version_saved_and_will_not_write_a_newer_format() {
+    let sandbox = Sandbox::new();
+    let yaml = sandbox.servers_yaml();
+    fs::create_dir_all(yaml.parent().unwrap()).unwrap();
+    fs::write(
+        &yaml,
+        "version: 1\nprofiles: [work]\nservers:\n- id: linear\n  name: linear\n  enabled: true\n  \
+         tags: [work]\n  transport:\n    type: http\n    url: https://mcp.linear.app/mcp\n  \
+         apps:\n    cursor: false\n    zed: true\n",
+    )
+    .unwrap();
+
+    assert_eq!(sandbox.listed_ids(), ["linear"]);
+    sandbox.ok(ADD_CTX);
+    let saved = fs::read_to_string(&yaml).unwrap();
+    for kept in ["profiles:", "tags:", "zed: true"] {
+        assert!(saved.contains(kept), "{kept} was dropped:\n{saved}");
+    }
+
+    let newer = saved.replace("version: 1", "version: 2");
+    fs::write(&yaml, &newer).unwrap();
+    let output = sandbox.run(&["remove", "ctx", "-y"]);
+    assert!(!output.status.success());
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    assert!(stderr.contains("newer version"), "{stderr}");
+    assert!(!stderr.contains("CONFIG_TOO_NEW"), "{stderr}");
+    assert_eq!(fs::read_to_string(&yaml).unwrap(), newer);
+    assert!(sandbox.cursor_servers().get("ctx").is_some());
+    assert!(sandbox.listed_ids().contains(&"ctx".to_string()));
+}

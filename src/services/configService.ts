@@ -121,6 +121,17 @@ export class ConfigConflictError extends Error {
   }
 }
 
+/** Prefix of the backend error for servers.yaml saved in a newer format than this build writes. */
+const TOO_NEW_ERROR = 'CONFIG_TOO_NEW'
+
+/** Thrown by `saveConfig` when a newer MCP Manager or mcpmgr saved servers.yaml; this build only reads it. */
+export class ConfigTooNewError extends Error {
+  constructor(message: string) {
+    super(message)
+    this.name = 'ConfigTooNewError'
+  }
+}
+
 interface StoredText {
   content: string
   fingerprint: string
@@ -161,6 +172,9 @@ export async function saveConfig(config: MCPConfig): Promise<void> {
   } catch (error) {
     if (String(error).startsWith(CONFLICT_ERROR)) {
       throw new ConfigConflictError(String(error))
+    }
+    if (String(error).startsWith(TOO_NEW_ERROR)) {
+      throw new ConfigTooNewError(String(error))
     }
     throw error
   }

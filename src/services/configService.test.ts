@@ -49,6 +49,13 @@ describe('configService fingerprint checks', () => {
     await expect(saveConfig(EMPTY)).rejects.toBe('disk full')
   })
 
+  it('turns a newer-format refusal into ConfigTooNewError', async () => {
+    const { ConfigTooNewError, saveConfig } = await freshService()
+
+    invokeMock.mockRejectedValueOnce('CONFIG_TOO_NEW: servers.yaml was saved by a newer version')
+    await expect(saveConfig(EMPTY)).rejects.toBeInstanceOf(ConfigTooNewError)
+  })
+
   it('reports an outside change only when the fingerprint moved', async () => {
     const { hasExternalConfigChange, loadConfig } = await freshService()
     expect(await hasExternalConfigChange()).toBe(false)

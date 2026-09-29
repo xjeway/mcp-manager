@@ -163,6 +163,8 @@ const enUS = {
   syncLocalConfig: 'Import Local Config',
   syncFailedDetail: 'Save and sync failed: {{error}}',
   configChangedExternally: 'The server list was changed outside MCP Manager (for example by the CLI). Loaded the latest version.',
+  configTooNew:
+    'The server list was saved by a newer version of MCP Manager or mcpmgr. Update MCP Manager to make changes; nothing was saved.',
   configConflictReloaded:
     'The server list was changed outside MCP Manager, so this change was not saved. Loaded the latest version; please make the change again.',
   autoImportSummary: 'Auto-detected {{count}} config sources on launch and imported {{servers}} MCP servers into unified YAML',

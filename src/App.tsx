@@ -29,6 +29,7 @@ import { setMarketplaceEnabled as syncMarketplaceEnabled } from './services/mark
 import {
   applyConfig,
   ConfigConflictError,
+  ConfigTooNewError,
   detectInstalledApps,
   hasExternalConfigChange,
   getCurrentWorkspace,
@@ -256,6 +257,8 @@ function MainApp() {
       } catch (error) {
         if (error instanceof ConfigConflictError) {
           await reloadConfigFromDisk('warning', t('configConflictReloaded'))
+        } else if (error instanceof ConfigTooNewError) {
+          pushFeedback('error', t('configTooNew'))
         } else {
           pushFeedback('error', t('saveFailedDetail', { error: String(error) }))
         }
@@ -530,6 +533,8 @@ function MainApp() {
     } catch (error) {
       if (error instanceof ConfigConflictError) {
         await reloadConfigFromDisk('warning', t('configConflictReloaded'))
+      } else if (error instanceof ConfigTooNewError) {
+        pushFeedback('error', t('configTooNew'))
       } else {
         pushFeedback('error', t('syncFailedDetail', { error: String(error) }))
       }
