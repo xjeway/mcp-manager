@@ -34,10 +34,18 @@ impl SourceStore {
     pub fn save(&self, sources: &[MarketplaceSource]) -> Result<(), MarketplaceError> {
         let content = serde_json::to_string_pretty(sources)
             .map_err(|e| MarketplaceError::Parse(e.to_string()))?;
+        let io_error = |e: std::io::Error| MarketplaceError::Network(e.to_string());
         if let Some(dir) = self.path.parent() {
-            fs::create_dir_all(dir).map_err(|e| MarketplaceError::Network(e.to_string()))?;
+            fs::create_dir_all(dir).map_err(io_error)?;
         }
-        fs::write(&self.path, content).map_err(|e| MarketplaceError::Network(e.to_string()))
+        // Written aside and renamed over the target, so a failed write never leaves a
+        // truncated file. Callers hold the source list lock, so the name cannot clash.
+        let temp = self.path.with_extension("json.tmp");
+        let result = fs::write(&temp, content).and_then(|()| fs::rename(&temp, &self.path));
+        if result.is_err() {
+            let _ = fs::remove_file(&temp);
+        }
+        result.map_err(io_error)
     }
 }
 
@@ -177,6 +185,17 @@ mod tests {
                 ..source
             }]
         );
+    }
+
+    #[test]
+    fn a_failed_save_keeps_the_previous_file() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("sources.json");
+        fs::write(&path, "[]").unwrap();
+        // A directory where the temporary file should go makes the write fail.
+        fs::create_dir(dir.path().join("sources.json.tmp")).unwrap();
+        assert!(SourceStore::new(path.clone()).save(&[]).is_err());
+        assert_eq!(fs::read_to_string(&path).unwrap(), "[]");
     }
 
     #[test]

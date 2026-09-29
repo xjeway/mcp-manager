@@ -109,7 +109,12 @@ impl<H: HttpClient> Marketplace<H> {
         let probe = self.fetch_page(&source, Some(SEARCH_PROBE), None, 1)?;
         source.server_search = probe.entries.is_empty();
 
+        // Checked again under the lock: another add may have finished while this one
+        // was probing.
         let mut custom = self.custom.lock().unwrap();
+        if custom.iter().any(|existing| existing.id == source.id) {
+            return Err(MarketplaceError::DuplicateSource(source.base_url));
+        }
         let mut updated = custom.clone();
         updated.push(source.clone());
         self.store.save(&updated)?;
@@ -672,6 +677,32 @@ mod tests {
             Err(MarketplaceError::Network("timed out".to_string()))
         );
         assert_eq!(marketplace.sources().len(), 2, "nothing was saved");
+    }
+
+    #[test]
+    fn an_add_that_loses_the_race_is_a_duplicate() {
+        let page = cursor_registry_page(&["a/one"], None);
+        let http = FakeHttp::default().route("mcp.acme.dev", Ok(&page));
+        let dir = tempfile::tempdir().unwrap();
+        let marketplace = open_marketplace(&http, &dir);
+        let barrier = std::sync::Barrier::new(2);
+        let results: Vec<_> = std::thread::scope(|scope| {
+            let handles: Vec<_> = (0..2)
+                .map(|_| {
+                    scope.spawn(|| {
+                        barrier.wait();
+                        marketplace.add_source("", "https://mcp.acme.dev")
+                    })
+                })
+                .collect();
+            handles.into_iter().map(|h| h.join().unwrap()).collect()
+        });
+        assert_eq!(results.iter().filter(|r| r.is_ok()).count(), 1);
+        assert!(results
+            .iter()
+            .any(|r| matches!(r, Err(MarketplaceError::DuplicateSource(_)))));
+        assert_eq!(marketplace.sources().len(), 3);
+        assert_eq!(open_marketplace(&http, &dir).sources().len(), 3);
     }
 
     #[test]
