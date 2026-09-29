@@ -52,8 +52,9 @@ function isKnownApp(app: unknown): boolean {
 }
 
 // The editor only offers the clients this build knows (its JSON mode rebuilds
-// `apps` and `placements` from them), so entries for any other client are kept
-// from the saved server; known clients follow the edit, removals included.
+// `apps` and `placements` from them), so entries for any other client always
+// come from the saved server, even if a stale draft still carries an older
+// value; known clients follow the edit, removals included.
 function withUnknownClients(previous: Fields, merged: Fields): Fields {
   const unknownApps = isFields(previous.apps)
     ? Object.fromEntries(Object.entries(previous.apps).filter(([app]) => !isKnownApp(app)))
@@ -63,7 +64,14 @@ function withUnknownClients(previous: Fields, merged: Fields): Fields {
     : []
   return {
     ...(Object.keys(unknownApps).length > 0 || isFields(merged.apps)
-      ? { apps: { ...unknownApps, ...(isFields(merged.apps) ? merged.apps : {}) } }
+      ? {
+          apps: {
+            ...unknownApps,
+            ...(isFields(merged.apps)
+              ? Object.fromEntries(Object.entries(merged.apps).filter(([app]) => isKnownApp(app)))
+              : {}),
+          },
+        }
       : {}),
     ...(unknownPlacements.length > 0
       ? {

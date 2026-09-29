@@ -33,9 +33,15 @@ export function ConfigProblemDialog({
   const reloadRef = useRef<HTMLButtonElement>(null)
 
   // Focus starts on Reload, the one choice that changes nothing, so a stray
-  // Enter never starts over.
+  // Enter never starts over, and returns to where it was once the dialog closes.
   useEffect(() => {
+    const previous = document.activeElement
     ;(reloadRef.current ?? dialogRef.current)?.focus()
+    return () => {
+      if (previous instanceof HTMLElement && previous.isConnected) {
+        previous.focus()
+      }
+    }
   }, [])
 
   // The app behind is covered, so Tab cycles through the dialog's buttons.

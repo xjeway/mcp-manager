@@ -173,4 +173,15 @@ describe('pendingChanges', () => {
       placements: [{ app: 'zed', scope: 'user', enabled: true }],
     })
   })
+
+  it('takes unknown clients from the saved server over a stale draft', () => {
+    // mcpmgr turned zed off while the editor still held zed: true.
+    const saved = { id: 'a', apps: { cursor: true, zed: false } }
+    const edited = { id: 'a', apps: { cursor: true, zed: true } }
+
+    expect(carryUnknownFields<Record<string, unknown>>(saved, edited)).toEqual({
+      id: 'a',
+      apps: { cursor: true, zed: false },
+    })
+  })
 })

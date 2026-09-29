@@ -15,8 +15,12 @@ vi.mock('react-i18next', () => ({
 
 let container: HTMLDivElement
 let root: Root
+let trigger: HTMLButtonElement
 
 beforeEach(() => {
+  trigger = document.createElement('button')
+  document.body.appendChild(trigger)
+  trigger.focus()
   container = document.createElement('div')
   document.body.appendChild(container)
   root = createRoot(container)
@@ -39,6 +43,7 @@ beforeEach(() => {
 afterEach(() => {
   act(() => root.unmount())
   container.remove()
+  trigger.remove()
 })
 
 function button(label: string) {
@@ -62,5 +67,11 @@ describe('ConfigProblemDialog focus', () => {
 
     tab(true)
     expect(document.activeElement).toBe(button('configUnreadableReload'))
+  })
+
+  it('gives focus back to what had it once the dialog closes', () => {
+    act(() => root.unmount())
+    expect(document.activeElement).toBe(trigger)
+    root = createRoot(container)
   })
 })
