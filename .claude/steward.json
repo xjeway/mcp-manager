@@ -1,0 +1,15 @@
+{
+  "verify": ["npm install --no-audit --no-fund", "npm run build", "npm test", "cargo test --workspace"],
+  "verifyTimeoutSec": 2400,
+  "hotFiles": {
+    "package-lock.json": "regenerate:npm install --package-lock-only --no-audit --no-fund",
+    "Cargo.lock": "regenerate:cargo metadata --format-version 1 --offline > /dev/null"
+  },
+  "approval": {
+    "mode": "risky",
+    "riskyPaths": [".github/*", "src-tauri/tauri.conf.json", "src-tauri/capabilities/*"],
+    "riskyWhenDeletingFiles": true,
+    "rules": ["删除或下线现有功能", "修改权限、鉴权或安全相关逻辑", "修改发布、签名或版本号流程"]
+  },
+  "promote": { "everyNMerges": 5 }
+}
