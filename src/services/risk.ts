@@ -15,8 +15,18 @@ export function sendsHeadersInsecurely(transport: MCPServer['transport']): boole
   const authority = rest.split(/[/?#]/)[0]
   const hostPort = authority.split('@').pop() ?? ''
   const host = (hostPort.startsWith('[') ? `${hostPort.split(']')[0]}]` : hostPort.split(':')[0]).toLowerCase()
-  const loopback = host === 'localhost' || host.endsWith('.localhost') || host.startsWith('127.') || host === '[::1]'
+  // Match real addresses, not prefixes: `127.evil.com` is a remote host.
+  const loopback = host === 'localhost' || host.endsWith('.localhost') || isLoopbackIpv4(host) || host === '[::1]'
   return !loopback
+}
+
+function isLoopbackIpv4(host: string): boolean {
+  const octets = host.split('.')
+  return (
+    octets.length === 4 &&
+    octets[0] === '127' &&
+    octets.every((octet) => /^\d{1,3}$/.test(octet) && Number(octet) <= 255)
+  )
 }
 
 /** A header name (lowercased) that appears more than once ignoring case; header names are case-insensitive. */

@@ -48,8 +48,16 @@ describe('evaluateApplyRisks', () => {
       remote('loopback', 'http://127.0.0.1:3000/mcp', { 'X-Key': 'k' }),
       remote('ipv6', 'http://[::1]:3000/mcp', { 'X-Key': 'k' }),
       remote('plain', 'http://mcp.example.com/mcp', {}),
+      // Hostnames that merely look like loopback are remote.
+      remote('lookalike', 'http://127.evil.com/mcp', { Authorization: 'Bearer t' }),
+      remote('bad-octet', 'http://127.0.0.256/mcp', { Authorization: 'Bearer t' }),
+      remote('loopback-range', 'http://127.1.2.3/mcp', { Authorization: 'Bearer t' }),
     ])
-    expect(summary.blockingErrors).toEqual(['server leaky 的请求头会以明文发送，请改用 https:// 地址'])
+    expect(summary.blockingErrors).toEqual([
+      'server leaky 的请求头会以明文发送，请改用 https:// 地址',
+      'server lookalike 的请求头会以明文发送，请改用 https:// 地址',
+      'server bad-octet 的请求头会以明文发送，请改用 https:// 地址',
+    ])
   })
 
   it('blocks header names that differ only by case', () => {

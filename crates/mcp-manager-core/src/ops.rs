@@ -450,13 +450,34 @@ mod tests {
                 with_headers("loopback", "http://127.0.0.1:3000/mcp", &[("X-Key", "k")]),
                 with_headers("ipv6", "http://[::1]:3000/mcp", &[("X-Key", "k")]),
                 with_headers("plain", "http://mcp.example.com/mcp", &[]),
+                // Hostnames that merely look like loopback are remote.
+                with_headers(
+                    "lookalike",
+                    "http://127.evil.com/mcp",
+                    &[("Authorization", "Bearer t")],
+                ),
+                with_headers(
+                    "bad-octet",
+                    "http://127.0.0.256/mcp",
+                    &[("Authorization", "Bearer t")],
+                ),
+                with_headers(
+                    "loopback-range",
+                    "http://127.1.2.3/mcp",
+                    &[("Authorization", "Bearer t")],
+                ),
             ],
+        };
+        let insecure = |id: &str| Issue::InsecureHeaders {
+            server_id: id.to_string(),
         };
         assert_eq!(
             validate(&config).blocking_errors,
-            vec![Issue::InsecureHeaders {
-                server_id: "leaky".to_string()
-            }]
+            vec![
+                insecure("leaky"),
+                insecure("lookalike"),
+                insecure("bad-octet")
+            ]
         );
     }
 

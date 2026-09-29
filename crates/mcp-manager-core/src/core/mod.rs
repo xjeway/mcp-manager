@@ -164,10 +164,17 @@ impl TransportSpec {
             host_port.split(':').next().unwrap_or_default().to_string()
         }
         .to_ascii_lowercase();
+        // Parse IPs rather than match prefixes: `127.evil.com` is a remote host.
         let loopback = host == "localhost"
             || host.ends_with(".localhost")
-            || host.starts_with("127.")
-            || host == "[::1]";
+            || host
+                .parse::<std::net::Ipv4Addr>()
+                .is_ok_and(|ip| ip.is_loopback())
+            || host
+                .strip_prefix('[')
+                .and_then(|h| h.strip_suffix(']'))
+                .and_then(|h| h.parse::<std::net::Ipv6Addr>().ok())
+                .is_some_and(|ip| ip.is_loopback());
         !loopback
     }
 
