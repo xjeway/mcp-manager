@@ -207,19 +207,22 @@ mod tests {
         assert_eq!(names, ["sources.json"]);
     }
 
-    #[cfg(unix)]
     #[test]
-    fn a_failed_save_keeps_the_previous_file() {
-        use std::os::unix::fs::PermissionsExt;
+    fn a_failed_save_leaves_the_target_and_no_temporary_file() {
         let dir = tempfile::tempdir().unwrap();
         let path = dir.path().join("sources.json");
-        fs::write(&path, "[]").unwrap();
-        // A read-only directory makes writing the temporary file fail.
-        fs::set_permissions(dir.path(), fs::Permissions::from_mode(0o555)).unwrap();
-        let result = SourceStore::new(path.clone()).save(&[]);
-        fs::set_permissions(dir.path(), fs::Permissions::from_mode(0o755)).unwrap();
-        assert!(result.is_err());
-        assert_eq!(fs::read_to_string(&path).unwrap(), "[]");
+        // Renaming a file over a non-empty directory fails on every platform and
+        // regardless of privileges, unlike a read-only directory.
+        fs::create_dir(&path).unwrap();
+        fs::write(path.join("keep"), "x").unwrap();
+
+        assert!(SourceStore::new(path.clone()).save(&[]).is_err());
+        assert_eq!(fs::read_to_string(path.join("keep")).unwrap(), "x");
+        let names: Vec<_> = fs::read_dir(dir.path())
+            .unwrap()
+            .map(|entry| entry.unwrap().file_name())
+            .collect();
+        assert_eq!(names, ["sources.json"]);
     }
 
     #[test]
