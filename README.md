@@ -28,7 +28,7 @@
 
 - Keep a unified MCP workspace for all configured servers
 - Import existing entries from local client configuration
-- Find servers in the GitHub MCP Registry or the official MCP Registry and add them in a few clicks
+- Find servers in the GitHub MCP Registry, the official MCP Registry, or any registry you add that implements the MCP Registry API, and add them in a few clicks
 - Edit servers in form mode or raw JSON mode
 - Apply generated configuration to multiple supported clients
 - Review risky writes before files change
@@ -237,7 +237,7 @@ In a terminal, `add` walks you through choosing servers, clients and user or pro
 
 ### Network Access
 
-MCP Manager only goes online to check for updates and, while the marketplace page is open, to query MCP registries. Registry results are cached for 6 hours so the marketplace still works offline with the last data. Turn the marketplace off under **Settings → Online marketplace** to stop those requests entirely.
+MCP Manager only goes online to check for updates and, while the marketplace page is open, to query MCP registries. Registry results are cached: the marketplace opens from the cache and updates it in the background after 6 hours, and still works offline with the last data. Adding a source under **Settings → Marketplace sources** sends one check request to it. Turn the marketplace off under **Settings → Online marketplace** to stop those requests entirely.
 
 ## Scope
 

@@ -14,6 +14,8 @@ pub(super) struct ParsedPage {
     pub entries: Vec<MarketplaceEntry>,
     pub next_cursor: Option<String>,
     pub skipped: usize,
+    /// Page count reported by sources that also support page-number paging.
+    pub total_pages: Option<usize>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -46,8 +48,7 @@ const OFFICIAL_META: &str = "io.modelcontextprotocol.registry/official";
 const PUBLISHER_META: &str = "io.modelcontextprotocol.registry/publisher-provided";
 const README_EXCERPT_CHARS: usize = 600;
 
-/// Builds a standard Registry API request. Only `limit` is used for page size: the
-/// GitHub registry switches to page-number paging without a cursor if it sees `per_page`.
+/// Builds a standard Registry API request that pages by cursor.
 pub(super) fn search_url(
     source: &MarketplaceSource,
     query: Option<&str>,
@@ -64,8 +65,33 @@ pub(super) fn search_url(
     if let Some(cursor) = cursor.filter(|c| !c.is_empty()) {
         params.push(("cursor", cursor.to_string()));
     }
+    registry_url(source, &params)
+}
+
+/// Builds a request for one page of a full list. `per_page` and `page` switch the GitHub
+/// registry to page-number paging, which reports `total_pages` so the remaining pages
+/// can be fetched at once; registries that only page by cursor ignore both and honour
+/// `limit` and `cursor` instead.
+pub(super) fn full_list_url(
+    source: &MarketplaceSource,
+    page: usize,
+    cursor: Option<&str>,
+) -> String {
+    let mut params = vec![
+        ("version", "latest".to_string()),
+        ("limit", FULL_LIST_PAGE_SIZE.to_string()),
+        ("per_page", FULL_LIST_PAGE_SIZE.to_string()),
+        ("page", page.to_string()),
+    ];
+    if let Some(cursor) = cursor.filter(|c| !c.is_empty()) {
+        params.push(("cursor", cursor.to_string()));
+    }
+    registry_url(source, &params)
+}
+
+fn registry_url(source: &MarketplaceSource, params: &[(&str, String)]) -> String {
     let base = format!("{}/v0/servers", source.base_url.trim_end_matches('/'));
-    reqwest::Url::parse_with_params(&base, &params)
+    reqwest::Url::parse_with_params(&base, params)
         .map(String::from)
         .unwrap_or(base)
 }
@@ -103,11 +129,16 @@ pub(super) fn parse_page(source_id: &str, body: &str) -> Result<ParsedPage, Mark
         .and_then(|cursor| cursor.as_str())
         .filter(|cursor| !cursor.is_empty())
         .map(str::to_string);
+    let total_pages = metadata
+        .and_then(|m| m.get("total_pages").or_else(|| m.get("totalPages")))
+        .and_then(|pages| pages.as_u64())
+        .map(|pages| pages as usize);
 
     Ok(ParsedPage {
         entries: entries.into_iter().map(|(entry, _)| entry).collect(),
         next_cursor,
         skipped,
+        total_pages,
     })
 }
 
@@ -332,6 +363,7 @@ mod tests {
         assert_eq!(page.entries.len(), 6);
         assert_eq!(page.skipped, 0);
         assert_eq!(page.next_cursor.as_deref(), Some("page-2"));
+        assert_eq!(page.total_pages, Some(2));
 
         let context7 = entry(&page, "io.github.upstash/context7");
         assert_eq!(context7.source_id, "github");
@@ -425,9 +457,12 @@ mod tests {
             "https://registry.modelcontextprotocol.io/v0/servers?version=latest&limit=30&cursor=a%2Fb%3A1.0"
         );
         assert_eq!(
-            search_url(&source("github"), None, None, FULL_LIST_PAGE_SIZE),
-            // No `per_page`: GitHub switches to page-number paging and drops the cursor.
-            "https://api.mcp.github.com/2025-09-15/v0/servers?version=latest&limit=100"
+            full_list_url(&source("github"), 2, None),
+            "https://api.mcp.github.com/2025-09-15/v0/servers?version=latest&limit=100&per_page=100&page=2"
+        );
+        assert_eq!(
+            full_list_url(&source("official"), 2, Some("a/b:1.0")),
+            "https://registry.modelcontextprotocol.io/v0/servers?version=latest&limit=100&per_page=100&page=2&cursor=a%2Fb%3A1.0"
         );
     }
 

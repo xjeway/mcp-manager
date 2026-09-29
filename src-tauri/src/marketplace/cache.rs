@@ -42,7 +42,7 @@ impl Cache {
 }
 
 /// Stable across Rust releases, unlike `DefaultHasher`, so cache files stay valid.
-fn fnv1a(value: &str) -> u64 {
+pub(super) fn fnv1a(value: &str) -> u64 {
     value.bytes().fold(0xcbf2_9ce4_8422_2325, |hash, byte| {
         (hash ^ u64::from(byte)).wrapping_mul(0x0100_0000_01b3)
     })
