@@ -396,6 +396,8 @@ function MainApp() {
     // Changes are saved as they are made, so picking up an outside edit never
     // discards anything here; an open editor draft is separate state and survives.
     const handleFocus = async () => {
+      // The CLI may have recorded (or undone) a change meanwhile.
+      void refreshRollbackDepth()
       try {
         if (await hasExternalConfigChange()) {
           await reloadConfigFromDisk('info', t('configChangedExternally'))

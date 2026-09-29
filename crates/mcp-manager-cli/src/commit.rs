@@ -8,7 +8,7 @@ use mcp_manager_core::ops::{validate, Issue};
 use mcp_manager_core::store;
 use mcp_manager_core::workflow::{self, ChangeAction, PlannedChange};
 use serde::Serialize;
-use std::cell::RefCell;
+use std::cell::{Cell, RefCell};
 use std::collections::BTreeMap;
 
 pub struct Change {
@@ -71,6 +71,8 @@ pub fn commit(session: &Session, change: Change, dry_run: bool) -> Outcome<bool>
     // they are written.
     let client_files = RefCell::new(None);
     let backups = RefCell::new(Vec::new());
+    let recorded = Cell::new(false);
+    let record_error = RefCell::new(None);
     store::update_guarded(
         &session.ctx,
         |current| {
@@ -81,40 +83,63 @@ pub fn commit(session: &Session, change: Change, dry_run: bool) -> Outcome<bool>
                         .to_string(),
                 );
             }
-            *client_files.borrow_mut() =
-                Some(workflow::snapshot(&session.ctx, &after, Some(&before))?);
+            let files = workflow::snapshot(&session.ctx, &after, Some(&before))?;
             // apply undoes its own partial writes when it fails.
-            *backups.borrow_mut() = workflow::apply(&session.ctx, &after, Some(&before))?.backups;
+            let applied = workflow::apply(&session.ctx, &after, Some(&before))?;
             *current = after.clone();
+            // Recorded while the lock is held, so no other change or rollback
+            // can slip in between. A record that fails does not stop the
+            // change: it is already applied, and the user is told below.
+            match ChangeRecord::new(
+                &files,
+                applied.backups.clone(),
+                before.clone(),
+                after.clone(),
+            )
+            .and_then(|record| history::record(&session.ctx, record))
+            {
+                Ok(()) => recorded.set(true),
+                Err(error) => *record_error.borrow_mut() = Some(error),
+            }
+            *client_files.borrow_mut() = Some(files);
+            *backups.borrow_mut() = applied.backups;
             Ok(())
         },
         // Runs before the lock is released, so nothing else can write the
         // client files while they are put back.
-        |error| match client_files.borrow().as_ref().map(|files| files.restore()) {
-            Some(Ok(())) => format!("{error}. Client files were restored; nothing was changed."),
-            Some(Err(restore_error)) => {
-                format!("{error}. Restoring client files also failed: {restore_error}")
+        |error| {
+            let mut error = match client_files.borrow().as_ref().map(|files| files.restore()) {
+                Some(Ok(())) => {
+                    format!("{error}. Client files were restored; nothing was changed.")
+                }
+                Some(Err(restore_error)) => {
+                    format!("{error}. Restoring client files also failed: {restore_error}")
+                }
+                None => error,
+            };
+            // Only this change's own record: never an earlier one.
+            if recorded.get() {
+                if let Err(forget_error) = history::forget_latest(&session.ctx) {
+                    error.push_str(&format!(
+                        " Its rollback record could not be removed either ({forget_error})."
+                    ));
+                }
             }
-            None => error,
+            error
         },
     )?;
 
     // The change is already applied; say so rather than promising a rollback
     // that was never recorded.
-    let backups = backups.into_inner();
-    let record = client_files
-        .borrow()
-        .as_ref()
-        .ok_or_else(|| "internal error: no snapshot".to_string())
-        .and_then(|files| ChangeRecord::new(files, backups.clone(), before.clone(), after.clone()))
-        .and_then(|record| history::record(&session.ctx, record));
-    record.map_err(|error| {
-        format!(
+    if let Some(error) = record_error.into_inner() {
+        return Err(format!(
             "The changes were applied, but they could not be recorded for rollback ({error}), \
              so `{} rollback` will not undo them.",
             env!("CARGO_BIN_NAME")
         )
-    })?;
+        .into());
+    }
+    let backups = backups.into_inner();
     if session.json {
         print_json(&Report {
             changes: &changes,

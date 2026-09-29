@@ -120,7 +120,9 @@ fn same_config(a: &MCPConfig, b: &MCPConfig) -> bool {
     serde_json::to_value(a).ok() == serde_json::to_value(b).ok()
 }
 
-/// Adds a change on top of the ones that can be undone.
+/// Adds a change on top of the ones that can be undone. Call it while holding
+/// the servers.yaml lock (inside `store::update_guarded`, or [`apply_recorded`]),
+/// so no other change or rollback can slip in between saving and recording.
 pub fn record(ctx: &PlatformContext, change: ChangeRecord) -> Result<(), String> {
     let path = path(ctx);
     store::with_lock(&path, || {
@@ -135,6 +137,17 @@ pub fn record(ctx: &PlatformContext, change: ChangeRecord) -> Result<(), String>
 /// How many changes can be undone.
 pub fn depth(ctx: &PlatformContext) -> usize {
     load(&path(ctx)).changes.len()
+}
+
+/// Drops the newest record again, for a change that could not be saved after
+/// it was recorded. Same locking as [`record`].
+pub fn forget_latest(ctx: &PlatformContext) -> Result<(), String> {
+    let path = path(ctx);
+    store::with_lock(&path, || {
+        let mut history = load(&path);
+        history.changes.pop();
+        save(&path, &history)
+    })
 }
 
 /// The change [`rollback_last`] would undo.
@@ -159,7 +172,7 @@ pub fn apply_recorded(
         config.clone(),
     ) {
         if !change.is_noop() {
-            let _ = record(ctx, change);
+            let _ = store::with_lock(&store::config_path(ctx), || record(ctx, change));
         }
     }
     Ok(result)
@@ -176,99 +189,137 @@ pub struct RollbackReport {
     pub remaining: usize,
 }
 
+/// Whether two paths name the same file: the app records them as it built
+/// them and backups map back with the platform's separators, so on Windows
+/// `/` versus `\\` and letter case must not matter.
+fn same_path(a: &str, b: &str) -> bool {
+    if cfg!(windows) {
+        let normalize = |p: &str| p.replace('\\', "/").to_ascii_lowercase();
+        normalize(a) == normalize(b)
+    } else {
+        a == b
+    }
+}
+
 /// Undoes the most recent change: client files and servers.yaml. Fails,
 /// changing nothing, if either was edited since the change.
 pub fn rollback_last(ctx: &PlatformContext) -> Result<RollbackReport, String> {
-    let history_path = path(ctx);
-    let Some(change) = latest(ctx) else {
-        return Err("Nothing to roll back.".to_string());
-    };
     let mut report = RollbackReport {
         restored: 0,
         removed: 0,
         remaining: 0,
     };
+    // Read and removed under the servers.yaml lock, like every record, so it
+    // is the change that was undone and not one recorded meanwhile.
+    let undone = std::cell::RefCell::new(None);
 
-    store::update(ctx, |config| {
-        // Undoing on top of a later edit would silently discard it.
-        if !same_config(config, &change.applied_config)
-            && !same_config(config, &change.previous_config)
-        {
-            return Err(
-                "The server list changed after the last change made here (in MCP Manager or \
-                 another command), so rolling back would discard that edit. Nothing was changed."
-                    .to_string(),
-            );
-        }
-        let edited = change
-            .files
-            .iter()
-            .filter(|file| {
-                let current = store::fingerprint(Path::new(&file.path)).ok();
-                current.as_deref() != Some(file.after.as_str())
-                    && current.as_deref() != Some(file.before.as_str())
-            })
-            .map(|file| file.path.clone())
-            .collect::<Vec<_>>();
-        if !edited.is_empty() {
-            return Err(format!(
-                "These client files were edited after the last change made here, so rolling \
-                 back would discard those edits: {}. Nothing was changed.",
-                edited.join(", ")
-            ));
-        }
+    store::update_guarded(
+        ctx,
+        |config| {
+            let change = latest(ctx).ok_or_else(|| "Nothing to roll back.".to_string())?;
+            // Undoing on top of a later edit would silently discard it.
+            if !same_config(config, &change.applied_config)
+                && !same_config(config, &change.previous_config)
+            {
+                return Err(
+                    "The server list changed after the last change made here (in MCP Manager or \
+                     another command), so rolling back would discard that edit. Nothing was \
+                     changed."
+                        .to_string(),
+                );
+            }
+            let edited = change
+                .files
+                .iter()
+                .filter(|file| {
+                    let current = store::fingerprint(Path::new(&file.path)).ok();
+                    current.as_deref() != Some(file.after.as_str())
+                        && current.as_deref() != Some(file.before.as_str())
+                })
+                .map(|file| file.path.clone())
+                .collect::<Vec<_>>();
+            if !edited.is_empty() {
+                return Err(format!(
+                    "These client files were edited after the last change made here, so rolling \
+                     back would discard those edits: {}. Nothing was changed.",
+                    edited.join(", ")
+                ));
+            }
 
-        // Every backup must be there before the first file is touched.
-        let mut to_restore = Vec::new();
-        for backup in &change.backups {
-            let backup = PathBuf::from(backup);
-            let target = storage::backup_target(&backup)?;
-            let target_key = target.to_string_lossy();
-            let Some(file) = change.files.iter().find(|f| f.path == target_key) else {
-                continue;
-            };
-            let current = store::fingerprint(&target)?;
-            if current == file.after && file.before != file.after {
-                if !backup.exists() {
-                    return Err(format!(
-                        "The backup {} is gone, so {target_key} cannot be restored. \
-                         Nothing was changed.",
-                        backup.to_string_lossy()
-                    ));
+            // Every backup must be there, and be what the file was, before the
+            // first file is touched.
+            let mut to_restore = Vec::new();
+            for backup in &change.backups {
+                let backup = PathBuf::from(backup);
+                let target = storage::backup_target(&backup)?;
+                let target_key = target.to_string_lossy().to_string();
+                let file = change
+                    .files
+                    .iter()
+                    .find(|f| same_path(&f.path, &target_key))
+                    .ok_or_else(|| {
+                        format!(
+                            "The backup {} belongs to no file of this change. Nothing was changed.",
+                            backup.to_string_lossy()
+                        )
+                    })?;
+                let current = store::fingerprint(&target)?;
+                if current == file.after && file.before != file.after {
+                    let bytes = fs::read(&backup).map_err(|e| {
+                        format!(
+                            "The backup {} cannot be read ({e}), so {target_key} cannot be \
+                             restored. Nothing was changed.",
+                            backup.to_string_lossy()
+                        )
+                    })?;
+                    if store::fingerprint_of_bytes(&bytes).ok().as_deref()
+                        != Some(file.before.as_str())
+                    {
+                        return Err(format!(
+                            "The backup {} is not the file as it was before this change, so \
+                             {target_key} cannot be restored. Nothing was changed.",
+                            backup.to_string_lossy()
+                        ));
+                    }
+                    to_restore.push(backup);
                 }
-                to_restore.push(backup);
             }
-        }
-        for file in change.files.iter().filter(|f| f.was_created()) {
-            if Path::new(&file.path).exists() {
-                fs::remove_file(&file.path).map_err(|e| format!("{}: {e}", file.path))?;
-                report.removed += 1;
+            for file in change.files.iter().filter(|f| f.was_created()) {
+                if Path::new(&file.path).exists() {
+                    fs::remove_file(&file.path).map_err(|e| format!("{}: {e}", file.path))?;
+                    report.removed += 1;
+                }
             }
-        }
-        for backup in &to_restore {
-            storage::restore_backup(backup)?;
-            report.restored += 1;
-        }
-        let dirs = change
-            .created_dirs
-            .iter()
-            .map(PathBuf::from)
-            .collect::<Vec<_>>();
-        remove_empty_dirs(&dirs);
+            for backup in &to_restore {
+                storage::restore_backup(backup)?;
+                report.restored += 1;
+            }
+            let dirs = change
+                .created_dirs
+                .iter()
+                .map(PathBuf::from)
+                .collect::<Vec<_>>();
+            remove_empty_dirs(&dirs);
 
-        *config = change.previous_config.clone();
-        Ok(())
-    })?;
-
-    // Only now that everything is back is the change forgotten; if this
-    // fails, running the rollback again finishes without touching anything.
-    store::with_lock(&history_path, || {
-        let mut history = load(&history_path);
-        if !history.changes.is_empty() {
-            history.changes.pop();
-        }
-        report.remaining = history.changes.len();
-        save(&history_path, &history)
-    })?;
+            *config = change.previous_config.clone();
+            // Forgotten only now that everything is back; if servers.yaml
+            // cannot be saved after all, the record is put back below and
+            // running the rollback again finishes without touching anything.
+            forget_latest(ctx)?;
+            report.remaining = depth(ctx);
+            *undone.borrow_mut() = Some(change);
+            Ok(())
+        },
+        |error| match undone.borrow_mut().take() {
+            Some(change) => match record(ctx, change) {
+                Ok(()) => error,
+                Err(record_error) => format!(
+                    "{error}. The change could not be put back in the history either \
+                     ({record_error}); run the rollback again to finish it."
+                ),
+            },
+            None => error,
+        },
+    )?;
     Ok(report)
 }

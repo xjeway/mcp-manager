@@ -83,7 +83,15 @@ pub fn backup_file(target: &Path) -> Result<Option<String>, String> {
         .and_then(|x| x.to_str())
         .ok_or_else(|| "invalid target file name".to_string())?;
 
-    let stamp = Utc::now().format("%Y%m%dT%H%M%S").to_string();
+    // Two backups of one file in the same second must not share a name, or
+    // the second would overwrite the first. No dots: the stamp is what follows
+    // the last dot of the name (see `backup_target`).
+    static NEXT_BACKUP_ID: AtomicU64 = AtomicU64::new(0);
+    let stamp = format!(
+        "{}-{}",
+        Utc::now().format("%Y%m%dT%H%M%S%3f"),
+        NEXT_BACKUP_ID.fetch_add(1, Ordering::Relaxed)
+    );
     let backup = backup_parent.join(format!("{}.{}.bak", file_name, stamp));
     fs::copy(target, &backup).map_err(|e| e.to_string())?;
 
@@ -616,6 +624,28 @@ mod tests {
             !created.parent().unwrap().exists(),
             "the folder made for it is removed too"
         );
+    }
+
+    #[test]
+    fn backups_taken_in_the_same_second_keep_their_own_content() {
+        let _guard = env_lock()
+            .lock()
+            .unwrap_or_else(|poisoned| poisoned.into_inner());
+        let dir = tempfile::tempdir().expect("tmpdir");
+        let home = dir.path().join("home");
+        fs::create_dir_all(&home).expect("create home");
+        let target = dir.path().join("mcp.json");
+        let (previous_home, previous_dir) = set_test_runtime(&home, dir.path());
+
+        fs::write(&target, "first").expect("seed");
+        let first = backup_file(&target).expect("backup").expect("exists");
+        fs::write(&target, "second").expect("seed");
+        let second = backup_file(&target).expect("backup").expect("exists");
+        restore_test_runtime(previous_home, previous_dir);
+
+        assert_ne!(first, second);
+        assert_eq!(fs::read_to_string(first).expect("read"), "first");
+        assert_eq!(fs::read_to_string(second).expect("read"), "second");
     }
 
     #[test]
