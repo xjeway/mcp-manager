@@ -138,6 +138,50 @@ pub struct TransportSpec {
     pub headers: BTreeMap<String, String>,
 }
 
+impl TransportSpec {
+    /// Headers would cross the network in cleartext: a plain `http://` URL to a
+    /// host other than this machine. Loopback stays allowed for local servers.
+    pub fn sends_headers_insecurely(&self) -> bool {
+        if self.kind == "stdio" || self.headers.is_empty() {
+            return false;
+        }
+        let Some(rest) = self
+            .url
+            .as_deref()
+            .and_then(|url| url.strip_prefix("http://"))
+        else {
+            return false;
+        };
+        let authority = rest.split(['/', '?', '#']).next().unwrap_or_default();
+        let host_port = authority.rsplit('@').next().unwrap_or_default();
+        let host = if host_port.starts_with('[') {
+            host_port
+                .split(']')
+                .next()
+                .map(|h| format!("{h}]"))
+                .unwrap_or_default()
+        } else {
+            host_port.split(':').next().unwrap_or_default().to_string()
+        }
+        .to_ascii_lowercase();
+        let loopback = host == "localhost"
+            || host.ends_with(".localhost")
+            || host.starts_with("127.")
+            || host == "[::1]";
+        !loopback
+    }
+
+    /// A header name (lowercased) that appears more than once ignoring case.
+    /// HTTP header names are case-insensitive, so clients would get two values.
+    pub fn duplicate_header(&self) -> Option<String> {
+        let mut seen = std::collections::BTreeSet::new();
+        self.headers
+            .keys()
+            .map(|name| name.to_ascii_lowercase())
+            .find(|name| !seen.insert(name.clone()))
+    }
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub enum PlacementScope {

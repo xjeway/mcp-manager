@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import {
   AlertTriangle,
   ArrowLeft,
@@ -91,6 +91,9 @@ export function MarketplacePage({ servers, onBack, onInstall }: MarketplacePageP
   const [loadingMore, setLoadingMore] = useState(false)
   const [reloadKey, setReloadKey] = useState(0)
   const [selectedId, setSelectedId] = useState<string | null>(null)
+  // Bumped whenever a new search starts, so an in-flight "load more" for an older
+  // source or query can tell its result is stale.
+  const searchGeneration = useRef(0)
 
   useEffect(() => {
     listMarketplaceSources()
@@ -108,6 +111,8 @@ export function MarketplacePage({ servers, onBack, onInstall }: MarketplacePageP
       return
     }
     let alive = true
+    searchGeneration.current += 1
+    setLoadingMore(false)
     setState({ kind: 'loading' })
     searchMarketplace(sourceId, debouncedQuery)
       .then((page) => alive && setState({ kind: 'ready', page }))
@@ -125,9 +130,14 @@ export function MarketplacePage({ servers, onBack, onInstall }: MarketplacePageP
     if (state.kind !== 'ready' || !state.page.nextCursor) {
       return
     }
+    const generation = searchGeneration.current
+    const isCurrent = () => generation === searchGeneration.current
     setLoadingMore(true)
     try {
       const next = await searchMarketplace(sourceId, debouncedQuery, state.page.nextCursor)
+      if (!isCurrent()) {
+        return
+      }
       setState({
         kind: 'ready',
         page: {
@@ -139,9 +149,13 @@ export function MarketplacePage({ servers, onBack, onInstall }: MarketplacePageP
         },
       })
     } catch (error) {
-      setState({ kind: 'error', error: error as MarketplaceError })
+      if (isCurrent()) {
+        setState({ kind: 'error', error: error as MarketplaceError })
+      }
     } finally {
-      setLoadingMore(false)
+      if (isCurrent()) {
+        setLoadingMore(false)
+      }
     }
   }
 

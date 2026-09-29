@@ -129,4 +129,20 @@ describe('parseMcpJson', () => {
     const result = parseMcpJson(JSON.stringify({ command: 'npx', headers: { Authorization: 'x' } }))
     expect(result.servers[0].transport).not.toHaveProperty('headers')
   })
+
+  it('rejects a server whose header names differ only by case', () => {
+    const result = parseMcpJson(
+      JSON.stringify({
+        mcpServers: {
+          dupe: {
+            url: 'https://mcp.example.com/mcp',
+            headers: { Authorization: 'Bearer a', authorization: 'Bearer b' },
+          },
+          fine: { url: 'https://ok.example.com/mcp', headers: { Authorization: 'Bearer a' } },
+        },
+      }),
+    )
+    expect(result.servers.map((server) => server.id)).toEqual(['fine'])
+    expect(result.errors).toEqual([{ message: 'server dupe 的请求头 authorization 重复（名称不区分大小写）' }])
+  })
 })

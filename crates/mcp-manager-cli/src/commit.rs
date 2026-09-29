@@ -169,6 +169,12 @@ fn describe_issue(issue: &Issue) -> String {
             format!("{server_id}: URL must start with http:// or https://.")
         }
         Issue::NoClientEnabled { server_id } => format!("{server_id}: not enabled for any client."),
+        Issue::InsecureHeaders { server_id } => {
+            format!("{server_id}: request headers would be sent unencrypted; use an https:// URL.")
+        }
+        Issue::DuplicateHeader { server_id, header } => {
+            format!("{server_id}: header {header} is set more than once (names ignore case).")
+        }
     }
 }
 

@@ -311,9 +311,11 @@ pub fn unsupported_header_warnings(config: &MCPConfig) -> Vec<ApplyWarning> {
 }
 
 fn headers_value(server: &MCPServer) -> Option<Value> {
-    (server.transport.kind != "stdio" && !server.transport.headers.is_empty()).then(|| {
-        serde_json::to_value(&server.transport.headers).expect("serialize transport headers")
-    })
+    let transport = &server.transport;
+    (transport.kind != "stdio"
+        && !transport.headers.is_empty()
+        && !transport.sends_headers_insecurely())
+    .then(|| serde_json::to_value(&server.transport.headers).expect("serialize transport headers"))
 }
 
 fn standard_json_transport_type(kind: &str) -> &'static str {
@@ -625,6 +627,17 @@ mod tests {
             version: 1,
             servers,
         }
+    }
+
+    #[test]
+    fn headers_are_not_written_for_plain_http_remote_hosts() {
+        let mut leaky = remote("leaky", true, &[SupportedApp::Vscode]);
+        leaky.transport.url = Some("http://mcp.example.com/mcp".to_string());
+        let mut local = remote("local", true, &[SupportedApp::Vscode]);
+        local.transport.url = Some("http://localhost:3000/mcp".to_string());
+        assert_eq!(super::headers_value(&leaky), None);
+        assert!(super::headers_value(&local).is_some());
+        assert!(super::headers_value(&remote("secure", true, &[])).is_some());
     }
 
     #[test]

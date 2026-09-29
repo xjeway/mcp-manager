@@ -1,5 +1,6 @@
 import type { MCPConfig, MCPServer, ParseResult } from '../types/config'
 import { SUPPORTED_APPS } from '../types/config'
+import { duplicateHeader, duplicateHeaderMessage } from './risk'
 
 function defaultApps(): MCPServer['apps'] {
   return {
@@ -122,13 +123,21 @@ export function parseMcpJson(jsonText: string): ParseResult {
         errors.push({ message: `server ${id} 缺少 command/url` })
         continue
       }
+      const duplicate = duplicateHeader(server.transport.headers)
+      if (duplicate) {
+        errors.push({ message: duplicateHeaderMessage(id, duplicate) })
+        continue
+      }
       servers.push(server)
     }
   } else {
     const id = typeof obj.id === 'string' && obj.id.trim() ? obj.id : typeof obj.name === 'string' ? obj.name : 'imported-server'
     const server = normalizeServer(id, obj)
+    const duplicate = duplicateHeader(server.transport.headers)
     if (!server.command?.program && !server.transport.url) {
       errors.push({ message: `server ${id} 缺少 command/url` })
+    } else if (duplicate) {
+      errors.push({ message: duplicateHeaderMessage(id, duplicate) })
     } else {
       servers.push(server)
     }

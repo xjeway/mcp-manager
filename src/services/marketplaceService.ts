@@ -53,10 +53,21 @@ function matchesQuery(entry: MarketplaceEntry, query: string): boolean {
     .every((term) => haystack.includes(term))
 }
 
+/**
+ * The backend starts with the marketplace disabled, so every request waits for the
+ * latest enable/disable call to land; otherwise opening the page right after launch
+ * can race the startup sync and get a spurious "disabled" error.
+ */
+let enabledSync: Promise<void> = Promise.resolve()
+
 export async function setMarketplaceEnabled(enabled: boolean): Promise<void> {
-  if (isDesktopRuntime()) {
-    await invoke('marketplace_set_enabled', { enabled })
+  if (!isDesktopRuntime()) {
+    return
   }
+  const sync = invoke<void>('marketplace_set_enabled', { enabled })
+  // A failed sync surfaces as the backend's own error on the next request.
+  enabledSync = sync.catch(() => {})
+  await sync
 }
 
 export async function listMarketplaceSources(): Promise<MarketplaceSource[]> {
@@ -65,6 +76,7 @@ export async function listMarketplaceSources(): Promise<MarketplaceSource[]> {
     return SAMPLE_SOURCES
   }
   try {
+    await enabledSync
     return await invoke<MarketplaceSource[]>('marketplace_sources')
   } catch (error) {
     throw toMarketplaceError(error)
@@ -83,6 +95,7 @@ export async function searchMarketplace(sourceId: string, query: string, cursor?
     }
   }
   try {
+    await enabledSync
     return await invoke<SearchPage>('marketplace_search', { sourceId, query, cursor: cursor ?? null })
   } catch (error) {
     throw toMarketplaceError(error)
