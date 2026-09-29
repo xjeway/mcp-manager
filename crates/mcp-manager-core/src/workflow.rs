@@ -158,6 +158,7 @@ pub fn apply(
     Ok(ApplyResult {
         backups,
         warnings: crate::adapters::unsupported_header_warnings(config),
+        history_error: None,
     })
 }
 

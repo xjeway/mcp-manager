@@ -320,6 +320,13 @@ pub struct ApplyResult {
     pub backups: Vec<String>,
     #[serde(default)]
     pub warnings: Vec<ApplyWarning>,
+    /// Why the change could not be recorded for undo. It was applied all the same.
+    #[serde(
+        default,
+        rename = "historyError",
+        skip_serializing_if = "Option::is_none"
+    )]
+    pub history_error: Option<String>,
 }
 
 #[derive(Debug, Clone)]

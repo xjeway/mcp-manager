@@ -554,7 +554,7 @@ function MainApp() {
       })
       setConfig(nextConfig)
       void refreshRollbackDepth()
-      for (const message of applyWarningMessages(result.warnings ?? [], nextConfig.servers, t)) {
+      for (const message of applyWarningMessages(result, nextConfig.servers, t)) {
         pushFeedback('warning', message)
       }
       if (successMessage) {

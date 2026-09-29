@@ -369,12 +369,23 @@ export function serverToJsonText(server: MCPServer | null | undefined): string {
   )
 }
 
-/** User-facing text for the non-blocking warnings returned by an apply. */
-export function applyWarningMessages(warnings: readonly ApplyWarning[], servers: readonly MCPServer[], t: TFunction): string[] {
-  return warnings.map((warning) =>
+/**
+ * User-facing text for the non-blocking problems an apply reports: settings a client
+ * cannot store, and a change that was applied but could not be recorded for undo.
+ */
+export function applyWarningMessages(
+  result: { warnings?: readonly ApplyWarning[]; historyError?: string },
+  servers: readonly MCPServer[],
+  t: TFunction,
+): string[] {
+  const messages = (result.warnings ?? []).map((warning) =>
     t('applyWarningHttpHeadersUnsupported', {
       client: CLIENTS.find((client) => client.id === warning.app)?.label ?? warning.app,
       server: servers.find((server) => server.id === warning.serverId)?.name ?? warning.serverId,
     }),
   )
+  if (result.historyError) {
+    messages.push(t('applyWarningUndoNotRecorded', { error: result.historyError }))
+  }
+  return messages
 }

@@ -239,6 +239,7 @@ const enUS = {
   addHeader: 'Add Header',
   showHeaderValue: 'Show header value',
   hideHeaderValue: 'Hide header value',
+  applyWarningUndoNotRecorded: 'The change was applied, but it could not be recorded, so it cannot be rolled back: {{error}}',
   applyWarningHttpHeadersUnsupported: '{{client}} cannot store request headers, so the headers of {{server}} were not written there. Add them in {{client}} manually.',
   addArg: 'Add Arg',
   checkForUpdates: 'Check for Updates',

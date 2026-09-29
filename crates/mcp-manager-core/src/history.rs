@@ -163,18 +163,22 @@ pub fn apply_recorded(
     previous_config: &MCPConfig,
 ) -> Result<ApplyResult, String> {
     let snapshot = workflow::snapshot(ctx, config, Some(previous_config))?;
-    let result = workflow::apply(ctx, config, Some(previous_config))?;
-    // The change is applied; failing to record it only costs the undo.
-    if let Ok(change) = ChangeRecord::new(
+    let mut result = workflow::apply(ctx, config, Some(previous_config))?;
+    // The change is applied, so failing to record it is not an error: it only
+    // costs the undo, which the caller is told about through `history_error`.
+    let recorded = ChangeRecord::new(
         &snapshot,
         result.backups.clone(),
         previous_config.clone(),
         config.clone(),
-    ) {
-        if !change.is_noop() {
-            let _ = store::with_lock(&store::config_path(ctx), || record(ctx, change));
+    )
+    .and_then(|change| {
+        if change.is_noop() {
+            return Ok(());
         }
-    }
+        store::with_lock(&store::config_path(ctx), || record(ctx, change))
+    });
+    result.history_error = recorded.err();
     Ok(result)
 }
 
@@ -322,4 +326,50 @@ pub fn rollback_last(ctx: &PlatformContext) -> Result<RollbackReport, String> {
         },
     )?;
     Ok(report)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{apply_recorded, depth, path};
+    use crate::core::MCPConfig;
+    use crate::platform::{PlatformContext, PlatformOs};
+    use std::fs;
+    use tempfile::tempdir;
+
+    fn ctx(root: &std::path::Path) -> PlatformContext {
+        PlatformContext {
+            os: PlatformOs::Linux,
+            home_dir: root.join("home"),
+            workspace_root: root.join("workspace"),
+        }
+    }
+
+    fn config(version: u32) -> MCPConfig {
+        MCPConfig {
+            version,
+            servers: vec![],
+        }
+    }
+
+    #[test]
+    fn records_an_applied_change_for_undo() {
+        let dir = tempdir().expect("tempdir");
+        let ctx = ctx(dir.path());
+
+        let result = apply_recorded(&ctx, &config(2), &config(1)).expect("apply");
+        assert_eq!(result.history_error, None);
+        assert_eq!(depth(&ctx), 1);
+    }
+
+    #[test]
+    fn reports_a_change_it_could_not_record_without_failing_the_apply() {
+        let dir = tempdir().expect("tempdir");
+        let ctx = ctx(dir.path());
+        // A directory in place of history.json makes saving the record fail.
+        fs::create_dir_all(path(&ctx).join("blocked")).expect("dir");
+
+        let result = apply_recorded(&ctx, &config(2), &config(1)).expect("apply");
+        assert!(result.history_error.is_some());
+        assert_eq!(depth(&ctx), 0);
+    }
 }

@@ -283,6 +283,8 @@ export async function hasExternalConfigChange(): Promise<boolean> {
 export interface ApplyResult {
   backups: string[]
   warnings?: ApplyWarning[]
+  /** Set when the change was applied but could not be recorded, so it cannot be undone. */
+  historyError?: string
 }
 
 export async function applyConfig(
