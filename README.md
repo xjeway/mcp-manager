@@ -314,6 +314,12 @@ make check
 
 Keep [`README.md`](./README.md) and [`README.zh-CN.md`](./README.zh-CN.md) in sync when changing user-facing project documentation.
 
+## Disclaimer
+
+This project is developed primarily with AI assistance (AI-driven development). Code, tests, and documentation are largely AI-generated and reviewed by a human maintainer, so they may still contain mistakes.
+
+MCP Manager reads and rewrites the configuration files of other tools. Backups and rollback are built in, but you should still back up important client configs yourself, review changes before applying them, and use the software at your own risk. It is provided "as is" under the [MIT License](./LICENSE), without warranty of any kind.
+
 ## License
 
 MIT @ xJeway

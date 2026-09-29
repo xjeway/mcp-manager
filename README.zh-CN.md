@@ -312,6 +312,12 @@ make check
 
 修改面向用户的项目文档时，请同步维护 [`README.md`](./README.md) 和 [`README.zh-CN.md`](./README.zh-CN.md)。
 
+## 免责声明
+
+本项目以 AI 驱动开发为主：代码、测试和文档大多由 AI 生成，并由维护者人工审阅，仍可能存在错误。
+
+MCP Manager 会读取并改写其他工具的配置文件。应用内置了备份与回滚，但你仍应自行备份重要的客户端配置，应用变更前请仔细检查，并自行承担使用风险。本软件按“原样”依据 [MIT License](./LICENSE) 提供，不附带任何形式的担保。
+
 ## License
 
 MIT @ xJeway
