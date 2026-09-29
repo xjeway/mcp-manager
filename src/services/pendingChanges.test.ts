@@ -135,7 +135,7 @@ describe('pendingChanges', () => {
       apps: { cursor: false },
     }
 
-    expect(carryUnknownFields(saved, edited)).toEqual({
+    expect(carryUnknownFields<Record<string, unknown>>(saved, edited)).toEqual({
       id: 'linear',
       name: 'Linear',
       tags: ['work'],
@@ -152,7 +152,7 @@ describe('pendingChanges', () => {
     const saved = { id: 'a', description: 'old', transport: { type: 'http', url: 'u', headers: { A: '1' } } }
     const edited = { id: 'a', transport: { type: 'stdio' } }
 
-    expect(carryUnknownFields(saved, edited)).toEqual(edited)
+    expect(carryUnknownFields<Record<string, unknown>>(saved, edited)).toEqual(edited)
   })
 
   it('keeps clients the editor does not offer when it rebuilds apps and placements', () => {
@@ -167,7 +167,7 @@ describe('pendingChanges', () => {
     // As the JSON mode produces it: only known clients, and cursor turned off.
     const edited = { id: 'a', apps: { cursor: false, vscode: true }, placements: [] }
 
-    expect(carryUnknownFields(saved, edited)).toEqual({
+    expect(carryUnknownFields<Record<string, unknown>>(saved, edited)).toEqual({
       id: 'a',
       apps: { cursor: false, vscode: true, zed: true },
       placements: [{ app: 'zed', scope: 'user', enabled: true }],
