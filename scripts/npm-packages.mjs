@@ -137,14 +137,21 @@ export function buildPlaceholders({ outDir, skip = () => false }) {
   })
 }
 
-function publishedVersion(spec) {
+// The version npm has for `spec`, or '' when npm confirms it does not exist
+// (E404). Any other failure (network, auth, registry) throws, so nothing is
+// published or claimed on a guess.
+export function publishedVersion(spec, run = execFileSync) {
   try {
-    return execFileSync('npm', ['view', spec, 'version'], {
+    return run('npm', ['view', spec, 'version'], {
       encoding: 'utf8',
-      stdio: ['ignore', 'pipe', 'ignore'],
+      stdio: ['ignore', 'pipe', 'pipe'],
     }).trim()
-  } catch {
-    return ''
+  } catch (error) {
+    const stderr = String(error?.stderr ?? '')
+    if (/\bE404\b/.test(stderr)) {
+      return ''
+    }
+    throw new Error(`Could not check ${spec} on npm: ${stderr.trim() || error?.message || error}`)
   }
 }
 

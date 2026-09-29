@@ -10,6 +10,7 @@ import {
   buildPlaceholders,
   npmDistTag,
   parseVersionFromTag,
+  publishedVersion,
   renderMainPackageJson,
   renderPlatformPackageJson,
 } from './npm-packages.mjs'
@@ -160,5 +161,26 @@ describe('building npm packages', () => {
     const dirs = buildPlaceholders({ outDir, skip: (name) => name !== '@mcpmgr/cli' })
 
     expect(dirs.map((dir) => path.basename(dir))).toEqual(['cli'])
+  })
+})
+
+describe('checking npm', () => {
+  const failing = (stderr) => () => {
+    throw Object.assign(new Error('Command failed: npm view'), { stderr })
+  }
+
+  it('returns the published version', () => {
+    expect(publishedVersion('@mcpmgr/cli', () => '0.0.0\n')).toBe('0.0.0')
+  })
+
+  it('treats only a confirmed 404 as not published', () => {
+    expect(publishedVersion('@mcpmgr/cli', failing('npm error code E404\nnpm error 404 Not Found'))).toBe('')
+  })
+
+  it('refuses to guess when npm cannot be reached', () => {
+    expect(() => publishedVersion('@mcpmgr/cli', failing('npm error code ENOTFOUND'))).toThrow(
+      /Could not check @mcpmgr\/cli on npm: npm error code ENOTFOUND/,
+    )
+    expect(() => publishedVersion('@mcpmgr/cli', failing('npm error code E401'))).toThrow(/E401/)
   })
 })
