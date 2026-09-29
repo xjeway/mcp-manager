@@ -49,6 +49,22 @@ describe('configService fingerprint checks', () => {
     await expect(saveConfig(EMPTY)).rejects.toBe('disk full')
   })
 
+  it('applies against the fingerprint it just saved, and reports a conflict', async () => {
+    const { ConfigConflictError, applyConfig, saveConfig } = await freshService()
+    invokeMock.mockResolvedValueOnce('f2')
+    await saveConfig(EMPTY)
+
+    invokeMock.mockResolvedValueOnce({ backups: [] })
+    await applyConfig(EMPTY, EMPTY)
+    expect(invokeMock.mock.calls[1]).toEqual([
+      'apply_config',
+      expect.objectContaining({ expectedFingerprint: 'f2' }),
+    ])
+
+    invokeMock.mockRejectedValueOnce('CONFIG_CONFLICT: servers.yaml was changed by another program')
+    await expect(applyConfig(EMPTY, EMPTY)).rejects.toBeInstanceOf(ConfigConflictError)
+  })
+
   it('turns a newer-format refusal into ConfigTooNewError', async () => {
     const { ConfigTooNewError, saveConfig } = await freshService()
 

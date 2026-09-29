@@ -297,7 +297,20 @@ export async function applyConfig(
     return { backups: ['browser-preview-backup'] }
   }
 
-  return invoke<ApplyResult>('apply_config', { config, previousConfig })
+  try {
+    // The fingerprint `saveConfig` just got back: the backend refuses to apply
+    // if another program saved servers.yaml in between.
+    return await invoke<ApplyResult>('apply_config', {
+      config,
+      previousConfig,
+      expectedFingerprint: loadedFingerprint,
+    })
+  } catch (error) {
+    if (String(error).startsWith(CONFLICT_ERROR)) {
+      throw new ConfigConflictError(String(error))
+    }
+    throw error
+  }
 }
 
 // Browser preview has no history on disk: it remembers the config before each change it applied.

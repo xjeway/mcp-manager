@@ -247,11 +247,15 @@ pub fn current_workspace() -> Result<WorkspaceInfo, String> {
 pub fn apply_config(
     config: MCPConfig,
     previous_config: Option<MCPConfig>,
+    expected_fingerprint: Option<String>,
 ) -> Result<ApplyResult, String> {
     let ctx = PlatformContext::current();
     match previous_config {
-        // Recorded, so it can be undone with `rollback_last_change`.
-        Some(previous) => history::apply_recorded(&ctx, &config, &previous),
+        // Recorded, so it can be undone with `rollback_last_change`. Refused
+        // if servers.yaml changed since the caller saved `config`.
+        Some(previous) => {
+            history::apply_recorded(&ctx, &config, &previous, expected_fingerprint.as_deref())
+        }
         None => workflow::apply(&ctx, &config, None),
     }
 }

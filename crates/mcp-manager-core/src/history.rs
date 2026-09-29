@@ -156,30 +156,50 @@ pub fn latest(ctx: &PlatformContext) -> Option<ChangeRecord> {
 }
 
 /// Applies `config` to every client like [`workflow::apply`] and records it
-/// for undo. servers.yaml must already hold `config`.
+/// for undo. servers.yaml must already hold `config`: the caller saved it and
+/// passes the fingerprint it got back as `expected_fingerprint`.
+///
+/// Runs under the servers.yaml lock and first checks that fingerprint, so a
+/// change another program (such as the CLI) saved after the caller's is not
+/// overwritten in the client files with the caller's older list. On a mismatch
+/// nothing is applied and the error starts with [`store::CONFLICT_ERROR`].
 pub fn apply_recorded(
     ctx: &PlatformContext,
     config: &MCPConfig,
     previous_config: &MCPConfig,
+    expected_fingerprint: Option<&str>,
 ) -> Result<ApplyResult, String> {
-    let snapshot = workflow::snapshot(ctx, config, Some(previous_config))?;
-    let mut result = workflow::apply(ctx, config, Some(previous_config))?;
-    // The change is applied, so failing to record it is not an error: it only
-    // costs the undo, which the caller is told about through `history_error`.
-    let recorded = ChangeRecord::new(
-        &snapshot,
-        result.backups.clone(),
-        previous_config.clone(),
-        config.clone(),
-    )
-    .and_then(|change| {
-        if change.is_noop() {
-            return Ok(());
+    let config_path = store::config_path(ctx);
+    store::with_lock(&config_path, || {
+        if let Some(expected) = expected_fingerprint {
+            if store::fingerprint(&config_path)? != expected {
+                return Err(format!(
+                    "{}: {} was changed by another program before the change was applied",
+                    store::CONFLICT_ERROR,
+                    config_path.to_string_lossy()
+                ));
+            }
         }
-        store::with_lock(&store::config_path(ctx), || record(ctx, change))
-    });
-    result.history_error = recorded.err();
-    Ok(result)
+        let snapshot = workflow::snapshot(ctx, config, Some(previous_config))?;
+        let mut result = workflow::apply(ctx, config, Some(previous_config))?;
+        // The change is applied, so failing to record it is not an error: it
+        // only costs the undo, which the caller is told about through
+        // `history_error`.
+        let recorded = ChangeRecord::new(
+            &snapshot,
+            result.backups.clone(),
+            previous_config.clone(),
+            config.clone(),
+        )
+        .and_then(|change| {
+            if change.is_noop() {
+                return Ok(());
+            }
+            record(ctx, change)
+        });
+        result.history_error = recorded.err();
+        Ok(result)
+    })
 }
 
 #[derive(Debug, Clone, Serialize)]
@@ -333,6 +353,7 @@ mod tests {
     use super::{apply_recorded, depth, path};
     use crate::core::MCPConfig;
     use crate::platform::{PlatformContext, PlatformOs};
+    use crate::store;
     use std::fs;
     use tempfile::tempdir;
 
@@ -356,9 +377,42 @@ mod tests {
         let dir = tempdir().expect("tempdir");
         let ctx = ctx(dir.path());
 
-        let result = apply_recorded(&ctx, &config(2), &config(1)).expect("apply");
+        let result = apply_recorded(&ctx, &config(2), &config(1), None).expect("apply");
         assert_eq!(result.history_error, None);
         assert_eq!(depth(&ctx), 1);
+    }
+
+    #[test]
+    fn applies_when_servers_yaml_is_still_what_the_caller_saved() {
+        let dir = tempdir().expect("tempdir");
+        let ctx = ctx(dir.path());
+        let saved =
+            store::write_text_checked(&store::config_path(&ctx), "version: 1\nservers: []\n", None)
+                .expect("save");
+
+        apply_recorded(&ctx, &config(2), &config(1), Some(&saved)).expect("apply");
+        assert_eq!(depth(&ctx), 1);
+    }
+
+    #[test]
+    fn refuses_when_another_program_saved_servers_yaml_since() {
+        let dir = tempdir().expect("tempdir");
+        let ctx = ctx(dir.path());
+        let path = store::config_path(&ctx);
+        let saved =
+            store::write_text_checked(&path, "version: 1\nservers: []\n", None).expect("save");
+        // The CLI saves its own change before the app applies.
+        store::write_text_checked(
+            &path,
+            "# edited by the CLI\nversion: 1\nservers: []\n",
+            None,
+        )
+        .expect("save");
+
+        let error =
+            apply_recorded(&ctx, &config(2), &config(1), Some(&saved)).expect_err("conflict");
+        assert!(error.starts_with(store::CONFLICT_ERROR), "{error}");
+        assert_eq!(depth(&ctx), 0, "nothing was applied or recorded");
     }
 
     #[test]
@@ -368,7 +422,7 @@ mod tests {
         // A directory in place of history.json makes saving the record fail.
         fs::create_dir_all(path(&ctx).join("blocked")).expect("dir");
 
-        let result = apply_recorded(&ctx, &config(2), &config(1)).expect("apply");
+        let result = apply_recorded(&ctx, &config(2), &config(1), None).expect("apply");
         assert!(result.history_error.is_some());
         assert_eq!(depth(&ctx), 0);
     }
