@@ -8,6 +8,7 @@ mod http;
 mod install;
 mod registry;
 mod service;
+mod sources;
 
 pub use http::ReqwestClient;
 pub use service::Marketplace;
@@ -30,7 +31,7 @@ pub enum SourceTrust {
     Community,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct MarketplaceSource {
     pub id: String,
@@ -41,6 +42,10 @@ pub struct MarketplaceSource {
     /// Whether the source honours the `search` query parameter. Sources that do not
     /// are fetched in full and filtered locally.
     pub server_search: bool,
+    /// Built-in sources ship with the app; the others were added by the user and can
+    /// be removed.
+    #[serde(default)]
+    pub builtin: bool,
 }
 
 pub fn builtin_sources() -> Vec<MarketplaceSource> {
@@ -52,6 +57,7 @@ pub fn builtin_sources() -> Vec<MarketplaceSource> {
             base_url: "https://api.mcp.github.com/2025-09-15".to_string(),
             trust: SourceTrust::Curated,
             server_search: false,
+            builtin: true,
         },
         MarketplaceSource {
             id: "official".to_string(),
@@ -60,6 +66,7 @@ pub fn builtin_sources() -> Vec<MarketplaceSource> {
             base_url: "https://registry.modelcontextprotocol.io".to_string(),
             trust: SourceTrust::Community,
             server_search: true,
+            builtin: true,
         },
     ]
 }
@@ -153,6 +160,10 @@ pub enum MarketplaceError {
     UnknownSource(String),
     Network(String),
     Parse(String),
+    /// A source URL the user entered is not a usable https address.
+    InvalidUrl(String),
+    /// A source with the same URL is already in the list.
+    DuplicateSource(String),
 }
 
 impl std::fmt::Display for MarketplaceError {
@@ -162,6 +173,8 @@ impl std::fmt::Display for MarketplaceError {
             MarketplaceError::UnknownSource(id) => write!(f, "unknown marketplace source: {id}"),
             MarketplaceError::Network(message) => write!(f, "network error: {message}"),
             MarketplaceError::Parse(message) => write!(f, "invalid response: {message}"),
+            MarketplaceError::InvalidUrl(message) => write!(f, "invalid source URL: {message}"),
+            MarketplaceError::DuplicateSource(url) => write!(f, "source already added: {url}"),
         }
     }
 }

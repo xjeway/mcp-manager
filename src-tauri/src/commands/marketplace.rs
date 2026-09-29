@@ -26,10 +26,14 @@ fn ensure_enabled() -> Result<(), MarketplaceError> {
 fn marketplace() -> Result<&'static Marketplace<ReqwestClient>, MarketplaceError> {
     MARKETPLACE
         .get_or_init(|| {
-            let cache_dir = PlatformContext::current()
-                .app_data_dir()
-                .join("marketplace-cache");
-            ReqwestClient::new().map(|http| Marketplace::new(http, cache_dir))
+            let data_dir = PlatformContext::current().app_data_dir();
+            ReqwestClient::new().map(|http| {
+                Marketplace::new(
+                    http,
+                    data_dir.join("marketplace-cache"),
+                    data_dir.join("marketplace-sources.json"),
+                )
+            })
         })
         .as_ref()
         .map_err(|error| MarketplaceError::Network(error.clone()))
@@ -43,10 +47,19 @@ pub fn marketplace_set_enabled(enabled: bool) {
 #[tauri::command]
 pub fn marketplace_sources() -> Result<Vec<MarketplaceSource>, MarketplaceError> {
     ensure_enabled()?;
-    Ok(crate::marketplace::builtin_sources())
+    Ok(marketplace()?.sources())
 }
 
-/// Runs on a blocking thread: a full-list fetch can take several seconds.
+fn now() -> u64 {
+    SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .map(|d| d.as_secs())
+        .unwrap_or_default()
+}
+
+/// Returns cached data at once when there is any, even expired (then marked `stale`);
+/// the frontend follows a stale page with `marketplace_refresh`. Runs on a blocking
+/// thread because a source with nothing cached is fetched first.
 #[tauri::command]
 pub async fn marketplace_search(
     source_id: String,
@@ -54,15 +67,41 @@ pub async fn marketplace_search(
     cursor: Option<String>,
 ) -> Result<SearchPage, MarketplaceError> {
     ensure_enabled()?;
-    tauri::async_runtime::spawn_blocking(move || {
-        let now = SystemTime::now()
-            .duration_since(UNIX_EPOCH)
-            .map(|d| d.as_secs())
-            .unwrap_or_default();
-        marketplace()?.search(&source_id, &query, cursor.as_deref(), now)
-    })
-    .await
-    .map_err(|error| MarketplaceError::Network(error.to_string()))?
+    run_blocking(move || marketplace()?.search(&source_id, &query, cursor.as_deref(), now())).await
+}
+
+#[tauri::command]
+pub async fn marketplace_refresh(
+    source_id: String,
+    query: String,
+    cursor: Option<String>,
+) -> Result<SearchPage, MarketplaceError> {
+    ensure_enabled()?;
+    run_blocking(move || marketplace()?.refresh(&source_id, &query, cursor.as_deref(), now())).await
+}
+
+/// Probes the URL over the network before saving it.
+#[tauri::command]
+pub async fn marketplace_add_source(
+    label: String,
+    base_url: String,
+) -> Result<MarketplaceSource, MarketplaceError> {
+    ensure_enabled()?;
+    run_blocking(move || marketplace()?.add_source(&label, &base_url)).await
+}
+
+#[tauri::command]
+pub fn marketplace_remove_source(source_id: String) -> Result<(), MarketplaceError> {
+    ensure_enabled()?;
+    marketplace()?.remove_source(&source_id)
+}
+
+async fn run_blocking<T: Send + 'static>(
+    work: impl FnOnce() -> Result<T, MarketplaceError> + Send + 'static,
+) -> Result<T, MarketplaceError> {
+    tauri::async_runtime::spawn_blocking(work)
+        .await
+        .map_err(|error| MarketplaceError::Network(error.to_string()))?
 }
 
 /// Registry data is untrusted: only plain https links are handed to the system opener,
@@ -133,9 +172,22 @@ mod tests {
             None,
         ));
         assert_eq!(search, Err(MarketplaceError::Disabled));
+        let add = tauri::async_runtime::block_on(marketplace_add_source(
+            String::new(),
+            "https://mcp.acme.dev".to_string(),
+        ));
+        assert_eq!(add, Err(MarketplaceError::Disabled));
+        assert_eq!(
+            marketplace_remove_source("custom-x".to_string()),
+            Err(MarketplaceError::Disabled)
+        );
 
         marketplace_set_enabled(true);
-        assert_eq!(marketplace_sources().map(|s| s.len()), Ok(2));
+        // User sources come from the real app data directory, so count built-ins only.
+        assert_eq!(
+            marketplace_sources().map(|s| s.iter().filter(|s| s.builtin).count()),
+            Ok(2)
+        );
         marketplace_set_enabled(false);
     }
 }

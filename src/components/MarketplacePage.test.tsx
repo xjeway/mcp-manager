@@ -29,12 +29,15 @@ const page = (ids: string[], nextCursor: string | null = null): SearchPage => ({
 })
 
 let resolveLoadMore: (page: SearchPage) => void = () => {}
+let resolveRefresh: (page: SearchPage) => void = () => {}
+let rejectRefresh: () => void = () => {}
+let officialIsStale = false
 
 vi.mock('../services/marketplaceService', () => ({
   listMarketplaceSources: () =>
     Promise.resolve([
-      { id: 'github', kind: 'mcp-registry', label: 'GitHub', baseUrl: '', trust: 'curated', serverSearch: false },
-      { id: 'official', kind: 'mcp-registry', label: 'Official', baseUrl: '', trust: 'community', serverSearch: true },
+      { id: 'github', kind: 'mcp-registry', label: 'GitHub', baseUrl: '', trust: 'curated', serverSearch: false, builtin: true },
+      { id: 'official', kind: 'mcp-registry', label: 'Official', baseUrl: '', trust: 'community', serverSearch: true, builtin: true },
     ]),
   searchMarketplace: (sourceId: string, _query: string, cursor?: string | null) => {
     if (cursor) {
@@ -42,8 +45,16 @@ vi.mock('../services/marketplaceService', () => ({
         resolveLoadMore = resolve
       })
     }
-    return Promise.resolve(sourceId === 'github' ? page(['github:a'], 'next') : page(['official:x']))
+    if (sourceId === 'github') {
+      return Promise.resolve(page(['github:a'], 'next'))
+    }
+    return Promise.resolve({ ...page(['official:x']), stale: officialIsStale })
   },
+  refreshMarketplace: () =>
+    new Promise<SearchPage>((resolve, reject) => {
+      resolveRefresh = resolve
+      rejectRefresh = () => reject({ code: 'network' })
+    }),
   openMarketplaceUrl: () => Promise.resolve(),
 }))
 
@@ -69,6 +80,7 @@ beforeEach(async () => {
 })
 
 afterEach(() => {
+  officialIsStale = false
   act(() => root.unmount())
   container.remove()
   vi.useRealTimers()
@@ -88,5 +100,24 @@ describe('MarketplacePage', () => {
 
     await act(async () => resolveLoadMore(page(['github:b'])))
     expect(titles()).toEqual(['official:x'])
+  })
+
+  it('shows a stale page at once and swaps in the refreshed one', async () => {
+    officialIsStale = true
+    await act(async () => button('Official').click())
+    expect(titles()).toEqual(['official:x'])
+    expect(container.querySelector('.marketplace-status')?.textContent).toBe('marketplaceRefreshing')
+
+    await act(async () => resolveRefresh(page(['official:y'])))
+    expect(titles()).toEqual(['official:y'])
+    expect(container.querySelector('.marketplace-status')?.textContent).toBe('marketplaceCount')
+  })
+
+  it('keeps the stale page with a warning when the refresh fails', async () => {
+    officialIsStale = true
+    await act(async () => button('Official').click())
+    await act(async () => rejectRefresh())
+    expect(titles()).toEqual(['official:x'])
+    expect(container.querySelector('.marketplace-status.is-stale')?.textContent).toBe('marketplaceStale')
   })
 })

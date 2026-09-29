@@ -11,7 +11,8 @@ use std::process::Command;
 
 mod marketplace;
 pub use marketplace::{
-    marketplace_open_url, marketplace_search, marketplace_set_enabled, marketplace_sources,
+    marketplace_add_source, marketplace_open_url, marketplace_refresh, marketplace_remove_source,
+    marketplace_search, marketplace_set_enabled, marketplace_sources,
 };
 
 const REPOSITORY_URL: &str = "https://github.com/xjeway/mcp-manager";

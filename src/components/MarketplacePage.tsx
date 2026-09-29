@@ -26,6 +26,7 @@ import type {
 import {
   listMarketplaceSources,
   openMarketplaceUrl,
+  refreshMarketplace,
   searchMarketplace,
 } from '../services/marketplaceService'
 import {
@@ -89,6 +90,7 @@ export function MarketplacePage({ servers, onBack, onInstall }: MarketplacePageP
   const [debouncedQuery, setDebouncedQuery] = useState('')
   const [state, setState] = useState<LoadState>({ kind: 'loading' })
   const [loadingMore, setLoadingMore] = useState(false)
+  const [refreshing, setRefreshing] = useState(false)
   const [reloadKey, setReloadKey] = useState(0)
   const [selectedId, setSelectedId] = useState<string | null>(null)
   // Bumped whenever a new search starts, so an in-flight "load more" for an older
@@ -113,9 +115,30 @@ export function MarketplacePage({ servers, onBack, onInstall }: MarketplacePageP
     let alive = true
     searchGeneration.current += 1
     setLoadingMore(false)
+    setRefreshing(false)
     setState({ kind: 'loading' })
     searchMarketplace(sourceId, debouncedQuery)
-      .then((page) => alive && setState({ kind: 'ready', page }))
+      .then((page) => {
+        if (!alive) {
+          return
+        }
+        setState({ kind: 'ready', page })
+        if (!page.stale) {
+          return
+        }
+        // Expired cache is shown at once and replaced when the source answers. If the
+        // refresh fails the cached page stays, still marked stale.
+        setRefreshing(true)
+        refreshMarketplace(sourceId, debouncedQuery)
+          .then((fresh) => {
+            if (alive) {
+              // Skip if the user already loaded more onto the cached page.
+              setState((current) => (current.kind === 'ready' && current.page === page ? { kind: 'ready', page: fresh } : current))
+            }
+          })
+          .catch(() => {})
+          .finally(() => alive && setRefreshing(false))
+      })
       .catch((error: MarketplaceError) => alive && setState({ kind: 'error', error }))
     return () => {
       alive = false
@@ -163,9 +186,13 @@ export function MarketplacePage({ servers, onBack, onInstall }: MarketplacePageP
     if (state.kind !== 'ready') {
       return null
     }
+    if (refreshing) {
+      return t('marketplaceRefreshing')
+    }
     const fetchedAt = new Date(state.page.fetchedAt * 1000).toLocaleString(i18n.language)
     return state.page.stale ? t('marketplaceStale', { time: fetchedAt }) : t('marketplaceCount', { count: entries.length })
   })()
+  const showStaleWarning = state.kind === 'ready' && state.page.stale && !refreshing
 
   return (
     <div className="app-shell shell-flat marketplace-shell">
@@ -227,8 +254,9 @@ export function MarketplacePage({ servers, onBack, onInstall }: MarketplacePageP
           <span className={`marketplace-trust trust-${source.trust}`}>{t(`marketplaceTrust.${source.trust}`)}</span>
         ) : null}
         {statusText ? (
-          <span className={state.kind === 'ready' && state.page.stale ? 'marketplace-status is-stale' : 'marketplace-status'}>
-            {state.kind === 'ready' && state.page.stale ? <AlertTriangle size={12} /> : null}
+          <span className={showStaleWarning ? 'marketplace-status is-stale' : 'marketplace-status'}>
+            {showStaleWarning ? <AlertTriangle size={12} /> : null}
+            {refreshing ? <LoaderCircle size={12} className="spin" /> : null}
             {statusText}
           </span>
         ) : null}

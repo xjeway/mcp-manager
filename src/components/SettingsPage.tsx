@@ -1,8 +1,9 @@
-import { ArrowLeft, BadgeInfo, Boxes, ExternalLink, FolderGit2, Languages, Monitor, Moon, Palette, RefreshCw, Search, Store, SunMedium } from 'lucide-react'
+import { ArrowLeft, BadgeInfo, Boxes, ExternalLink, FolderGit2, Languages, Library, Monitor, Moon, Palette, RefreshCw, Search, Store, SunMedium } from 'lucide-react'
 import { type ReactNode, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { AppLogo } from './AppLogo'
 import { LanguageMenu } from './LanguageMenu'
+import { MarketplaceSourcesEditor } from './MarketplaceSourcesEditor'
 import { Tooltip } from './Tooltip'
 
 interface SettingsPageProps {
@@ -63,7 +64,7 @@ export function SettingsPage({
         id: 'basic' as const,
         title: t('settingsGroupGeneral'),
         icon: <Boxes size={14} />,
-        keywords: [t('language'), t('theme'), t('settingsAutoImportOnLaunch'), t('syncLocalConfig'), t('settingsMarketplace')]
+        keywords: [t('language'), t('theme'), t('settingsAutoImportOnLaunch'), t('syncLocalConfig'), t('settingsMarketplace'), t('settingsMarketplaceSources')]
           .join(' ')
           .toLowerCase(),
       },
@@ -204,6 +205,13 @@ export function SettingsPage({
                     <span className="switch-thumb" />
                   </button>
                 </div>
+                {marketplaceEnabled ? (
+                  <div className="settings-item settings-item-block">
+                    <SettingsItemLabel icon={<Library size={14} />} label={t('settingsMarketplaceSources')} />
+                    <p className="settings-help">{t('settingsMarketplaceSourcesHelp')}</p>
+                    <MarketplaceSourcesEditor />
+                  </div>
+                ) : null}
               </div>
             </section>
           ) : null}

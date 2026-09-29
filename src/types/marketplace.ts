@@ -9,6 +9,8 @@ export interface MarketplaceSource {
   baseUrl: string
   trust: SourceTrust
   serverSearch: boolean
+  /** Shipped with the app; user-added sources are false and can be removed. */
+  builtin: boolean
 }
 
 export interface InstallInput {
@@ -64,12 +66,20 @@ export interface SearchPage {
   entries: MarketplaceEntry[]
   nextCursor: string | null
   skipped: number
+  /** Served from a cache older than its lifetime; refresh it with `refreshMarketplace`. */
   stale: boolean
   /** Unix seconds. */
   fetchedAt: number
 }
 
-export type MarketplaceErrorCode = 'disabled' | 'unknown-source' | 'network' | 'parse' | 'unavailable'
+export type MarketplaceErrorCode =
+  | 'disabled'
+  | 'unknown-source'
+  | 'network'
+  | 'parse'
+  | 'unavailable'
+  | 'invalid-url'
+  | 'duplicate-source'
 
 export interface MarketplaceError {
   code: MarketplaceErrorCode
