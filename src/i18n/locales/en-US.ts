@@ -111,6 +111,26 @@ const enUS = {
   jsonMultiServerHint: 'Multiple servers were detected. Only the first entry was loaded into the editor.',
   light: 'Light',
   loadFailedDetail: 'Failed to load configuration: {{error}}',
+  configUnreadableTitle: "Can't read the server list",
+  configUnreadableBody:
+    "MCP Manager couldn't read the server list file below, so it isn't showing your servers and won't save any changes. Nothing has been changed. Fix the file in a text editor and choose Reload, or start over with an empty list.",
+  configUnreadableShowFile: 'Show File',
+  configUnreadableReload: 'Reload',
+  configUnreadableStartOver: 'Start Over…',
+  configUnreadableRestore: 'Restore {{count}} Servers…',
+  configUnreadableNotSaved: "Not saved: the server list file can't be read. Fix it or start over first.",
+  configReadableAgain: 'The server list file can be read again and has been loaded.',
+  configStartOverTitle: 'Start over with an empty server list?',
+  configStartOverConfirm:
+    '{{path}} will be copied to a backup next to it (servers.yaml.broken-<time>), then replaced with an empty server list.',
+  configStartOverOk: 'Back Up and Start Over',
+  configRestoreTitle: 'Restore the servers loaded earlier?',
+  configRestoreConfirm:
+    '{{path}} will be copied to a backup next to it (servers.yaml.broken-<time>), then replaced with the {{count}} servers MCP Manager loaded before the file became unreadable.',
+  configRestoreOk: 'Back Up and Restore',
+  configRestored: 'Restored {{count}} servers. The unreadable file was kept as {{path}}.',
+  configStartedOver: 'Started over with an empty server list. The old file was kept as {{path}}.',
+  configStartOverFailed: 'Could not start over: {{error}}',
   loading: 'Loading',
   loadingWorkspace: 'Reading the current workspace state from the unified YAML config.',
   missingCommand: 'Missing command.program',
@@ -163,6 +183,8 @@ const enUS = {
   syncLocalConfig: 'Import Local Config',
   syncFailedDetail: 'Save and sync failed: {{error}}',
   configChangedExternally: 'The server list was changed outside MCP Manager (for example by the CLI). Loaded the latest version.',
+  configTooNew:
+    'The server list was saved by a newer version of MCP Manager or mcpmgr. Update MCP Manager to make changes; nothing was saved.',
   configConflictReloaded:
     'The server list was changed outside MCP Manager, so this change was not saved. Loaded the latest version; please make the change again.',
   autoImportSummary: 'Auto-detected {{count}} config sources on launch and imported {{servers}} MCP servers into unified YAML',

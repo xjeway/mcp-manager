@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { mergeServerIntoConfig, shouldPromptForPendingChanges } from './pendingChanges'
+import { carryUnknownFields, mergeServerIntoConfig, shouldPromptForPendingChanges } from './pendingChanges'
 
 describe('pendingChanges', () => {
   it('does not prompt before opening settings from the dashboard', () => {
@@ -116,5 +116,72 @@ describe('pendingChanges', () => {
         },
       ).servers[0].command?.args,
     ).toEqual(['new'])
+  })
+
+  it('keeps fields a newer version saved when the editor replaces a server', () => {
+    const saved = {
+      id: 'linear',
+      name: 'linear',
+      tags: ['work'],
+      transport: { type: 'http', url: 'https://old', auth: 'oauth' },
+      command: { program: 'npx', args: [], env: {}, cwd: '/tmp' },
+      apps: { cursor: true, zed: true },
+    }
+    const edited = {
+      id: 'linear',
+      name: 'Linear',
+      transport: { type: 'http', url: 'https://new' },
+      command: { program: 'npx', args: ['-y'], env: {} },
+      apps: { cursor: false },
+    }
+
+    expect(carryUnknownFields<Record<string, unknown>>(saved, edited)).toEqual({
+      id: 'linear',
+      name: 'Linear',
+      tags: ['work'],
+      transport: { type: 'http', url: 'https://new', auth: 'oauth' },
+      command: { program: 'npx', args: ['-y'], env: {}, cwd: '/tmp' },
+      apps: { cursor: false, zed: true },
+    })
+    expect(
+      mergeServerIntoConfig({ version: 1, servers: [saved] }, 'linear', edited).servers[0],
+    ).toMatchObject({ name: 'Linear', tags: ['work'] })
+  })
+
+  it('does not bring back fields the editor models and cleared', () => {
+    const saved = { id: 'a', description: 'old', transport: { type: 'http', url: 'u', headers: { A: '1' } } }
+    const edited = { id: 'a', transport: { type: 'stdio' } }
+
+    expect(carryUnknownFields<Record<string, unknown>>(saved, edited)).toEqual(edited)
+  })
+
+  it('keeps clients the editor does not offer when it rebuilds apps and placements', () => {
+    const saved = {
+      id: 'a',
+      apps: { cursor: true, zed: true },
+      placements: [
+        { app: 'cursor', scope: 'user', enabled: true },
+        { app: 'zed', scope: 'user', enabled: true },
+      ],
+    }
+    // As the JSON mode produces it: only known clients, and cursor turned off.
+    const edited = { id: 'a', apps: { cursor: false, vscode: true }, placements: [] }
+
+    expect(carryUnknownFields<Record<string, unknown>>(saved, edited)).toEqual({
+      id: 'a',
+      apps: { cursor: false, vscode: true, zed: true },
+      placements: [{ app: 'zed', scope: 'user', enabled: true }],
+    })
+  })
+
+  it('takes unknown clients from the saved server over a stale draft', () => {
+    // mcpmgr turned zed off while the editor still held zed: true.
+    const saved = { id: 'a', apps: { cursor: true, zed: false } }
+    const edited = { id: 'a', apps: { cursor: true, zed: true } }
+
+    expect(carryUnknownFields<Record<string, unknown>>(saved, edited)).toEqual({
+      id: 'a',
+      apps: { cursor: true, zed: false },
+    })
   })
 })

@@ -1,0 +1,5 @@
+{
+  "//": "Templates for the published mcpmgr npm package, which is CommonJS; scripts/npm-packages.mjs writes the real manifest.",
+  "private": true,
+  "type": "commonjs"
+}

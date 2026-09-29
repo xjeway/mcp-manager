@@ -18,6 +18,7 @@ When you push a tag like `v0.1.0`, GitHub Actions builds release artifacts on:
 - Windows arm64: NSIS `setup.exe` and updater artifacts
 - Linux x64: `.AppImage`, `.deb`, `.rpm`, and updater artifacts
 - Linux arm64: `.AppImage`, `.deb`, `.rpm`, and updater artifacts
+- The `mcpmgr` CLI for the same six platforms: `mcpmgr-<target>.tar.gz` (`.zip` on Windows). Linux builds are static musl binaries.
 
 The generated assets are uploaded to a GitHub Release automatically. Tauri also generates updater artifacts because `bundle.createUpdaterArtifacts` is enabled in `src-tauri/tauri.conf.json`.
 
@@ -31,9 +32,10 @@ The generated assets are uploaded to a GitHub Release automatically. Tauri also 
   1. `prepare-release` creates or reuses the GitHub release exactly once per tag.
   2. `publish-tauri` keeps the current cross-platform build matrix and uploads only platform assets by `releaseId`.
   3. `publish-updater` uploads `latest.json` once after all matrix uploads complete.
+  Alongside the desktop matrix, `build-cli` builds `mcpmgr` for every target in `scripts/cli-targets.mjs` and uploads the archives to the same release. Once everything above succeeds, `publish-npm` publishes the npm packages and `publish-homebrew` updates the tap.
   The matrix explicitly builds `app,dmg` on macOS, `nsis,msi` for stable Windows x64 tags, `nsis` for Windows prerelease x64 and Windows arm64 tags, and `appimage,deb,rpm` on Linux.
 - `.github/workflows/homebrew.yml`
-  Runs after a stable GitHub Release is published. It downloads the macOS `.app.tar.gz` assets, computes their SHA-256 checksums, renders `Casks/mcp-manager.rb`, and pushes the result to `xjeway/homebrew-mcp-manager`.
+  Runs after a stable GitHub Release is published. It downloads the macOS `.app.tar.gz` assets, computes their SHA-256 checksums, renders `Casks/mcp-manager.rb`, and pushes the result to `xjeway/homebrew-mcp-manager`. When the release has CLI archives it also renders `Formula/mcpmgr.rb` from the macOS and Linux ones.
 
 ## Required Repository Secrets
 
@@ -128,9 +130,28 @@ Stable releases are available through the project tap:
 brew tap xjeway/mcp-manager
 brew install --cask mcp-manager
 brew upgrade --cask mcp-manager
+brew install mcpmgr
 ```
 
 The Homebrew workflow is intentionally separate from the tag-driven release workflow because a cask should only reference a published release. It runs on `release.published`, skips prereleases, requires both macOS app tarballs, and fails without changing the release if either asset or checksum step is missing.
+
+## npm Publishing
+
+The CLI is published as `mcpmgr` plus one package per platform (`@mcpmgr/darwin-arm64`, `@mcpmgr/linux-x64`, …). npm installs only the platform package that matches the machine, and the `mcpmgr` package's launcher runs its binary. `scripts/npm-packages.mjs` builds the packages from the release binaries and publishes the platform packages before the launcher. Versions already on the registry are skipped, so rerunning a failed job is safe. Prerelease tags publish under the `next` dist-tag instead of `latest`.
+
+Publishing uses [npm trusted publishing](https://docs.npmjs.com/trusted-publishers): the `publish-npm` job exchanges a GitHub OIDC token, so no npm token is stored in the repository.
+
+One-time setup before the first release that ships the CLI:
+
+1. Create the `mcpmgr` organization on npmjs.com (free for public packages).
+2. Claim every package name with an empty placeholder:
+
+   ```bash
+   node scripts/npm-packages.mjs bootstrap --out /tmp/mcpmgr-placeholders
+   ```
+
+   It prints one `npm publish` command per package; run each while logged in to npm.
+3. For each of the seven packages, open **Settings → Trusted publishing** on npmjs.com and add a GitHub Actions publisher: repository `xjeway/mcp-manager`, workflow `release.yml`.
 
 ## Release Process
 

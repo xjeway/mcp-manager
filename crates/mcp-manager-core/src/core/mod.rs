@@ -102,6 +102,13 @@ impl SupportedApp {
         }
     }
 
+    /// The app for its servers.yaml key (`as_str`), exactly.
+    pub fn from_key(key: &str) -> Option<SupportedApp> {
+        SupportedApp::ALL
+            .into_iter()
+            .find(|app| app.as_str() == key)
+    }
+
     /// Accepts the kebab-case id, the camelCase id, or the display name, ignoring case.
     pub fn parse(value: &str) -> Option<SupportedApp> {
         let key = |text: &str| {
@@ -227,9 +234,40 @@ pub struct MCPServer {
     pub transport: TransportSpec,
     #[serde(default)]
     pub command: Option<CommandSpec>,
+    #[serde(deserialize_with = "known_apps")]
     pub apps: HashMap<SupportedApp, bool>,
-    #[serde(default)]
+    #[serde(default, deserialize_with = "known_placements")]
     pub placements: Vec<ServerPlacement>,
+}
+
+// A newer MCP Manager or mcpmgr may know clients this build does not. Their
+// entries are skipped here instead of failing the whole file, and
+// `store::update` writes them back untouched.
+fn known_apps<'de, D>(deserializer: D) -> Result<HashMap<SupportedApp, bool>, D::Error>
+where
+    D: serde::Deserializer<'de>,
+{
+    let raw = HashMap::<String, bool>::deserialize(deserializer)?;
+    Ok(raw
+        .into_iter()
+        .filter_map(|(key, enabled)| SupportedApp::from_key(&key).map(|app| (app, enabled)))
+        .collect())
+}
+
+fn known_placements<'de, D>(deserializer: D) -> Result<Vec<ServerPlacement>, D::Error>
+where
+    D: serde::Deserializer<'de>,
+{
+    let raw = Vec::<serde_json::Value>::deserialize(deserializer)?;
+    raw.into_iter()
+        .filter(|placement| {
+            placement
+                .get("app")
+                .and_then(serde_json::Value::as_str)
+                .is_none_or(|key| SupportedApp::from_key(key).is_some())
+        })
+        .map(|placement| serde_json::from_value(placement).map_err(serde::de::Error::custom))
+        .collect()
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

@@ -2108,6 +2108,7 @@ dependencies = [
 name = "mcp-manager"
 version = "0.1.7"
 dependencies = [
+ "chrono",
  "mcp-manager-core",
  "reqwest",
  "rustls",
