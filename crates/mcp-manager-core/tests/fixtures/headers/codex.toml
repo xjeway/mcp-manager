@@ -1,0 +1,9 @@
+model = "gpt-5-codex"
+
+[mcp_servers.remote]
+url = "https://mcp.example.com/mcp"
+http_headers = { "Authorization" = "Bearer fixture-token", "X-Api-Key" = "fixture-key" }
+
+[mcp_servers.other]
+command = "npx"
+args = ["-y", "@modelcontextprotocol/server-memory"]

@@ -116,6 +116,7 @@ mod tests {
                     transport: TransportSpec {
                         kind: "stdio".to_string(),
                         url: None,
+                        headers: Default::default(),
                     },
                     command: Some(crate::core::CommandSpec {
                         program: "uvx".to_string(),
@@ -132,5 +133,18 @@ mod tests {
         );
         assert_eq!(operations[0].mode, "merge_json_object_entries");
         assert!(operations[0].content.contains("github"));
+    }
+
+    #[test]
+    fn round_trips_http_headers() {
+        crate::adapters::header_fixture::assert_round_trip(
+            &KiroAdapter,
+            include_str!("../../tests/fixtures/headers/kiro.json"),
+            crate::adapters::header_fixture::Expect {
+                field: "mcpServers",
+                headers_key: Some("headers"),
+                unrelated_key: "telemetry",
+            },
+        );
     }
 }

@@ -1,4 +1,4 @@
-import { ArrowLeft, BadgeInfo, Boxes, ExternalLink, FolderGit2, Languages, Monitor, Moon, Palette, RefreshCw, Search, SunMedium } from 'lucide-react'
+import { ArrowLeft, BadgeInfo, Boxes, ExternalLink, FolderGit2, Languages, Monitor, Moon, Palette, RefreshCw, Search, Store, SunMedium } from 'lucide-react'
 import { type ReactNode, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { AppLogo } from './AppLogo'
@@ -11,6 +11,8 @@ interface SettingsPageProps {
   busy: boolean
   checkingUpdates: boolean
   language: string
+  marketplaceEnabled: boolean
+  onMarketplaceEnabledChange: (enabled: boolean) => void
   onOpenRepository: () => void
   onAutoImportOnLaunchChange: (enabled: boolean) => void
   theme: 'light' | 'dark' | 'system'
@@ -37,6 +39,8 @@ export function SettingsPage({
   busy,
   checkingUpdates,
   language,
+  marketplaceEnabled,
+  onMarketplaceEnabledChange,
   onOpenRepository,
   onAutoImportOnLaunchChange,
   theme,
@@ -59,7 +63,7 @@ export function SettingsPage({
         id: 'basic' as const,
         title: t('settingsGroupGeneral'),
         icon: <Boxes size={14} />,
-        keywords: [t('language'), t('theme'), t('settingsAutoImportOnLaunch'), t('syncLocalConfig')]
+        keywords: [t('language'), t('theme'), t('settingsAutoImportOnLaunch'), t('syncLocalConfig'), t('settingsMarketplace')]
           .join(' ')
           .toLowerCase(),
       },
@@ -181,6 +185,21 @@ export function SettingsPage({
                     onClick={() => onAutoImportOnLaunchChange(!autoImportOnLaunch)}
                     aria-pressed={autoImportOnLaunch}
                     aria-label={t('settingsAutoImportOnLaunch')}
+                  >
+                    <span className="switch-thumb" />
+                  </button>
+                </div>
+                <div className="settings-item">
+                  <div className="settings-item-stack">
+                    <SettingsItemLabel icon={<Store size={14} />} label={t('settingsMarketplace')} />
+                    <p className="settings-help">{t('settingsMarketplaceHelp')}</p>
+                  </div>
+                  <button
+                    type="button"
+                    className={marketplaceEnabled ? 'switch-control settings-switch-compact checked' : 'switch-control settings-switch-compact'}
+                    onClick={() => onMarketplaceEnabledChange(!marketplaceEnabled)}
+                    aria-pressed={marketplaceEnabled}
+                    aria-label={t('settingsMarketplace')}
                   >
                     <span className="switch-thumb" />
                   </button>

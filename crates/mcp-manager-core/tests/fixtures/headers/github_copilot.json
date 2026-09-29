@@ -1,0 +1,29 @@
+{
+  "mcpServers": {
+    "remote": {
+      "type": "http",
+      "url": "https://mcp.example.com/mcp",
+      "headers": {
+        "Authorization": "Bearer fixture-token",
+        "X-Api-Key": "fixture-key"
+      },
+      "tools": [
+        "*"
+      ]
+    },
+    "other": {
+      "type": "local",
+      "command": "npx",
+      "args": [
+        "-y",
+        "@modelcontextprotocol/server-memory"
+      ],
+      "tools": [
+        "*"
+      ]
+    }
+  },
+  "trustedFolders": [
+    "/somewhere"
+  ]
+}

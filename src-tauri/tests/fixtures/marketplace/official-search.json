@@ -1,0 +1,300 @@
+{
+  "servers": [
+    {
+      "server": {
+        "$schema": "https://static.modelcontextprotocol.io/schemas/2025-12-11/server.schema.json",
+        "name": "io.github.upstash/context7",
+        "description": "Up-to-date code docs for any prompt",
+        "title": "Context7",
+        "repository": {
+          "url": "https://github.com/upstash/context7",
+          "source": "github"
+        },
+        "version": "4.1.1",
+        "websiteUrl": "https://context7.com",
+        "icons": [
+          {
+            "src": "https://raw.githubusercontent.com/upstash/context7/master/public/icon.png",
+            "mimeType": "image/png"
+          }
+        ],
+        "packages": [
+          {
+            "registryType": "npm",
+            "identifier": "@upstash/context7-mcp",
+            "version": "4.1.1",
+            "transport": {
+              "type": "stdio"
+            },
+            "environmentVariables": [
+              {
+                "description": "API key for authentication",
+                "isSecret": true,
+                "name": "CONTEXT7_API_KEY"
+              }
+            ]
+          },
+          {
+            "registryType": "mcpb",
+            "identifier": "https://github.com/upstash/context7/releases/download/mcpb-v4.1.1/context7.mcpb",
+            "version": "4.1.1",
+            "fileSha256": "887f32c140ca9fa85a0363191f5ee7a443dac17649aaf1f96cdf505e4dc9d26f",
+            "transport": {
+              "type": "stdio"
+            },
+            "environmentVariables": [
+              {
+                "description": "API key for authentication",
+                "isSecret": true,
+                "name": "CONTEXT7_API_KEY"
+              }
+            ]
+          }
+        ],
+        "remotes": [
+          {
+            "type": "streamable-http",
+            "url": "https://mcp.context7.com/mcp",
+            "headers": [
+              {
+                "description": "API key for authentication. Accepts \"Bearer <key>\" or the raw key.",
+                "isSecret": true,
+                "name": "Authorization"
+              }
+            ]
+          }
+        ]
+      },
+      "_meta": {
+        "io.modelcontextprotocol.registry/official": {
+          "status": "active",
+          "statusChangedAt": "2026-09-14T14:53:08.392156Z",
+          "publishedAt": "2026-09-14T14:53:08.392156Z",
+          "updatedAt": "2026-09-14T14:53:08.392156Z",
+          "isLatest": true
+        }
+      }
+    },
+    {
+      "server": {
+        "$schema": "https://static.modelcontextprotocol.io/schemas/2025-12-11/server.schema.json",
+        "name": "io.github.upstash/context7",
+        "description": "Up-to-date code docs for any prompt",
+        "title": "Context7",
+        "repository": {
+          "url": "https://github.com/upstash/context7",
+          "source": "github"
+        },
+        "version": "1.0.0",
+        "websiteUrl": "https://context7.com",
+        "icons": [
+          {
+            "src": "https://raw.githubusercontent.com/upstash/context7/master/public/icon.png",
+            "mimeType": "image/png"
+          }
+        ],
+        "packages": [
+          {
+            "registryType": "npm",
+            "identifier": "@upstash/context7-mcp",
+            "version": "4.1.1",
+            "transport": {
+              "type": "stdio"
+            },
+            "environmentVariables": [
+              {
+                "description": "API key for authentication",
+                "isSecret": true,
+                "name": "CONTEXT7_API_KEY"
+              }
+            ]
+          },
+          {
+            "registryType": "mcpb",
+            "identifier": "https://github.com/upstash/context7/releases/download/mcpb-v4.1.1/context7.mcpb",
+            "version": "4.1.1",
+            "fileSha256": "887f32c140ca9fa85a0363191f5ee7a443dac17649aaf1f96cdf505e4dc9d26f",
+            "transport": {
+              "type": "stdio"
+            },
+            "environmentVariables": [
+              {
+                "description": "API key for authentication",
+                "isSecret": true,
+                "name": "CONTEXT7_API_KEY"
+              }
+            ]
+          }
+        ],
+        "remotes": [
+          {
+            "type": "streamable-http",
+            "url": "https://mcp.context7.com/mcp",
+            "headers": [
+              {
+                "description": "API key for authentication. Accepts \"Bearer <key>\" or the raw key.",
+                "isSecret": true,
+                "name": "Authorization"
+              }
+            ]
+          }
+        ]
+      },
+      "_meta": {
+        "io.modelcontextprotocol.registry/official": {
+          "status": "active",
+          "statusChangedAt": "2026-09-14T14:53:08.392156Z",
+          "publishedAt": "2026-09-14T14:53:08.392156Z",
+          "updatedAt": "2026-09-14T14:53:08.392156Z",
+          "isLatest": false
+        }
+      }
+    },
+    {
+      "server": {
+        "$schema": "https://static.modelcontextprotocol.io/schemas/2025-12-11/server.schema.json",
+        "name": "io.github.GavinLucas/docker-mcp-server",
+        "description": "Manage Docker (containers, images, Compose, Swarm, registries) via the Docker SDK and CLI.",
+        "title": "Docker MCP Server",
+        "repository": {
+          "url": "https://github.com/GavinLucas/docker-mcp",
+          "source": "github"
+        },
+        "version": "2.1.1",
+        "packages": [
+          {
+            "registryType": "pypi",
+            "identifier": "docker-mcp-server",
+            "version": "2.1.1",
+            "transport": {
+              "type": "stdio"
+            }
+          },
+          {
+            "registryType": "oci",
+            "identifier": "ghcr.io/gavinlucas/docker-mcp-server:2.1.1",
+            "transport": {
+              "type": "stdio"
+            }
+          },
+          {
+            "registryType": "mcpb",
+            "identifier": "https://github.com/GavinLucas/docker-mcp/releases/download/v2.1.1/docker-mcp-server-2.1.1.mcpb",
+            "fileSha256": "26d3f6134e602d5edd54a1ad92b5f2618ee7b0e60c1d70c75f98050898854010",
+            "transport": {
+              "type": "stdio"
+            }
+          }
+        ]
+      },
+      "_meta": {
+        "io.modelcontextprotocol.registry/official": {
+          "status": "deprecated",
+          "statusChangedAt": "2026-07-15T21:14:22.957806Z",
+          "statusMessage": "Moved to io.github.L337-org/docker-mcp-server",
+          "publishedAt": "2026-07-08T09:28:35.874389Z",
+          "updatedAt": "2026-07-15T21:14:22.957806Z",
+          "isLatest": true
+        }
+      }
+    },
+    {
+      "server": {
+        "$schema": "https://static.modelcontextprotocol.io/schemas/2025-12-11/server.schema.json",
+        "name": "io.github.Evozim/dockerfile-credential-mcp",
+        "description": "Premium agentic endpoint for dockerfile-credential-mcp.",
+        "title": "Execute dockerfile-credential-mcp",
+        "version": "2.0.0",
+        "remotes": [
+          {
+            "type": "sse",
+            "url": "https://api.m2mcent.com/dockerfile-credential-mcp/sse",
+            "headers": [
+              {
+                "description": "Base64-encoded EIP-3009 TransferWithAuthorization signature for x402 V2 settlement on Base Mainnet ($0.08 USDC).",
+                "isSecret": true,
+                "name": "Payment-Signature"
+              }
+            ]
+          }
+        ]
+      },
+      "_meta": {
+        "io.modelcontextprotocol.registry/official": {
+          "status": "active",
+          "statusChangedAt": "2026-08-17T21:59:42.43073Z",
+          "publishedAt": "2026-08-17T21:59:42.43073Z",
+          "updatedAt": "2026-08-17T21:59:42.43073Z",
+          "isLatest": true
+        }
+      }
+    },
+    {
+      "server": {
+        "$schema": "https://static.modelcontextprotocol.io/schemas/2025-12-11/server.schema.json",
+        "name": "io.github.hypnosis/docker-mcp-server",
+        "description": "Docker for AI agents — containers, compose stacks, logs and databases, locally or over SSH.",
+        "title": "Docker MCP Server",
+        "repository": {
+          "url": "https://github.com/hypnosis/docker-mcp-server",
+          "source": "github"
+        },
+        "version": "2.0.1",
+        "websiteUrl": "https://github.com/hypnosis/docker-mcp-server#readme",
+        "packages": [
+          {
+            "registryType": "npm",
+            "identifier": "@hypnosis/docker-mcp-server",
+            "version": "2.0.1",
+            "runtimeHint": "npx",
+            "transport": {
+              "type": "stdio"
+            },
+            "environmentVariables": [
+              {
+                "description": "Absolute path to the JSON file describing the Docker hosts this agent may reach. Without it the server answers about the Docker on this machine.",
+                "format": "filepath",
+                "name": "DOCKER_MCP_PROFILES_FILE"
+              },
+              {
+                "description": "The same profiles JSON inline, used when no profiles file is set.",
+                "format": "string",
+                "name": "DOCKER_PROFILES"
+              },
+              {
+                "description": "Keep going when a profile's SSH key is missing, instead of refusing the profile. Defaults to false.",
+                "format": "boolean",
+                "name": "DOCKER_MCP_ALLOW_SSH_FALLBACK"
+              },
+              {
+                "description": "Log verbosity: error, warn, info or debug. Defaults to info.",
+                "format": "string",
+                "name": "LOG_LEVEL"
+              }
+            ]
+          }
+        ]
+      },
+      "_meta": {
+        "io.modelcontextprotocol.registry/official": {
+          "status": "active",
+          "statusChangedAt": "2026-08-24T20:36:22.290843Z",
+          "publishedAt": "2026-08-24T20:36:22.290843Z",
+          "updatedAt": "2026-08-24T20:36:22.290843Z",
+          "isLatest": true
+        }
+      }
+    },
+    {
+      "server": {
+        "name": "broken/entry",
+        "packages": "not-a-list"
+      },
+      "_meta": {}
+    }
+  ],
+  "metadata": {
+    "count": 6,
+    "nextCursor": "io.github.hypnosis/docker-mcp-server:1.0.0"
+  }
+}

@@ -171,6 +171,16 @@ pub enum Issue {
     NoClientEnabled {
         server_id: String,
     },
+    /// Request headers on a plain-http URL to a non-loopback host.
+    #[serde(rename_all = "camelCase")]
+    InsecureHeaders {
+        server_id: String,
+    },
+    #[serde(rename_all = "camelCase")]
+    DuplicateHeader {
+        server_id: String,
+        header: String,
+    },
 }
 
 #[derive(Debug, Default, Serialize)]
@@ -216,6 +226,18 @@ pub fn validate(config: &MCPConfig) -> Validation {
                 }
             }
             _ => {}
+        }
+
+        if server.transport.sends_headers_insecurely() {
+            result.blocking_errors.push(Issue::InsecureHeaders {
+                server_id: server_id.clone(),
+            });
+        }
+        if let Some(header) = server.transport.duplicate_header() {
+            result.blocking_errors.push(Issue::DuplicateHeader {
+                server_id: server_id.clone(),
+                header,
+            });
         }
 
         if !server.apps.values().any(|enabled| *enabled) {
@@ -339,6 +361,7 @@ mod tests {
             transport: TransportSpec {
                 kind: kind.to_string(),
                 url: url.map(str::to_string),
+                headers: Default::default(),
             },
             command: program.map(|program| crate::core::CommandSpec {
                 program: program.to_string(),
@@ -392,6 +415,88 @@ mod tests {
             })
             .warnings,
             vec![Issue::NoServers]
+        );
+    }
+
+    fn with_headers(id: &str, url: &str, headers: &[(&str, &str)]) -> MCPServer {
+        let mut remote = server(id, "http", Some(url), None);
+        remote.transport.headers = headers
+            .iter()
+            .map(|(name, value)| (name.to_string(), value.to_string()))
+            .collect();
+        remote
+    }
+
+    #[test]
+    fn headers_over_plain_http_are_blocked_except_on_loopback() {
+        let config = MCPConfig {
+            version: 1,
+            servers: vec![
+                with_headers(
+                    "leaky",
+                    "http://mcp.example.com/mcp",
+                    &[("Authorization", "Bearer t")],
+                ),
+                with_headers(
+                    "secure",
+                    "https://mcp.example.com/mcp",
+                    &[("Authorization", "Bearer t")],
+                ),
+                with_headers(
+                    "local",
+                    "http://localhost:3000/mcp",
+                    &[("Authorization", "Bearer t")],
+                ),
+                with_headers("loopback", "http://127.0.0.1:3000/mcp", &[("X-Key", "k")]),
+                with_headers("ipv6", "http://[::1]:3000/mcp", &[("X-Key", "k")]),
+                with_headers("plain", "http://mcp.example.com/mcp", &[]),
+                // Hostnames that merely look like loopback are remote.
+                with_headers(
+                    "lookalike",
+                    "http://127.evil.com/mcp",
+                    &[("Authorization", "Bearer t")],
+                ),
+                with_headers(
+                    "bad-octet",
+                    "http://127.0.0.256/mcp",
+                    &[("Authorization", "Bearer t")],
+                ),
+                with_headers(
+                    "loopback-range",
+                    "http://127.1.2.3/mcp",
+                    &[("Authorization", "Bearer t")],
+                ),
+            ],
+        };
+        let insecure = |id: &str| Issue::InsecureHeaders {
+            server_id: id.to_string(),
+        };
+        assert_eq!(
+            validate(&config).blocking_errors,
+            vec![
+                insecure("leaky"),
+                insecure("lookalike"),
+                insecure("bad-octet")
+            ]
+        );
+    }
+
+    #[test]
+    fn header_names_differing_only_by_case_are_blocked() {
+        let config = MCPConfig {
+            version: 1,
+            servers: vec![with_headers(
+                "dupe",
+                "https://mcp.example.com/mcp",
+                &[("Authorization", "Bearer a"), ("authorization", "Bearer b")],
+            )],
+        };
+        assert_eq!(
+            validate(&config).blocking_errors,
+            vec![Issue::DuplicateHeader {
+                server_id: "dupe".to_string(),
+                header: "authorization".to_string(),
+            }]
         );
     }
 }

@@ -155,7 +155,10 @@ pub fn apply(
     }
 
     let backups = apply_operations(operations)?;
-    Ok(ApplyResult { backups })
+    Ok(ApplyResult {
+        backups,
+        warnings: crate::adapters::unsupported_header_warnings(config),
+    })
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
@@ -364,6 +367,7 @@ mod tests {
             transport: TransportSpec {
                 kind: "stdio".to_string(),
                 url: None,
+                headers: Default::default(),
             },
             command: Some(CommandSpec {
                 program: program.to_string(),

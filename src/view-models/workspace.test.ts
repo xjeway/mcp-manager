@@ -1,10 +1,13 @@
 import { describe, expect, it } from 'vitest'
 import {
+  applyWarningMessages,
+  createEmptyEditorDraft,
   editorDraftToServer,
   filterWorkspaceRows,
   retainVisibleSelection,
   mapConfigToWorkspaceView,
   serverToEditorDraft,
+  serverToJsonText,
   setServerAppEnabled,
   setWorkspacePlacement,
   workspacePlacementPath,
@@ -271,6 +274,64 @@ describe('workspace view-models', () => {
 
     const userOnlyOff = setServerAppEnabled(server, 'vscode', false)
     expect(userOnlyOff.placements?.map((placement) => placement.enabled)).toEqual([false, true])
+  })
+
+  describe('http headers', () => {
+    const remote = (headers?: Record<string, string>): MCPServer => ({
+      id: 'linear',
+      name: 'Linear',
+      enabled: true,
+      transport: { type: 'http', url: 'https://mcp.linear.app/mcp', ...(headers ? { headers } : {}) },
+      apps: { ...createEmptyEditorDraft().apps, vscode: true },
+    })
+
+    it('round-trips headers through the editor draft', () => {
+      const draft = serverToEditorDraft(remote({ Authorization: 'Bearer t' }))
+      expect(draft.headerEntries).toEqual([{ key: 'Authorization', value: 'Bearer t' }])
+
+      const restored = editorDraftToServer({
+        ...draft,
+        headerEntries: [...draft.headerEntries, { key: ' X-Org ', value: 'acme' }, { key: '  ', value: 'dropped' }],
+      })
+      expect(restored.transport.headers).toEqual({ Authorization: 'Bearer t', 'X-Org': 'acme' })
+    })
+
+    it('omits empty headers and drops headers for stdio drafts', () => {
+      expect(editorDraftToServer(serverToEditorDraft(remote())).transport).not.toHaveProperty('headers')
+
+      const stdio = editorDraftToServer({
+        ...serverToEditorDraft(remote({ Authorization: 'Bearer t' })),
+        transportType: 'stdio',
+        program: 'npx',
+      })
+      expect(stdio.transport).toEqual({ type: 'stdio' })
+    })
+
+    it('writes headers into the JSON view', () => {
+      const parsed = JSON.parse(serverToJsonText(remote({ Authorization: 'Bearer t' })))
+      expect(parsed.mcpServers.linear.headers).toEqual({ Authorization: 'Bearer t' })
+      expect(JSON.parse(serverToJsonText(remote())).mcpServers.linear).not.toHaveProperty('headers')
+    })
+
+    it('never shows header values in workspace rows', () => {
+      const view = mapConfigToWorkspaceView(
+        { version: 1, servers: [remote({ Authorization: 'Bearer secret-token' })] },
+        ['vscode'],
+        ((key: string) => key) as never,
+      )
+      expect(JSON.stringify(view.rows)).not.toContain('secret-token')
+    })
+
+    it('describes apply warnings with client and server names', () => {
+      const t = ((key: string, options: Record<string, string>) => `${key}:${options.client}:${options.server}`) as never
+      expect(
+        applyWarningMessages(
+          [{ kind: 'httpHeadersUnsupported', app: 'claudeDesktop', serverId: 'linear' }],
+          [remote({ Authorization: 'x' })],
+          t,
+        ),
+      ).toEqual(['applyWarningHttpHeadersUnsupported:Claude Desktop:Linear'])
+    })
   })
 })
 

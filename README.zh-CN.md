@@ -26,6 +26,7 @@
 
 - 统一维护所有 MCP Server 的工作台
 - 从本地客户端配置中导入已有条目
+- 在 GitHub MCP Registry 或官方 MCP Registry 中搜索 server，几步即可添加
 - 支持表单模式和原始 JSON 模式编辑
 - 向多个受支持客户端生成并应用配置
 - 文件写入前展示风险提示
@@ -222,6 +223,11 @@ cargo run -p mcp-manager-cli -- rollback
 
 - 应用会读取本地客户端配置并转换为内部模型
 - apply 时会生成客户端对应配置，并通过原子写、备份与回滚保障安全
+- 在线市场会把注册表条目（npm、PyPI、Docker 镜像或远程 URL）转换成 server 草稿，在编辑器中确认后保存；所有客户端默认关闭
+
+### 联网说明
+
+MCP Manager 只在检查更新，以及打开在线市场页面时查询 MCP 注册表才会联网。注册表结果会缓存 6 小时，断网时仍可查看上次的数据。在 **设置 → 在线市场** 中关闭后，不会再发起任何市场请求。
 
 ## 当前范围
 
@@ -232,7 +238,7 @@ cargo run -p mcp-manager-cli -- rollback
 ```text
 mcp-manager/
   src/                前端应用
-  src-tauri/          Tauri 应用（对前端暴露的命令）
+  src-tauri/          Tauri 应用（对前端暴露的命令、在线市场）
   crates/
     mcp-manager-core/ 客户端适配、解析与安全写入（共用）
     mcp-manager-cli/  命令行工具

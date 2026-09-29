@@ -1,6 +1,6 @@
 import { invoke } from '@tauri-apps/api/core'
 import YAML from 'yaml'
-import type { ImportDetectedResult, MCPConfig, SupportedApp, WorkspaceContext } from '../types/config'
+import type { ApplyWarning, ImportDetectedResult, MCPConfig, SupportedApp, WorkspaceContext } from '../types/config'
 import { EMPTY_WORKSPACE, SUPPORTED_APPS } from '../types/config'
 import { isDesktopRuntime } from './runtime'
 
@@ -178,6 +178,7 @@ export async function hasExternalConfigChange(): Promise<boolean> {
 
 export interface ApplyResult {
   backups: string[]
+  warnings?: ApplyWarning[]
 }
 
 export async function applyConfig(

@@ -1,5 +1,5 @@
 use serde::{Deserialize, Serialize};
-use std::collections::HashMap;
+use std::collections::{BTreeMap, HashMap};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -127,11 +127,66 @@ pub struct CommandSpec {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub struct TransportSpec {
     #[serde(rename = "type")]
     pub kind: String,
     #[serde(default)]
     pub url: Option<String>,
+    /// Request headers for remote transports; ignored for stdio.
+    #[serde(default, skip_serializing_if = "BTreeMap::is_empty")]
+    pub headers: BTreeMap<String, String>,
+}
+
+impl TransportSpec {
+    /// Headers would cross the network in cleartext: a plain `http://` URL to a
+    /// host other than this machine. Loopback stays allowed for local servers.
+    pub fn sends_headers_insecurely(&self) -> bool {
+        if self.kind == "stdio" || self.headers.is_empty() {
+            return false;
+        }
+        let Some(rest) = self
+            .url
+            .as_deref()
+            .and_then(|url| url.strip_prefix("http://"))
+        else {
+            return false;
+        };
+        let authority = rest.split(['/', '?', '#']).next().unwrap_or_default();
+        let host_port = authority.rsplit('@').next().unwrap_or_default();
+        let host = if host_port.starts_with('[') {
+            host_port
+                .split(']')
+                .next()
+                .map(|h| format!("{h}]"))
+                .unwrap_or_default()
+        } else {
+            host_port.split(':').next().unwrap_or_default().to_string()
+        }
+        .to_ascii_lowercase();
+        // Parse IPs rather than match prefixes: `127.evil.com` is a remote host.
+        let loopback = host == "localhost"
+            || host.ends_with(".localhost")
+            || host
+                .parse::<std::net::Ipv4Addr>()
+                .is_ok_and(|ip| ip.is_loopback())
+            || host
+                .strip_prefix('[')
+                .and_then(|h| h.strip_suffix(']'))
+                .and_then(|h| h.parse::<std::net::Ipv6Addr>().ok())
+                .is_some_and(|ip| ip.is_loopback());
+        !loopback
+    }
+
+    /// A header name (lowercased) that appears more than once ignoring case.
+    /// HTTP header names are case-insensitive, so clients would get two values.
+    pub fn duplicate_header(&self) -> Option<String> {
+        let mut seen = std::collections::BTreeSet::new();
+        self.headers
+            .keys()
+            .map(|name| name.to_ascii_lowercase())
+            .find(|name| !seen.insert(name.clone()))
+    }
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
@@ -213,9 +268,20 @@ pub struct WriteOperation {
     pub content: String,
 }
 
+/// A non-blocking problem found while applying, e.g. a setting a client cannot store.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ApplyWarning {
+    pub kind: String,
+    pub app: SupportedApp,
+    pub server_id: String,
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ApplyResult {
     pub backups: Vec<String>,
+    #[serde(default)]
+    pub warnings: Vec<ApplyWarning>,
 }
 
 #[derive(Debug, Clone)]
@@ -302,6 +368,9 @@ pub fn merge_servers(current: Option<&MCPServer>, incoming: &MCPServer) -> MCPSe
 
     if merged.transport.url.is_none() && incoming.transport.url.is_some() {
         merged.transport = incoming.transport.clone();
+    } else if merged.transport.headers.is_empty() && merged.transport.url == incoming.transport.url
+    {
+        merged.transport.headers = incoming.transport.headers.clone();
     }
 
     merged
@@ -355,8 +424,8 @@ mod tests {
     }
 
     use super::{
-        empty_apps, merge_servers, MCPServer, PlacementScope, ServerPlacement, SupportedApp,
-        TransportSpec,
+        empty_apps, merge_servers, MCPConfig, MCPServer, PlacementScope, ServerPlacement,
+        SupportedApp, TransportSpec,
     };
 
     fn server_with_placement(enabled: bool) -> MCPServer {
@@ -369,6 +438,7 @@ mod tests {
             transport: TransportSpec {
                 kind: "stdio".to_string(),
                 url: None,
+                headers: Default::default(),
             },
             command: None,
             apps: empty_apps(),
@@ -380,6 +450,76 @@ mod tests {
                 managed: true,
             }],
         }
+    }
+
+    fn http_server(url: &str, headers: &[(&str, &str)]) -> MCPServer {
+        MCPServer {
+            transport: TransportSpec {
+                kind: "http".to_string(),
+                url: Some(url.to_string()),
+                headers: headers
+                    .iter()
+                    .map(|(key, value)| (key.to_string(), value.to_string()))
+                    .collect(),
+            },
+            ..server_with_placement(true)
+        }
+    }
+
+    #[test]
+    fn loads_legacy_yaml_without_headers() {
+        let config: MCPConfig = serde_yaml::from_str(
+            "version: 1\nservers:\n  - id: linear\n    name: Linear\n    enabled: true\n    transport:\n      type: http\n      url: https://mcp.linear.app/mcp\n    apps: {}\n",
+        )
+        .expect("legacy yaml");
+        assert!(config.servers[0].transport.headers.is_empty());
+    }
+
+    #[test]
+    fn serializes_headers_only_when_present() {
+        let plain = serde_json::to_value(http_server("https://x/mcp", &[])).expect("json");
+        assert!(plain["transport"].get("headers").is_none());
+
+        let with_headers = serde_json::to_value(http_server(
+            "https://x/mcp",
+            &[("Authorization", "Bearer t")],
+        ))
+        .expect("json");
+        assert_eq!(
+            with_headers["transport"]["headers"]["Authorization"],
+            "Bearer t"
+        );
+    }
+
+    #[test]
+    fn merge_fills_headers_for_the_same_url() {
+        let merged = merge_servers(
+            Some(&http_server("https://x/mcp", &[])),
+            &http_server("https://x/mcp", &[("Authorization", "Bearer t")]),
+        );
+        assert_eq!(
+            merged
+                .transport
+                .headers
+                .get("Authorization")
+                .map(String::as_str),
+            Some("Bearer t")
+        );
+    }
+
+    #[test]
+    fn merge_keeps_own_headers_and_ignores_other_urls() {
+        let merged = merge_servers(
+            Some(&http_server("https://x/mcp", &[("Authorization", "mine")])),
+            &http_server("https://x/mcp", &[("Authorization", "theirs")]),
+        );
+        assert_eq!(merged.transport.headers["Authorization"], "mine");
+
+        let merged = merge_servers(
+            Some(&http_server("https://x/mcp", &[])),
+            &http_server("https://other/mcp", &[("Authorization", "theirs")]),
+        );
+        assert!(merged.transport.headers.is_empty());
     }
 
     #[test]

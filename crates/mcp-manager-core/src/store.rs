@@ -172,6 +172,7 @@ mod tests {
                     transport: TransportSpec {
                         kind: "http".to_string(),
                         url: Some("https://mcp.linear.app/mcp".to_string()),
+                        headers: Default::default(),
                     },
                     command: None,
                     apps: apps.clone(),
@@ -186,6 +187,7 @@ mod tests {
                     transport: TransportSpec {
                         kind: "stdio".to_string(),
                         url: None,
+                        headers: Default::default(),
                     },
                     command: Some(CommandSpec {
                         program: "npx".to_string(),

@@ -1,0 +1,15 @@
+{
+  "globalShortcut": "Alt+Space",
+  "mcpServers": {
+    "remote": {
+      "url": "https://mcp.example.com/mcp"
+    },
+    "other": {
+      "command": "npx",
+      "args": [
+        "-y",
+        "@modelcontextprotocol/server-memory"
+      ]
+    }
+  }
+}

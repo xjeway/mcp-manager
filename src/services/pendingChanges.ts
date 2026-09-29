@@ -1,4 +1,4 @@
-export type GuardView = 'dashboard' | 'editor' | 'settings'
+export type GuardView = 'dashboard' | 'editor' | 'settings' | 'marketplace'
 
 export type PendingChangesAction =
   | { kind: 'view'; view: GuardView }

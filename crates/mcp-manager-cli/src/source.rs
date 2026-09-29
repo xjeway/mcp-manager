@@ -65,6 +65,7 @@ pub fn resolve(source: &Source) -> Result<Resolved, String> {
             TransportSpec {
                 kind: kind.to_string(),
                 url: Some(url.to_string()),
+                headers: Default::default(),
             },
             None,
         )
@@ -74,6 +75,7 @@ pub fn resolve(source: &Source) -> Result<Resolved, String> {
             TransportSpec {
                 kind: "stdio".to_string(),
                 url: None,
+                headers: Default::default(),
             },
             Some(CommandSpec {
                 program: program.clone(),

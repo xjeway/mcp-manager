@@ -6,6 +6,11 @@ use mcp_manager_core::workflow::{self, WorkspaceInfo};
 use std::path::{Path, PathBuf};
 use std::process::Command;
 
+mod marketplace;
+pub use marketplace::{
+    marketplace_open_url, marketplace_search, marketplace_set_enabled, marketplace_sources,
+};
+
 const REPOSITORY_URL: &str = "https://github.com/xjeway/mcp-manager";
 const RELEASES_URL: &str = "https://github.com/xjeway/mcp-manager/releases";
 

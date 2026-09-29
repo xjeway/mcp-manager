@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
-import { Copy, LoaderCircle, PenSquare, Plus, RefreshCw, RotateCcw, Search, SearchX, Settings, Trash2, X } from 'lucide-react'
+import { Copy, LoaderCircle, PenSquare, Plus, RefreshCw, RotateCcw, Search, SearchX, Settings, Store, Trash2, X } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import { getVisibleClients } from './clientMeta'
 import { AppLogo } from './AppLogo'
@@ -13,6 +13,8 @@ interface DashboardProps {
   visibleApps: SupportedApp[]
   workspace: WorkspaceViewModel
   onAdd: () => void
+  /** Omitted when the online marketplace is turned off. */
+  onOpenMarketplace?: () => void
   onOpenRepository: () => void
   onSyncLocalConfig: () => void
   onOpenSettings: () => void
@@ -68,6 +70,7 @@ export function Dashboard({
   visibleApps,
   workspace,
   onAdd,
+  onOpenMarketplace,
   onOpenRepository,
   onSyncLocalConfig,
   onOpenSettings,
@@ -178,6 +181,19 @@ export function Dashboard({
               </button>
             </Tooltip>
 
+            {onOpenMarketplace ? (
+              <Tooltip content={t('marketplace')}>
+                <button
+                  type="button"
+                  className="icon-button toolbar-icon"
+                  onClick={onOpenMarketplace}
+                  aria-label={t('marketplace')}
+                >
+                  <Store size={14} />
+                </button>
+              </Tooltip>
+            ) : null}
+
             <Tooltip content={t('add')}>
               <button
                 type="button"
@@ -225,9 +241,17 @@ export function Dashboard({
             <Plus size={24} />
             <h3>{t('emptyTitle')}</h3>
             <p>{t('emptyDescription')}</p>
-            <button type="button" className="ghost-button" onClick={onAdd}>
-              {t('add')}
-            </button>
+            <div className="empty-state-actions">
+              <button type="button" className="ghost-button" onClick={onAdd}>
+                {t('add')}
+              </button>
+              {onOpenMarketplace ? (
+                <button type="button" className="ghost-button" onClick={onOpenMarketplace}>
+                  <Store size={14} />
+                  {t('marketplaceOpen')}
+                </button>
+              ) : null}
+            </div>
           </div>
         ) : (
           <>

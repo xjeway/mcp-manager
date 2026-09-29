@@ -122,6 +122,7 @@ mod tests {
                     transport: TransportSpec {
                         kind: "stdio".to_string(),
                         url: None,
+                        headers: Default::default(),
                     },
                     command: Some(crate::core::CommandSpec {
                         program: "npx".to_string(),
@@ -138,5 +139,18 @@ mod tests {
         );
         assert_eq!(operations[0].mode, "merge_json_object_entries");
         assert_eq!(operations[0].field.as_deref(), Some("mcpServers"));
+    }
+
+    #[test]
+    fn does_not_write_http_headers() {
+        crate::adapters::header_fixture::assert_round_trip(
+            &ClaudeDesktopAdapter,
+            include_str!("../../tests/fixtures/headers/claude_desktop.json"),
+            crate::adapters::header_fixture::Expect {
+                field: "mcpServers",
+                headers_key: None,
+                unrelated_key: "globalShortcut",
+            },
+        );
     }
 }

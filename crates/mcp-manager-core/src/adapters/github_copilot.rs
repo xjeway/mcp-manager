@@ -137,6 +137,7 @@ mod tests {
                     transport: TransportSpec {
                         kind: "stdio".to_string(),
                         url: None,
+                        headers: Default::default(),
                     },
                     command: Some(crate::core::CommandSpec {
                         program: "uvx".to_string(),
@@ -172,6 +173,7 @@ mod tests {
                         transport: TransportSpec {
                             kind: "stdio".to_string(),
                             url: None,
+                            headers: Default::default(),
                         },
                         command: Some(crate::core::CommandSpec {
                             program: "uvx".to_string(),
@@ -190,6 +192,7 @@ mod tests {
                         transport: TransportSpec {
                             kind: "sse".to_string(),
                             url: Some("https://mcp.linear.app/sse".to_string()),
+                            headers: Default::default(),
                         },
                         command: None,
                         apps,
@@ -207,5 +210,18 @@ mod tests {
         assert_eq!(payload["github"]["tools"][0], "*");
         assert_eq!(payload["linear"]["type"], "sse");
         assert_eq!(payload["linear"]["tools"][0], "*");
+    }
+
+    #[test]
+    fn round_trips_http_headers() {
+        crate::adapters::header_fixture::assert_round_trip(
+            &GithubCopilotAdapter,
+            include_str!("../../tests/fixtures/headers/github_copilot.json"),
+            crate::adapters::header_fixture::Expect {
+                field: "mcpServers",
+                headers_key: Some("headers"),
+                unrelated_key: "trustedFolders",
+            },
+        );
     }
 }

@@ -1,8 +1,9 @@
+import type { ApplyResult } from './configService'
 import type { ImportDetectedResult, MCPConfig, MCPServer, ServerPlacement, SupportedApp } from '../types/config'
 import { isServerAppEnabled, setServerAppEnabled } from '../view-models/workspace'
 
 interface SaveAndSyncConfigOptions {
-  applyConfig: (config: MCPConfig, previousConfig: MCPConfig) => Promise<{ backups: string[] }>
+  applyConfig: (config: MCPConfig, previousConfig: MCPConfig) => Promise<ApplyResult>
   nextConfig: MCPConfig
   previousConfig: MCPConfig
   saveConfig: (config: MCPConfig) => Promise<void>
@@ -18,7 +19,7 @@ export async function saveAndSyncConfig({
   nextConfig,
   previousConfig,
   saveConfig,
-}: SaveAndSyncConfigOptions): Promise<{ backups: string[] }> {
+}: SaveAndSyncConfigOptions): Promise<ApplyResult> {
   await saveConfig(nextConfig)
 
   try {

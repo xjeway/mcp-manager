@@ -17,6 +17,10 @@ tauri = { version = "2", features = [] }
 tauri-plugin-updater = "2"
 tauri-plugin-dialog = "2"
 tauri-plugin-fs = "2"
+# Marketplace HTTP client. Mirrors tauri-plugin-updater's TLS setup (rustls + ring)
+# so no second TLS stack is pulled in.
+reqwest = { version = "0.13", default-features = false, features = ["blocking", "gzip", "rustls-no-provider", "system-proxy"] }
+rustls = { version = "0.23", default-features = false, features = ["ring"] }
 
 [dev-dependencies]
 tempfile.workspace = true

@@ -334,7 +334,8 @@ fn apply_merge_toml_table_entries(
     atomic_write(path, &rendered)
 }
 
-fn apply_operation(path: &Path, item: &WriteOperation) -> Result<(), String> {
+/// Applies one write to `path` without taking a backup.
+pub fn apply_operation(path: &Path, item: &WriteOperation) -> Result<(), String> {
     let field = |kind: &str| {
         item.field
             .as_deref()
