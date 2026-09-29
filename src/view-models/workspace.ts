@@ -143,6 +143,28 @@ export function setServerAppEnabled<T extends AppPlacementTarget>(
   }
 }
 
+export interface WorkspaceRowFilter {
+  app: SupportedApp | null
+  query: string
+}
+
+export function filterWorkspaceRows(rows: WorkspaceRowViewModel[], filter: WorkspaceRowFilter): WorkspaceRowViewModel[] {
+  const terms = filter.query.trim().toLowerCase().split(/\s+/).filter(Boolean)
+  return rows.filter((row) => {
+    if (filter.app && !row.enabledApps.includes(filter.app)) {
+      return false
+    }
+    const haystack = [row.name, row.copyValue, row.transportLabel].join(' ').toLowerCase()
+    return terms.every((term) => haystack.includes(term))
+  })
+}
+
+/** Keeps only selected ids that are still visible; returns `selectedIds` itself if none were dropped. */
+export function retainVisibleSelection(selectedIds: string[], visibleIds: string[]): string[] {
+  const next = selectedIds.filter((id) => visibleIds.includes(id))
+  return next.length === selectedIds.length ? selectedIds : next
+}
+
 function placementScopeLabel(scope: PlacementScope): string {
   return scope === 'workspace' ? 'placementScopeWorkspace' : 'placementScopeUser'
 }

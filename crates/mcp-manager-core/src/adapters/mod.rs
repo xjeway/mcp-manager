@@ -491,7 +491,7 @@ pub(crate) mod header_fixture {
     use super::AppAdapter;
     use crate::core::MCPConfig;
     use crate::platform::{PlatformContext, PlatformOs};
-    use crate::storage::apply_write;
+    use crate::storage::apply_operation;
     use serde_json::Value;
     use std::fs;
     use std::path::PathBuf;
@@ -561,7 +561,7 @@ pub(crate) mod header_fixture {
         let operations = adapter.plan_apply(&ctx, &config, None);
         assert_eq!(operations.len(), 1);
         for operation in &operations {
-            apply_write(&PathBuf::from(&operation.path), operation).expect("apply");
+            apply_operation(&PathBuf::from(&operation.path), operation).expect("apply");
         }
 
         let host = read_host(&path);

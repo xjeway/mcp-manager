@@ -7,7 +7,7 @@
 use crate::marketplace::{
     Marketplace, MarketplaceError, MarketplaceSource, ReqwestClient, SearchPage,
 };
-use crate::platform::PlatformContext;
+use mcp_manager_core::platform::PlatformContext;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::OnceLock;
 use std::time::{SystemTime, UNIX_EPOCH};

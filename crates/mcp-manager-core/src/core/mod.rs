@@ -59,6 +59,64 @@ impl SupportedApp {
             SupportedApp::Qoder => "qoder",
         }
     }
+
+    /// The product name, as the app's client list shows it.
+    pub fn display_name(self) -> &'static str {
+        match self {
+            SupportedApp::Vscode => "VS Code",
+            SupportedApp::Cursor => "Cursor",
+            SupportedApp::ClaudeCode => "Claude Code",
+            SupportedApp::ClaudeDesktop => "Claude Desktop",
+            SupportedApp::Codex => "Codex",
+            SupportedApp::OpenCode => "OpenCode",
+            SupportedApp::GithubCopilot => "GitHub Copilot",
+            SupportedApp::GeminiCli => "Gemini CLI",
+            SupportedApp::Antigravity => "Antigravity",
+            SupportedApp::IFlow => "iFlow",
+            SupportedApp::QwenCode => "Qwen Code",
+            SupportedApp::Cline => "Cline",
+            SupportedApp::Windsurf => "Windsurf",
+            SupportedApp::Kiro => "Kiro",
+            SupportedApp::Qoder => "Qoder",
+        }
+    }
+
+    /// Id for command lines, e.g. `claude-code`.
+    pub fn cli_id(self) -> &'static str {
+        match self {
+            SupportedApp::Vscode => "vscode",
+            SupportedApp::Cursor => "cursor",
+            SupportedApp::ClaudeCode => "claude-code",
+            SupportedApp::ClaudeDesktop => "claude-desktop",
+            SupportedApp::Codex => "codex",
+            SupportedApp::OpenCode => "opencode",
+            SupportedApp::GithubCopilot => "github-copilot",
+            SupportedApp::GeminiCli => "gemini-cli",
+            SupportedApp::Antigravity => "antigravity",
+            SupportedApp::IFlow => "iflow",
+            SupportedApp::QwenCode => "qwen-code",
+            SupportedApp::Cline => "cline",
+            SupportedApp::Windsurf => "windsurf",
+            SupportedApp::Kiro => "kiro",
+            SupportedApp::Qoder => "qoder",
+        }
+    }
+
+    /// Accepts the kebab-case id, the camelCase id, or the display name, ignoring case.
+    pub fn parse(value: &str) -> Option<SupportedApp> {
+        let key = |text: &str| {
+            text.chars()
+                .filter(|ch| ch.is_ascii_alphanumeric())
+                .collect::<String>()
+                .to_ascii_lowercase()
+        };
+        let wanted = key(value);
+        SupportedApp::ALL.into_iter().find(|app| {
+            [app.cli_id(), app.as_str(), app.display_name()]
+                .into_iter()
+                .any(|name| key(name) == wanted)
+        })
+    }
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -300,6 +358,20 @@ pub fn build_import_result(
 
 #[cfg(test)]
 mod tests {
+    #[test]
+    fn cli_ids_round_trip_through_parse() {
+        use super::SupportedApp;
+        for app in SupportedApp::ALL {
+            assert_eq!(SupportedApp::parse(app.cli_id()), Some(app));
+            assert_eq!(SupportedApp::parse(app.as_str()), Some(app));
+            assert_eq!(SupportedApp::parse(app.display_name()), Some(app));
+        }
+        assert_eq!(SupportedApp::ClaudeCode.cli_id(), "claude-code");
+        assert_eq!(SupportedApp::IFlow.cli_id(), "iflow");
+        assert_eq!(SupportedApp::parse("iflow"), Some(SupportedApp::IFlow));
+        assert_eq!(SupportedApp::parse("nope"), None);
+    }
+
     use super::{
         empty_apps, merge_servers, MCPConfig, MCPServer, PlacementScope, ServerPlacement,
         SupportedApp, TransportSpec,

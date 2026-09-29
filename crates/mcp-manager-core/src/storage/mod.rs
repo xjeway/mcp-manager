@@ -4,6 +4,7 @@ use chrono::Utc;
 use serde_json::{Map, Value};
 use std::fs;
 use std::path::{Component, Path, PathBuf, Prefix};
+use std::sync::atomic::{AtomicU64, Ordering};
 use toml::Table;
 
 fn base_dir() -> PathBuf {
@@ -66,7 +67,7 @@ fn restore_dir(relative: &Path) -> PathBuf {
     }
 }
 
-pub fn backup_file(target: &PathBuf) -> Result<Option<String>, String> {
+pub fn backup_file(target: &Path) -> Result<Option<String>, String> {
     if !target.exists() {
         return Ok(None);
     }
@@ -88,12 +89,78 @@ pub fn backup_file(target: &PathBuf) -> Result<Option<String>, String> {
     Ok(Some(backup.to_string_lossy().to_string()))
 }
 
-pub fn atomic_write(path: &PathBuf, content: &str) -> Result<(), String> {
+pub fn atomic_write(path: &Path, content: &str) -> Result<(), String> {
+    atomic_write_bytes(path, content.as_bytes())
+}
+
+/// Writes to a temporary file and renames it over `path`, so a crash never
+/// leaves `path` truncated.
+pub fn atomic_write_bytes(path: &Path, content: &[u8]) -> Result<(), String> {
+    // Unique per write, so concurrent writes (in this process or another)
+    // never share a temporary file, even for `config.json` and `config.toml`.
+    static NEXT_TEMP_ID: AtomicU64 = AtomicU64::new(0);
     ensure_parent(path)?;
-    let tmp = path.with_extension("tmp");
+    let mut tmp = path.as_os_str().to_owned();
+    tmp.push(format!(
+        ".{}.{}.tmp",
+        std::process::id(),
+        NEXT_TEMP_ID.fetch_add(1, Ordering::Relaxed)
+    ));
+    let tmp = PathBuf::from(tmp);
     fs::write(&tmp, content).map_err(|e| e.to_string())?;
-    fs::rename(tmp, path).map_err(|e| e.to_string())?;
-    Ok(())
+    fs::rename(&tmp, path).map_err(|e| {
+        let _ = fs::remove_file(&tmp);
+        e.to_string()
+    })
+}
+
+/// Files as they were at one moment, to put them back after a failed change.
+/// A file that did not exist is removed on restore.
+#[derive(Debug, Default)]
+pub struct Snapshot(Vec<(PathBuf, Option<Vec<u8>>)>);
+
+impl Snapshot {
+    /// Records `path` unless it is already recorded, so the first state wins.
+    pub fn capture(&mut self, path: &Path) -> Result<(), String> {
+        if self.0.iter().any(|(seen, _)| seen == path) {
+            return Ok(());
+        }
+        let content = if path.exists() {
+            Some(fs::read(path).map_err(|e| e.to_string())?)
+        } else {
+            None
+        };
+        self.0.push((path.to_path_buf(), content));
+        Ok(())
+    }
+
+    pub fn paths(&self) -> impl Iterator<Item = &Path> {
+        self.0.iter().map(|(path, _)| path.as_path())
+    }
+
+    /// Puts every recorded file back, newest first, and reports each failure.
+    pub fn restore(&self) -> Result<(), String> {
+        let failures = self
+            .0
+            .iter()
+            .rev()
+            .filter_map(|(path, original)| {
+                let restored = match original {
+                    Some(content) => atomic_write_bytes(path, content),
+                    None if path.exists() => fs::remove_file(path).map_err(|e| e.to_string()),
+                    None => Ok(()),
+                };
+                restored
+                    .err()
+                    .map(|e| format!("{}: {e}", path.to_string_lossy()))
+            })
+            .collect::<Vec<_>>();
+        if failures.is_empty() {
+            Ok(())
+        } else {
+            Err(failures.join("; "))
+        }
+    }
 }
 
 fn json_value_to_toml(value: &Value) -> Result<toml::Value, String> {
@@ -127,13 +194,13 @@ fn json_value_to_toml(value: &Value) -> Result<toml::Value, String> {
     }
 }
 
-fn apply_replace_json(path: &PathBuf, content: &str) -> Result<(), String> {
+fn apply_replace_json(path: &Path, content: &str) -> Result<(), String> {
     let parsed: Value = serde_json::from_str(content).map_err(|e| e.to_string())?;
     let pretty = serde_json::to_string_pretty(&parsed).map_err(|e| e.to_string())?;
     atomic_write(path, &pretty)
 }
 
-fn apply_merge_json_field(path: &PathBuf, field: &str, content: &str) -> Result<(), String> {
+fn apply_merge_json_field(path: &Path, field: &str, content: &str) -> Result<(), String> {
     let field_value: Value = serde_json::from_str(content).map_err(|e| e.to_string())?;
     let existing = if path.exists() {
         fs::read_to_string(path).map_err(|e| e.to_string())?
@@ -154,7 +221,7 @@ fn apply_merge_json_field(path: &PathBuf, field: &str, content: &str) -> Result<
 }
 
 fn apply_merge_json_object_entries(
-    path: &PathBuf,
+    path: &Path,
     field: &str,
     content: &str,
     remove_keys: Option<&[String]>,
@@ -203,7 +270,7 @@ fn apply_merge_json_object_entries(
     atomic_write(path, &pretty)
 }
 
-fn apply_merge_toml_field(path: &PathBuf, field: &str, content: &str) -> Result<(), String> {
+fn apply_merge_toml_field(path: &Path, field: &str, content: &str) -> Result<(), String> {
     let field_value: Value = serde_json::from_str(content).map_err(|e| e.to_string())?;
     let existing = if path.exists() {
         fs::read_to_string(path).map_err(|e| e.to_string())?
@@ -221,7 +288,7 @@ fn apply_merge_toml_field(path: &PathBuf, field: &str, content: &str) -> Result<
 }
 
 fn apply_merge_toml_table_entries(
-    path: &PathBuf,
+    path: &Path,
     field: &str,
     content: &str,
     remove_keys: Option<&[String]>,
@@ -268,36 +335,25 @@ fn apply_merge_toml_table_entries(
 }
 
 /// Applies one write to `path` without taking a backup.
-pub fn apply_write(path: &PathBuf, item: &WriteOperation) -> Result<(), String> {
+pub fn apply_operation(path: &Path, item: &WriteOperation) -> Result<(), String> {
+    let field = |kind: &str| {
+        item.field
+            .as_deref()
+            .ok_or_else(|| format!("missing {kind} merge field"))
+    };
     match item.mode.as_str() {
         "replace_json" => apply_replace_json(path, &item.content),
-        "merge_json_field" => apply_merge_json_field(
-            path,
-            item.field
-                .as_deref()
-                .ok_or_else(|| "missing JSON merge field".to_string())?,
-            &item.content,
-        ),
+        "merge_json_field" => apply_merge_json_field(path, field("JSON")?, &item.content),
         "merge_json_object_entries" => apply_merge_json_object_entries(
             path,
-            item.field
-                .as_deref()
-                .ok_or_else(|| "missing JSON merge field".to_string())?,
+            field("JSON")?,
             &item.content,
             item.remove_keys.as_deref(),
         ),
-        "merge_toml_field" => apply_merge_toml_field(
-            path,
-            item.field
-                .as_deref()
-                .ok_or_else(|| "missing TOML merge field".to_string())?,
-            &item.content,
-        ),
+        "merge_toml_field" => apply_merge_toml_field(path, field("TOML")?, &item.content),
         "merge_toml_table_entries" => apply_merge_toml_table_entries(
             path,
-            item.field
-                .as_deref()
-                .ok_or_else(|| "missing TOML merge field".to_string())?,
+            field("TOML")?,
             &item.content,
             item.remove_keys.as_deref(),
         ),
@@ -305,15 +361,31 @@ pub fn apply_write(path: &PathBuf, item: &WriteOperation) -> Result<(), String> 
     }
 }
 
+/// Applies every operation, backing up each existing file first. If one
+/// fails, every file already written by this batch is put back as it was
+/// (and files it created are removed), so clients never end up half-applied.
 pub fn apply_operations(artifacts: Vec<WriteOperation>) -> Result<Vec<String>, String> {
     let mut backups = Vec::new();
+    let mut originals = Snapshot::default();
 
     for item in artifacts {
         let path = resolve_path(&item.path);
-        if let Some(backup) = backup_file(&path)? {
-            backups.push(backup);
+        let result = (|| {
+            originals.capture(&path)?;
+            if let Some(backup) = backup_file(&path)? {
+                backups.push(backup);
+            }
+            apply_operation(&path, &item)
+        })();
+
+        if let Err(error) = result {
+            return Err(match originals.restore() {
+                Ok(()) => error,
+                Err(restore_error) => format!(
+                    "{error}; restoring the files written before it also failed: {restore_error}"
+                ),
+            });
         }
-        apply_write(&path, &item)?;
     }
 
     Ok(backups)
@@ -397,6 +469,44 @@ mod tests {
             Some(value) => std::env::set_var(HOME_ENV_VAR, value),
             None => std::env::remove_var(HOME_ENV_VAR),
         }
+    }
+
+    #[test]
+    fn a_failed_batch_puts_every_written_file_back() {
+        let _guard = env_lock()
+            .lock()
+            .unwrap_or_else(|poisoned| poisoned.into_inner());
+        let dir = tempfile::tempdir().expect("tmpdir");
+        let home = dir.path().join("home");
+        fs::create_dir_all(&home).expect("create home");
+        let existing = dir.path().join("existing.json");
+        let created = dir.path().join("created/mcp.json");
+        fs::write(&existing, r#"{"mcpServers":{"old":{"command":"old"}}}"#).expect("seed");
+        let (previous_home, previous_dir) = set_test_runtime(&home, dir.path());
+
+        let merge = |path: &Path| WriteOperation {
+            path: path.to_string_lossy().to_string(),
+            mode: "merge_json_object_entries".to_string(),
+            field: Some("mcpServers".to_string()),
+            remove_keys: Some(vec!["old".to_string()]),
+            content: r#"{"new":{"command":"npx"}}"#.to_string(),
+        };
+        let result = apply_operations(vec![
+            merge(&existing),
+            merge(&created),
+            WriteOperation {
+                mode: "not_a_mode".to_string(),
+                ..merge(&existing)
+            },
+        ]);
+        restore_test_runtime(previous_home, previous_dir);
+
+        assert!(result.unwrap_err().contains("not_a_mode"));
+        assert_eq!(
+            fs::read_to_string(&existing).expect("read"),
+            r#"{"mcpServers":{"old":{"command":"old"}}}"#
+        );
+        assert!(!created.exists());
     }
 
     #[test]

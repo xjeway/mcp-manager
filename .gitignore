@@ -33,6 +33,7 @@ Thumbs.db
 .idea/
 
 # Tauri / Rust
+/target/
 /src-tauri/target/
 /src-tauri/.cargo/
 

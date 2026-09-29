@@ -3,6 +3,8 @@ import {
   applyWarningMessages,
   createEmptyEditorDraft,
   editorDraftToServer,
+  filterWorkspaceRows,
+  retainVisibleSelection,
   mapConfigToWorkspaceView,
   serverToEditorDraft,
   serverToJsonText,
@@ -11,6 +13,7 @@ import {
   workspacePlacementPath,
 } from './workspace'
 import type { MCPServer } from '../types/config'
+import type { WorkspaceRowViewModel } from './workspace'
 
 describe('workspace view-models', () => {
   it('maps canonical config into workspace stats and rows', () => {
@@ -329,5 +332,60 @@ describe('workspace view-models', () => {
         ),
       ).toEqual(['applyWarningHttpHeadersUnsupported:Claude Desktop:Linear'])
     })
+  })
+})
+
+describe('filterWorkspaceRows', () => {
+  const row = (id: string, name: string, copyValue: string, enabledApps: WorkspaceRowViewModel['enabledApps'] = []) => ({
+    id,
+    name,
+    copyValue,
+    enabledApps,
+    transportLabel: copyValue.startsWith('http') ? 'HTTP' : 'STDIO',
+    placements: [],
+  })
+  const rows: WorkspaceRowViewModel[] = [
+    row('github', 'GitHub', 'uvx mcp-server-github', ['vscode', 'cursor']),
+    row('filesystem', 'Filesystem', 'npx @modelcontextprotocol/server-filesystem', ['cursor']),
+    row('linear', 'Linear', 'https://mcp.linear.app/sse', []),
+  ]
+  const ids = (result: WorkspaceRowViewModel[]) => result.map((item) => item.id)
+
+  it('returns every row when the query is blank and no app is selected', () => {
+    expect(ids(filterWorkspaceRows(rows, { query: '   ', app: null }))).toEqual(['github', 'filesystem', 'linear'])
+  })
+
+  it('matches the server name case-insensitively', () => {
+    expect(ids(filterWorkspaceRows(rows, { query: 'GITHUB', app: null }))).toEqual(['github'])
+  })
+
+  it('matches the command or url summary', () => {
+    expect(ids(filterWorkspaceRows(rows, { query: 'npx', app: null }))).toEqual(['filesystem'])
+    expect(ids(filterWorkspaceRows(rows, { query: 'linear.app', app: null }))).toEqual(['linear'])
+  })
+
+  it('matches the transport label', () => {
+    expect(ids(filterWorkspaceRows(rows, { query: 'http', app: null }))).toEqual(['linear'])
+  })
+
+  it('requires every whitespace-separated term to match', () => {
+    expect(ids(filterWorkspaceRows(rows, { query: 'uvx github', app: null }))).toEqual(['github'])
+    expect(ids(filterWorkspaceRows(rows, { query: 'uvx linear', app: null }))).toEqual([])
+  })
+
+  it('keeps only rows enabled for the selected app', () => {
+    expect(ids(filterWorkspaceRows(rows, { query: '', app: 'cursor' }))).toEqual(['github', 'filesystem'])
+    expect(ids(filterWorkspaceRows(rows, { query: 'file', app: 'vscode' }))).toEqual([])
+  })
+})
+
+describe('retainVisibleSelection', () => {
+  it('drops ids that are hidden or no longer exist', () => {
+    expect(retainVisibleSelection(['a', 'b', 'c'], ['a', 'c', 'd'])).toEqual(['a', 'c'])
+  })
+
+  it('returns the same array when nothing changes so state updates can bail out', () => {
+    const selection = ['a', 'b']
+    expect(retainVisibleSelection(selection, ['a', 'b', 'c'])).toBe(selection)
   })
 })

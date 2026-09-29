@@ -1,10 +1,10 @@
 import { useEffect, useRef, useState } from 'react'
-import { Copy, LoaderCircle, PenSquare, Plus, RefreshCw, RotateCcw, Settings, Store, Trash2, X } from 'lucide-react'
+import { Copy, LoaderCircle, PenSquare, Plus, RefreshCw, RotateCcw, Search, SearchX, Settings, Store, Trash2, X } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import { getVisibleClients } from './clientMeta'
 import { AppLogo } from './AppLogo'
 import { Tooltip } from './Tooltip'
-import type { WorkspaceViewModel } from '../view-models/workspace'
+import { filterWorkspaceRows, retainVisibleSelection, type WorkspaceViewModel } from '../view-models/workspace'
 import type { SupportedApp } from '../types/config'
 
 interface DashboardProps {
@@ -85,11 +85,43 @@ export function Dashboard({
   const loading = busy === 'loading'
   const visibleClients = getVisibleClients(visibleApps)
   const [selectedIds, setSelectedIds] = useState<string[]>([])
-  const rowIds = workspace.rows.map((row) => row.id)
-  // Drop selections for servers that no longer exist (deleted or replaced).
+  const [query, setQuery] = useState('')
+  const [appFilter, setAppFilter] = useState<SupportedApp | null>(null)
+  const searchRef = useRef<HTMLInputElement | null>(null)
+  // A filter on a client that is no longer visible would hide every row with no way to clear it.
+  const activeAppFilter = appFilter && visibleApps.includes(appFilter) ? appFilter : null
+  const filtering = query.trim() !== '' || activeAppFilter !== null
+  const visibleRows = filterWorkspaceRows(workspace.rows, { query, app: activeAppFilter })
+  const rowIds = visibleRows.map((row) => row.id)
+  // Batch actions only ever touch rows the user can see: drop selections for servers that
+  // were deleted, replaced, or are currently hidden by the search/client filter.
   const selected = selectedIds.filter((id) => rowIds.includes(id))
+  // Also forget them, so clearing the filter does not bring back a selection the user
+  // could not see when they acted.
+  const rowIdsKey = rowIds.join('\u0000')
+  useEffect(() => {
+    const visibleIds = rowIdsKey ? rowIdsKey.split('\u0000') : []
+    setSelectedIds((current) => retainVisibleSelection(current, visibleIds))
+  }, [rowIdsKey])
   const selectedRows = workspace.rows.filter((row) => selected.includes(row.id))
   const allSelected = rowIds.length > 0 && selected.length === rowIds.length
+
+  useEffect(() => {
+    const onKeyDown = (event: KeyboardEvent) => {
+      if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === 'f') {
+        event.preventDefault()
+        searchRef.current?.focus()
+        searchRef.current?.select()
+      }
+    }
+    window.addEventListener('keydown', onKeyDown)
+    return () => window.removeEventListener('keydown', onKeyDown)
+  }, [])
+
+  const clearFilters = () => {
+    setQuery('')
+    setAppFilter(null)
+  }
 
   const toggleSelected = (serverId: string) => {
     setSelectedIds((current) =>
@@ -178,13 +210,21 @@ export function Dashboard({
 
         <section className="stats-strip">
           {workspace.stats.map((stat) => (
-            <article key={stat.id} className={`stat-card ${stat.accent}`}>
-              <div className="stat-topline">
-                <span className="stat-icon-wrap">{stat.icon}</span>
-              </div>
-              <strong className="stat-value">{stat.count}</strong>
-              <span className="stat-caption">{stat.label}</span>
-            </article>
+            <Tooltip key={stat.id} content={t(activeAppFilter === stat.id ? 'clientFilterClear' : 'clientFilterApply', { client: stat.label })}>
+              <button
+                type="button"
+                className={activeAppFilter === stat.id ? `stat-card ${stat.accent} is-active` : `stat-card ${stat.accent}`}
+                aria-pressed={activeAppFilter === stat.id}
+                onClick={() => setAppFilter((current) => (current === stat.id ? null : stat.id))}
+                data-tauri-no-drag
+              >
+                <div className="stat-topline">
+                  <span className="stat-icon-wrap">{stat.icon}</span>
+                </div>
+                <strong className="stat-value">{stat.count}</strong>
+                <span className="stat-caption">{stat.label}</span>
+              </button>
+            </Tooltip>
           ))}
         </section>
       </div>
@@ -265,9 +305,47 @@ export function Dashboard({
                 </Tooltip>
               </>
             ) : null}
+            <div className="server-search">
+              <Search size={13} />
+              <input
+                ref={searchRef}
+                type="search"
+                value={query}
+                placeholder={t('serverSearchPlaceholder')}
+                aria-label={t('serverSearchPlaceholder')}
+                onChange={(event) => setQuery(event.target.value)}
+                onKeyDown={(event) => {
+                  if (event.key === 'Escape') {
+                    setQuery('')
+                    event.currentTarget.blur()
+                  }
+                }}
+              />
+              <span className="sr-only" role="status" aria-live="polite">
+                {filtering
+                  ? visibleRows.length === 0
+                    ? t('serverSearchEmptyTitle')
+                    : t('serverSearchStatus', { shown: visibleRows.length, total: workspace.rows.length })
+                  : ''}
+              </span>
+              {filtering ? (
+                <span className="server-search-count" aria-hidden="true">
+                  {t('serverSearchCount', { shown: visibleRows.length, total: workspace.rows.length })}
+                </span>
+              ) : null}
+            </div>
           </div>
           <div className="server-list-scroll">
-            {workspace.rows.map((row) => (
+            {visibleRows.length === 0 ? (
+              <div className="empty-state empty-state-compact">
+                <SearchX size={22} />
+                <h3>{t('serverSearchEmptyTitle')}</h3>
+                <button type="button" className="ghost-button" onClick={clearFilters}>
+                  {t('serverSearchClear')}
+                </button>
+              </div>
+            ) : null}
+            {visibleRows.map((row) => (
               <article
                 key={row.id}
                 className={selected.includes(row.id) ? 'server-list-row is-selected' : 'server-list-row'}
