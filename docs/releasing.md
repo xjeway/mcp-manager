@@ -150,7 +150,7 @@ One-time setup before the first release that ships the CLI:
    node scripts/npm-packages.mjs bootstrap --out /tmp/mcpmgr-placeholders
    ```
 
-   It prints one `npm publish` command for each name not yet on npm; run each while logged in (`npm login`).
+   It prints one `npm publish` command for each name not yet on npm; run each while logged in (`npm login`) as a member of the `mcpmgr` organization. Run `bootstrap` itself with that account too: npm also answers 404 for a private package you cannot see, so a lookup from an account outside the organization can list names that are in fact taken.
 3. For each of the seven packages, open **Settings → Trusted publishing** on npmjs.com and add a GitHub Actions publisher: repository `xjeway/mcp-manager`, workflow `release.yml`.
 
 ## Release Process
