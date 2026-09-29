@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import { getCurrentWindow } from '@tauri-apps/api/window'
 import { useTranslation } from 'react-i18next'
 import { CLIENTS } from './components/clientMeta'
+import { ConfigProblemDialog } from './components/ConfigProblemDialog'
 import { Dashboard } from './components/Dashboard'
 import { MarketplacePage } from './components/MarketplacePage'
 import { SettingsPage } from './components/SettingsPage'
@@ -37,9 +38,11 @@ import {
   loadConfig,
   rollback,
   saveConfig,
+  startOverConfig,
+  ConfigUnreadableError,
 } from './services/configService'
 import { areConfigsEquivalent } from './services/configSync'
-import { openRepositoryLink } from './services/externalLinks'
+import { openPath, openRepositoryLink } from './services/externalLinks'
 import { confirmDialog } from './services/nativeDialogs'
 import { mergeServerIntoConfig, shouldPromptForPendingChanges } from './services/pendingChanges'
 import { evaluateApplyRisks } from './services/risk'
@@ -122,6 +125,8 @@ function MainApp() {
   const [view, setView] = useState<View>('dashboard')
   const [actionState, setActionState] = useState<ActionState>('loading')
   const [config, setConfig] = useState<MCPConfig>({ version: 1, servers: [] })
+  // Set while servers.yaml cannot be read; the service refuses saves meanwhile.
+  const [configProblem, setConfigProblem] = useState<ConfigUnreadableError | null>(null)
   const [editingServer, setEditingServer] = useState<MCPServer | null>(null)
   // A new server prefilled from the marketplace; the editor still treats it as "add".
   const [prefillServer, setPrefillServer] = useState<MCPServer | null>(null)
@@ -227,9 +232,14 @@ function MainApp() {
   const reloadConfigFromDisk = async (kind: FeedbackItem['kind'], message: string) => {
     try {
       setConfig(await loadConfig())
+      setConfigProblem(null)
       pushFeedback(kind, message)
     } catch (error) {
-      pushFeedback('error', t('loadFailedDetail', { error: String(error) }))
+      if (error instanceof ConfigUnreadableError) {
+        setConfigProblem(error)
+      } else {
+        pushFeedback('error', t('loadFailedDetail', { error: String(error) }))
+      }
     }
   }
 
@@ -255,7 +265,10 @@ function MainApp() {
           }),
         )
       } catch (error) {
-        if (error instanceof ConfigConflictError) {
+        if (error instanceof ConfigUnreadableError) {
+          setConfigProblem(error)
+          pushFeedback('error', t('configUnreadableNotSaved'))
+        } else if (error instanceof ConfigConflictError) {
           await reloadConfigFromDisk('warning', t('configConflictReloaded'))
         } else if (error instanceof ConfigTooNewError) {
           pushFeedback('error', t('configTooNew'))
@@ -342,7 +355,12 @@ function MainApp() {
         if (!alive) {
           return
         }
-        pushFeedback('error', t('loadFailedDetail', { error: String(error) }))
+        if (error instanceof ConfigUnreadableError) {
+          // Auto-import is skipped too: it would save over the file.
+          setConfigProblem(error)
+        } else {
+          pushFeedback('error', t('loadFailedDetail', { error: String(error) }))
+        }
       } finally {
         if (alive) {
           setActionState('idle')
@@ -531,7 +549,10 @@ function MainApp() {
       }
       return true
     } catch (error) {
-      if (error instanceof ConfigConflictError) {
+      if (error instanceof ConfigUnreadableError) {
+        setConfigProblem(error)
+        pushFeedback('error', t('configUnreadableNotSaved'))
+      } else if (error instanceof ConfigConflictError) {
         await reloadConfigFromDisk('warning', t('configConflictReloaded'))
       } else if (error instanceof ConfigTooNewError) {
         pushFeedback('error', t('configTooNew'))
@@ -626,6 +647,51 @@ function MainApp() {
       pushFeedback('error', t('importFailedDetail', { error: String(error) }))
     } finally {
       setActionState('idle')
+    }
+  }
+
+  /** Backs up the unreadable servers.yaml, then replaces it with an empty list or, with `restore`, the one shown. */
+  const handleStartOver = async (restore: boolean) => {
+    if (!configProblem) {
+      return
+    }
+    const count = config.servers.length
+    const confirmed = await confirmDialog({
+      cancelLabel: t('cancel'),
+      kind: 'warning',
+      message: t(restore ? 'configRestoreConfirm' : 'configStartOverConfirm', { path: configProblem.path, count }),
+      okLabel: t(restore ? 'configRestoreOk' : 'configStartOverOk'),
+      title: t(restore ? 'configRestoreTitle' : 'configStartOverTitle'),
+    })
+    if (!confirmed) {
+      return
+    }
+
+    setActionState('saving')
+    try {
+      const { config: fresh, backupPath } = await startOverConfig(restore ? config : undefined)
+      setConfig(fresh)
+      setConfigProblem(null)
+      pushFeedback('success', t(restore ? 'configRestored' : 'configStartedOver', { path: backupPath, count }))
+    } catch (error) {
+      if (error instanceof ConfigConflictError) {
+        await reloadConfigFromDisk('info', t('configChangedExternally'))
+      } else {
+        pushFeedback('error', t('configStartOverFailed', { error: String(error) }))
+      }
+    } finally {
+      setActionState('idle')
+    }
+  }
+
+  const handleShowConfigFile = async () => {
+    if (!configProblem) {
+      return
+    }
+    try {
+      await openPath(configProblem.path)
+    } catch (error) {
+      pushFeedback('error', String(error))
     }
   }
 
@@ -751,6 +817,18 @@ function MainApp() {
   return (
     <>
       <ToastViewport items={feedbacks} onDismiss={dismissFeedback} />
+      {configProblem ? (
+        <ConfigProblemDialog
+          path={configProblem.path}
+          detail={configProblem.detail}
+          busy={isBusy}
+          restorableCount={config.servers.length}
+          onRestore={() => void handleStartOver(true)}
+          onShowFile={() => void handleShowConfigFile()}
+          onReload={() => void reloadConfigFromDisk('success', t('configReadableAgain'))}
+          onStartOver={() => void handleStartOver(false)}
+        />
+      ) : null}
       {view === 'editor' ? (
         <ServerEditor
           server={editingServer}

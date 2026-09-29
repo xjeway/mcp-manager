@@ -3132,3 +3132,74 @@ p.marketplace-note.is-warning svg {
     margin-left: 0;
   }
 }
+
+.config-problem-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 90000;
+  display: grid;
+  place-items: center;
+  padding: 16px;
+  background: rgba(0, 0, 0, 0.42);
+}
+
+.config-problem-card {
+  width: min(560px, 100%);
+  display: grid;
+  gap: 12px;
+  padding: 20px;
+  border: 1px solid color-mix(in srgb, var(--danger) 40%, var(--line));
+  border-radius: 16px;
+  background: var(--panel-strong);
+  box-shadow: var(--shadow);
+  -webkit-app-region: no-drag;
+}
+
+.config-problem-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: var(--danger);
+}
+
+.config-problem-header h2 {
+  margin: 0;
+  font-size: 1rem;
+  color: var(--text);
+}
+
+.config-problem-card p {
+  margin: 0;
+  font-size: 0.86rem;
+  line-height: 1.5;
+}
+
+.config-problem-path,
+.config-problem-detail {
+  font-family: var(--font-mono);
+  font-size: 0.78rem;
+  overflow-wrap: anywhere;
+}
+
+.config-problem-detail {
+  margin: 0;
+  max-height: 160px;
+  overflow: auto;
+  padding: 10px 12px;
+  border-radius: 10px;
+  background: var(--code-bg);
+  color: var(--muted);
+  white-space: pre-wrap;
+}
+
+.config-problem-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  margin-top: 4px;
+}
+
+.config-problem-spacer {
+  flex: 1;
+}

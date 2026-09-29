@@ -3,6 +3,9 @@ use mcp_manager_core::platform::PlatformContext;
 use mcp_manager_core::storage::{resolve_relative_path, rollback};
 use mcp_manager_core::store::{self, StoredText};
 use mcp_manager_core::workflow::{self, WorkspaceInfo};
+use serde::Serialize;
+use std::fs::OpenOptions;
+use std::io::{ErrorKind, Write};
 use std::path::{Path, PathBuf};
 use std::process::Command;
 
@@ -38,6 +41,95 @@ pub fn save_yaml_config(
 #[tauri::command]
 pub fn yaml_config_fingerprint(relative_path: String) -> Result<String, String> {
     store::fingerprint(&resolve_relative_path(&relative_path))
+}
+
+#[tauri::command]
+pub fn yaml_config_path(relative_path: String) -> String {
+    resolve_relative_path(&relative_path)
+        .to_string_lossy()
+        .into_owned()
+}
+
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ResetResult {
+    backup_path: String,
+    fingerprint: String,
+}
+
+/// Starts over from `content` when the stored file cannot be used: copies it
+/// to `<name>.broken-<timestamp>` first, and refuses (with
+/// `store::CONFLICT_ERROR`) unless it is still the file read as
+/// `expected_fingerprint`.
+#[tauri::command]
+pub fn reset_yaml_config(
+    relative_path: String,
+    content: String,
+    expected_fingerprint: String,
+) -> Result<ResetResult, String> {
+    reset_with_backup(
+        &resolve_relative_path(&relative_path),
+        &content,
+        &expected_fingerprint,
+        &chrono::Local::now().format("%Y%m%d-%H%M%S").to_string(),
+    )
+}
+
+fn reset_with_backup(
+    path: &Path,
+    content: &str,
+    expected: &str,
+    stamp: &str,
+) -> Result<ResetResult, String> {
+    let conflict = || {
+        format!(
+            "{}: {} was changed by another program",
+            store::CONFLICT_ERROR,
+            path.to_string_lossy()
+        )
+    };
+    if !path.exists() {
+        return Err(conflict());
+    }
+    let current = store::read_text(path)?;
+    if current.fingerprint != expected {
+        return Err(conflict());
+    }
+
+    let backup_path = write_new_backup(path, &current.content, stamp)?;
+    // Checks the fingerprint again under the write lock.
+    let fingerprint = store::write_text_checked(path, content, Some(expected))?;
+    Ok(ResetResult {
+        backup_path: backup_path.to_string_lossy().into_owned(),
+        fingerprint,
+    })
+}
+
+/// Writes `content` next to `path` under a name no existing file has.
+fn write_new_backup(path: &Path, content: &str, stamp: &str) -> Result<PathBuf, String> {
+    for attempt in 1.. {
+        let mut name = path.as_os_str().to_owned();
+        name.push(format!(".broken-{stamp}"));
+        if attempt > 1 {
+            name.push(format!("-{attempt}"));
+        }
+        let candidate = PathBuf::from(name);
+        match OpenOptions::new()
+            .write(true)
+            .create_new(true)
+            .open(&candidate)
+        {
+            Ok(mut file) => {
+                file.write_all(content.as_bytes())
+                    .and_then(|()| file.sync_all())
+                    .map_err(|e| e.to_string())?;
+                return Ok(candidate);
+            }
+            Err(error) if error.kind() == ErrorKind::AlreadyExists => continue,
+            Err(error) => return Err(error.to_string()),
+        }
+    }
+    unreachable!()
 }
 
 #[tauri::command]
@@ -174,8 +266,62 @@ pub fn restart_app(app: tauri::AppHandle) -> Result<(), String> {
 
 #[cfg(test)]
 mod tests {
-    use super::nearest_existing_path;
+    use super::{nearest_existing_path, reset_with_backup};
+    use mcp_manager_core::store;
+    use std::fs;
     use tempfile::tempdir;
+
+    #[test]
+    fn reset_backs_up_the_unreadable_file_then_overwrites_it() {
+        let dir = tempdir().expect("tempdir");
+        let path = dir.path().join("servers.yaml");
+        fs::write(&path, "servers: [oops\n").expect("write");
+        let broken = store::read_text(&path).expect("read").fingerprint;
+
+        let first =
+            reset_with_backup(&path, "version: 1\nservers: []\n", &broken, "stamp").expect("reset");
+        assert_eq!(
+            fs::read_to_string(&first.backup_path).expect("backup"),
+            "servers: [oops\n"
+        );
+        assert!(first.backup_path.ends_with("servers.yaml.broken-stamp"));
+        assert_eq!(
+            fs::read_to_string(&path).expect("config"),
+            "version: 1\nservers: []\n"
+        );
+        assert_eq!(
+            first.fingerprint,
+            store::read_text(&path).expect("read").fingerprint
+        );
+
+        // A second reset in the same second keeps the first backup.
+        fs::write(&path, "again: [\n").expect("write");
+        let broken = store::read_text(&path).expect("read").fingerprint;
+        let second =
+            reset_with_backup(&path, "version: 1\nservers: []\n", &broken, "stamp").expect("reset");
+        assert!(second.backup_path.ends_with("servers.yaml.broken-stamp-2"));
+        assert_eq!(
+            fs::read_to_string(&first.backup_path).expect("backup"),
+            "servers: [oops\n"
+        );
+    }
+
+    #[test]
+    fn reset_refuses_when_the_file_changed_or_is_gone() {
+        let dir = tempdir().expect("tempdir");
+        let path = dir.path().join("servers.yaml");
+        fs::write(&path, "fixed: true\n").expect("write");
+
+        let error = reset_with_backup(&path, "x", "stale", "stamp").expect_err("conflict");
+        assert!(error.starts_with(store::CONFLICT_ERROR));
+        assert_eq!(fs::read_to_string(&path).expect("config"), "fixed: true\n");
+        assert_eq!(fs::read_dir(dir.path()).expect("dir").count(), 1);
+
+        let missing = dir.path().join("missing.yaml");
+        let error = reset_with_backup(&missing, "x", "absent", "stamp").expect_err("conflict");
+        assert!(error.starts_with(store::CONFLICT_ERROR));
+        assert!(!missing.exists());
+    }
 
     #[test]
     fn falls_back_to_the_closest_existing_folder() {

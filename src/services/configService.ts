@@ -137,22 +137,104 @@ interface StoredText {
   fingerprint: string
 }
 
+/**
+ * Thrown by `loadConfig` when servers.yaml exists but cannot be read or parsed,
+ * and by `saveConfig` until it loads again or `startOverConfig` replaces it, so
+ * nothing is ever saved over servers the app could not see.
+ */
+export class ConfigUnreadableError extends Error {
+  constructor(
+    readonly path: string,
+    readonly detail: string,
+  ) {
+    super(`${path} could not be read: ${detail}`)
+    this.name = 'ConfigUnreadableError'
+  }
+}
+
 // Fingerprint of servers.yaml as last loaded or saved by this window; `null`
 // until the first successful load, which leaves saves unchecked.
 let loadedFingerprint: string | null = null
+// Set while servers.yaml is unreadable; saves are refused until it is cleared.
+let unreadable: ConfigUnreadableError | null = null
+
+/** The config in `content`; throws when it is not a server list this app wrote. */
+function parseStoredConfig(content: string): MCPConfig {
+  // The backend reads an empty file as an empty list too.
+  if (!content.trim()) {
+    return { version: 1, servers: [] }
+  }
+  const parsed: unknown = YAML.parse(content)
+  if (
+    typeof parsed !== 'object' ||
+    parsed === null ||
+    typeof (parsed as MCPConfig).version !== 'number' ||
+    !Array.isArray((parsed as MCPConfig).servers)
+  ) {
+    throw new Error('expected a `version` number and a `servers` list')
+  }
+  return parsed as MCPConfig
+}
+
+async function configFilePath(): Promise<string> {
+  try {
+    return await invoke<string>('yaml_config_path', { relativePath: CONFIG_PATH })
+  } catch {
+    return CONFIG_PATH
+  }
+}
+
+async function markUnreadable(error: unknown): Promise<never> {
+  const detail = error instanceof Error ? error.message : String(error)
+  unreadable = new ConfigUnreadableError(await configFilePath(), detail)
+  throw unreadable
+}
 
 export async function loadConfig(): Promise<MCPConfig> {
   if (!isDesktopRuntime()) {
     return loadBrowserConfig()
   }
 
+  let stored: StoredText
   try {
-    const stored = await invoke<StoredText>('load_yaml_config', { relativePath: CONFIG_PATH })
-    loadedFingerprint = stored.fingerprint
-    const parsed = YAML.parse(stored.content) as MCPConfig
-    return parsed?.version ? parsed : defaultConfig()
-  } catch {
-    return defaultConfig()
+    stored = await invoke<StoredText>('load_yaml_config', { relativePath: CONFIG_PATH })
+  } catch (error) {
+    return markUnreadable(error)
+  }
+  // Kept even for an unreadable file, so a later edit to it is noticed.
+  loadedFingerprint = stored.fingerprint
+  try {
+    const config = parseStoredConfig(stored.content)
+    unreadable = null
+    return config
+  } catch (error) {
+    return markUnreadable(error)
+  }
+}
+
+/**
+ * Replaces an unreadable servers.yaml with `config` (an empty list by
+ * default), after the backend copies it to `servers.yaml.broken-<timestamp>`
+ * (returned as `backupPath`). Throws `ConfigConflictError` if the file changed
+ * meanwhile.
+ */
+export async function startOverConfig(
+  config: MCPConfig = { version: 1, servers: [] },
+): Promise<{ config: MCPConfig; backupPath: string }> {
+  try {
+    const result = await invoke<{ backupPath: string; fingerprint: string }>('reset_yaml_config', {
+      relativePath: CONFIG_PATH,
+      content: YAML.stringify(config),
+      expectedFingerprint: loadedFingerprint ?? '',
+    })
+    loadedFingerprint = result.fingerprint
+    unreadable = null
+    return { config, backupPath: result.backupPath }
+  } catch (error) {
+    if (String(error).startsWith(CONFLICT_ERROR)) {
+      throw new ConfigConflictError(String(error))
+    }
+    throw error
   }
 }
 
@@ -160,6 +242,10 @@ export async function saveConfig(config: MCPConfig): Promise<void> {
   if (!isDesktopRuntime()) {
     window.localStorage.setItem(BROWSER_CONFIG_KEY, JSON.stringify(config))
     return
+  }
+
+  if (unreadable) {
+    throw unreadable
   }
 
   const text = YAML.stringify(config)
@@ -182,8 +268,12 @@ export async function saveConfig(config: MCPConfig): Promise<void> {
 
 /** Whether servers.yaml was changed by another program since this window loaded or saved it. */
 export async function hasExternalConfigChange(): Promise<boolean> {
-  if (!isDesktopRuntime() || loadedFingerprint === null) {
+  if (!isDesktopRuntime()) {
     return false
+  }
+  if (loadedFingerprint === null) {
+    // Never read it, so there is nothing to compare; retry while that is why.
+    return unreadable !== null
   }
 
   const current = await invoke<string>('yaml_config_fingerprint', { relativePath: CONFIG_PATH })
