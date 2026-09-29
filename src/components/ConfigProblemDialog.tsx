@@ -1,4 +1,5 @@
 import { AlertCircle } from 'lucide-react'
+import { useEffect, useRef, type KeyboardEvent } from 'react'
 import { useTranslation } from 'react-i18next'
 
 interface ConfigProblemDialogProps {
@@ -28,15 +29,48 @@ export function ConfigProblemDialog({
   onStartOver,
 }: ConfigProblemDialogProps) {
   const { t } = useTranslation()
+  const dialogRef = useRef<HTMLElement>(null)
+  const reloadRef = useRef<HTMLButtonElement>(null)
+
+  // Focus starts on Reload, the one choice that changes nothing, so a stray
+  // Enter never starts over.
+  useEffect(() => {
+    ;(reloadRef.current ?? dialogRef.current)?.focus()
+  }, [])
+
+  // The app behind is covered, so Tab cycles through the dialog's buttons.
+  const keepFocusInside = (event: KeyboardEvent<HTMLElement>) => {
+    if (event.key !== 'Tab') {
+      return
+    }
+    const buttons = Array.from(dialogRef.current?.querySelectorAll('button:not(:disabled)') ?? [])
+    if (buttons.length === 0) {
+      event.preventDefault()
+      return
+    }
+    const first = buttons[0] as HTMLElement
+    const last = buttons[buttons.length - 1] as HTMLElement
+    const active = document.activeElement
+    if (event.shiftKey && (active === first || !buttons.includes(active as Element))) {
+      event.preventDefault()
+      last.focus()
+    } else if (!event.shiftKey && (active === last || !buttons.includes(active as Element))) {
+      event.preventDefault()
+      first.focus()
+    }
+  }
 
   return (
     <div className="config-problem-backdrop">
       <section
+        ref={dialogRef}
         className="config-problem-card"
         role="alertdialog"
         aria-modal="true"
         aria-labelledby="config-problem-title"
         aria-describedby="config-problem-body"
+        tabIndex={-1}
+        onKeyDown={keepFocusInside}
       >
         <header className="config-problem-header">
           <AlertCircle size={18} aria-hidden="true" />
@@ -58,7 +92,7 @@ export function ConfigProblemDialog({
           <button type="button" className="ghost-button compact" disabled={busy} onClick={onShowFile}>
             {t('configUnreadableShowFile')}
           </button>
-          <button type="button" className="primary-button" disabled={busy} onClick={onReload}>
+          <button ref={reloadRef} type="button" className="primary-button" disabled={busy} onClick={onReload}>
             {t('configUnreadableReload')}
           </button>
         </div>

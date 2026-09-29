@@ -132,7 +132,7 @@ describe('pendingChanges', () => {
       name: 'Linear',
       transport: { type: 'http', url: 'https://new' },
       command: { program: 'npx', args: ['-y'], env: {} },
-      apps: { cursor: false, zed: true },
+      apps: { cursor: false },
     }
 
     expect(carryUnknownFields(saved, edited)).toEqual({
@@ -153,5 +153,24 @@ describe('pendingChanges', () => {
     const edited = { id: 'a', transport: { type: 'stdio' } }
 
     expect(carryUnknownFields(saved, edited)).toEqual(edited)
+  })
+
+  it('keeps clients the editor does not offer when it rebuilds apps and placements', () => {
+    const saved = {
+      id: 'a',
+      apps: { cursor: true, zed: true },
+      placements: [
+        { app: 'cursor', scope: 'user', enabled: true },
+        { app: 'zed', scope: 'user', enabled: true },
+      ],
+    }
+    // As the JSON mode produces it: only known clients, and cursor turned off.
+    const edited = { id: 'a', apps: { cursor: false, vscode: true }, placements: [] }
+
+    expect(carryUnknownFields(saved, edited)).toEqual({
+      id: 'a',
+      apps: { cursor: false, vscode: true, zed: true },
+      placements: [{ app: 'zed', scope: 'user', enabled: true }],
+    })
   })
 })

@@ -1,3 +1,5 @@
+import { SUPPORTED_APPS } from '../types/config'
+
 export type GuardView = 'dashboard' | 'editor' | 'settings' | 'marketplace'
 
 export type PendingChangesAction =
@@ -45,6 +47,37 @@ function withUnknown(previous: unknown, next: unknown, known: string[]): unknown
   return { ...unknown, ...next }
 }
 
+function isKnownApp(app: unknown): boolean {
+  return (SUPPORTED_APPS as readonly unknown[]).includes(app)
+}
+
+// The editor only offers the clients this build knows (its JSON mode rebuilds
+// `apps` and `placements` from them), so entries for any other client are kept
+// from the saved server; known clients follow the edit, removals included.
+function withUnknownClients(previous: Fields, merged: Fields): Fields {
+  const unknownApps = isFields(previous.apps)
+    ? Object.fromEntries(Object.entries(previous.apps).filter(([app]) => !isKnownApp(app)))
+    : {}
+  const unknownPlacements = Array.isArray(previous.placements)
+    ? previous.placements.filter((placement) => isFields(placement) && !isKnownApp(placement.app))
+    : []
+  return {
+    ...(Object.keys(unknownApps).length > 0 || isFields(merged.apps)
+      ? { apps: { ...unknownApps, ...(isFields(merged.apps) ? merged.apps : {}) } }
+      : {}),
+    ...(unknownPlacements.length > 0
+      ? {
+          placements: [
+            ...(Array.isArray(merged.placements)
+              ? merged.placements.filter((placement) => !isFields(placement) || isKnownApp(placement.app))
+              : []),
+            ...unknownPlacements,
+          ],
+        }
+      : {}),
+  }
+}
+
 export function carryUnknownFields<TServer>(previous: TServer, next: TServer): TServer {
   const merged = withUnknown(previous, next, KNOWN_SERVER_KEYS) as Fields
   if (!isFields(previous) || !isFields(merged)) {
@@ -56,6 +89,7 @@ export function carryUnknownFields<TServer>(previous: TServer, next: TServer): T
       ? { transport: withUnknown(previous.transport, merged.transport, KNOWN_TRANSPORT_KEYS) }
       : {}),
     ...(isFields(merged.command) ? { command: withUnknown(previous.command, merged.command, KNOWN_COMMAND_KEYS) } : {}),
+    ...withUnknownClients(previous, merged),
   } as TServer
 }
 
