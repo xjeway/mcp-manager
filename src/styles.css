@@ -2598,8 +2598,90 @@ button.stat-card:focus-visible {
   min-width: 0;
 }
 
+.marketplace-sources {
+  max-width: min(560px, 58vw);
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+
 .marketplace-sources .segment-button {
+  flex: none;
+  white-space: nowrap;
   font-size: 0.78rem;
+}
+
+.settings-item-block {
+  flex-direction: column;
+  align-items: stretch;
+}
+
+.settings-item-block .settings-help {
+  margin-top: 0;
+}
+
+.marketplace-sources-editor {
+  display: grid;
+  gap: 10px;
+}
+
+.marketplace-source-list {
+  display: grid;
+  gap: 6px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.marketplace-source-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 10px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+}
+
+.marketplace-source-copy {
+  display: grid;
+  gap: 2px;
+  flex: 1;
+  min-width: 0;
+  font-size: 0.82rem;
+}
+
+.marketplace-source-url {
+  overflow: hidden;
+  color: var(--muted);
+  font-family: var(--font-mono);
+  font-size: 0.74rem;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.marketplace-source-badge {
+  flex: none;
+  color: var(--muted);
+  font-size: 0.72rem;
+  font-weight: 600;
+}
+
+.marketplace-source-form {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 2fr) auto;
+  gap: 8px;
+}
+
+.marketplace-source-error {
+  margin: 0;
+  color: var(--danger);
+  font-size: 0.8rem;
+  overflow-wrap: anywhere;
+}
+
+@media (max-width: 640px) {
+  .marketplace-source-form {
+    grid-template-columns: minmax(0, 1fr);
+  }
 }
 
 .marketplace-toolbar {

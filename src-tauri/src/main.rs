@@ -3,9 +3,10 @@ mod marketplace;
 
 use commands::{
     apply_config, current_workspace, detect_installed_apps, import_detected_configs,
-    load_yaml_config, marketplace_open_url, marketplace_search, marketplace_set_enabled,
-    marketplace_sources, open_path, open_releases_link, open_repository_link, reset_yaml_config,
-    restart_app, rollback_depth, rollback_last_change, save_yaml_config, yaml_config_fingerprint,
+    load_yaml_config, marketplace_add_source, marketplace_open_url, marketplace_refresh,
+    marketplace_remove_source, marketplace_search, marketplace_set_enabled, marketplace_sources,
+    open_path, open_releases_link, open_repository_link, reset_yaml_config, restart_app,
+    rollback_depth, rollback_last_change, save_yaml_config, yaml_config_fingerprint,
     yaml_config_path,
 };
 
@@ -33,6 +34,9 @@ fn main() {
             marketplace_set_enabled,
             marketplace_sources,
             marketplace_search,
+            marketplace_refresh,
+            marketplace_add_source,
+            marketplace_remove_source,
             marketplace_open_url
         ])
         .run(tauri::generate_context!())

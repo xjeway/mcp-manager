@@ -2,7 +2,15 @@ import { invoke } from '@tauri-apps/api/core'
 import type { MarketplaceEntry, MarketplaceError, MarketplaceSource, SearchPage } from '../types/marketplace'
 import { isDesktopRuntime } from './runtime'
 
-const ERROR_CODES = new Set(['disabled', 'unknown-source', 'network', 'parse', 'unavailable'])
+const ERROR_CODES = new Set([
+  'disabled',
+  'unknown-source',
+  'network',
+  'parse',
+  'unavailable',
+  'invalid-url',
+  'duplicate-source',
+])
 
 export function toMarketplaceError(error: unknown): MarketplaceError {
   if (typeof error === 'object' && error !== null && 'code' in error && ERROR_CODES.has(String(error.code))) {
@@ -33,6 +41,7 @@ const SAMPLE_SOURCES: MarketplaceSource[] = [
     baseUrl: 'https://api.mcp.github.com/2025-09-15',
     trust: 'curated',
     serverSearch: false,
+    builtin: true,
   },
   {
     id: 'official',
@@ -41,6 +50,7 @@ const SAMPLE_SOURCES: MarketplaceSource[] = [
     baseUrl: 'https://registry.modelcontextprotocol.io',
     trust: 'community',
     serverSearch: true,
+    builtin: true,
   },
 ]
 
@@ -97,6 +107,44 @@ export async function searchMarketplace(sourceId: string, query: string, cursor?
   try {
     await enabledSync
     return await invoke<SearchPage>('marketplace_search', { sourceId, query, cursor: cursor ?? null })
+  } catch (error) {
+    throw toMarketplaceError(error)
+  }
+}
+
+/** Fetches from the source even when cached; used to replace a stale page. */
+export async function refreshMarketplace(sourceId: string, query: string, cursor?: string | null): Promise<SearchPage> {
+  if (!isDesktopRuntime()) {
+    return searchMarketplace(sourceId, query, cursor)
+  }
+  try {
+    await enabledSync
+    return await invoke<SearchPage>('marketplace_refresh', { sourceId, query, cursor: cursor ?? null })
+  } catch (error) {
+    throw toMarketplaceError(error)
+  }
+}
+
+/** The backend checks that the URL answers the MCP Registry API before saving it. */
+export async function addMarketplaceSource(label: string, baseUrl: string): Promise<MarketplaceSource> {
+  if (!isDesktopRuntime()) {
+    throw UNAVAILABLE
+  }
+  try {
+    await enabledSync
+    return await invoke<MarketplaceSource>('marketplace_add_source', { label, baseUrl })
+  } catch (error) {
+    throw toMarketplaceError(error)
+  }
+}
+
+export async function removeMarketplaceSource(sourceId: string): Promise<void> {
+  if (!isDesktopRuntime()) {
+    throw UNAVAILABLE
+  }
+  try {
+    await enabledSync
+    await invoke('marketplace_remove_source', { sourceId })
   } catch (error) {
     throw toMarketplaceError(error)
   }
