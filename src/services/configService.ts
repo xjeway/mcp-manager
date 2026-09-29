@@ -291,21 +291,36 @@ export async function applyConfig(
 ): Promise<ApplyResult> {
   if (!isDesktopRuntime()) {
     window.localStorage.setItem(BROWSER_CONFIG_KEY, JSON.stringify(config))
+    browserRollbackDepth += 1
     return { backups: ['browser-preview-backup'] }
   }
 
   return invoke<ApplyResult>('apply_config', { config, previousConfig })
 }
 
-export async function rollback(backups: string[]): Promise<void> {
+// Browser preview has no history on disk; it only counts what it applied.
+let browserRollbackDepth = 0
+
+/** How many changes `rollback` can undo, one after another. */
+export async function getRollbackDepth(): Promise<number> {
   if (!isDesktopRuntime()) {
-    if (backups.length > 0) {
+    return browserRollbackDepth
+  }
+
+  return invoke<number>('rollback_depth')
+}
+
+/** Undoes the most recent change in servers.yaml and the client files; reload the config afterwards. */
+export async function rollback(): Promise<void> {
+  if (!isDesktopRuntime()) {
+    if (browserRollbackDepth > 0) {
+      browserRollbackDepth -= 1
       window.localStorage.setItem(BROWSER_CONFIG_KEY, JSON.stringify(defaultConfig()))
     }
     return
   }
 
-  await invoke('rollback_from_backups', { backups })
+  await invoke('rollback_last_change')
 }
 
 export async function importDetectedConfigs(): Promise<ImportDetectedResult> {

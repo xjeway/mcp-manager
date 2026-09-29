@@ -1,5 +1,6 @@
 pub mod adapters;
 pub mod core;
+pub mod history;
 pub mod ops;
 pub mod parser;
 pub mod platform;
