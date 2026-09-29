@@ -208,15 +208,15 @@ make dev
 
 ## Command Line (Preview)
 
-A command-line tool shares the desktop app's server list, so changes made in either show up in the other. It is not published yet; run it from a checkout:
+A command-line tool shares the desktop app's server list, so changes made in either show up in the other. The command is `mcpmgr`. It is not published yet; run it from a checkout:
 
 ```bash
-cargo run -p mcp-manager-cli -- add context7 -- npx -y @upstash/context7-mcp@latest
-cargo run -p mcp-manager-cli -- add linear --url https://mcp.linear.app/mcp -a cursor,claude-code
-cargo run -p mcp-manager-cli -- add --from mcp.json --project
-cargo run -p mcp-manager-cli -- list
-cargo run -p mcp-manager-cli -- remove context7 -a codex
-cargo run -p mcp-manager-cli -- rollback
+cargo run --bin mcpmgr -- add context7 -- npx -y @upstash/context7-mcp@latest
+cargo run --bin mcpmgr -- add linear --url https://mcp.linear.app/mcp -a cursor,claude-code
+cargo run --bin mcpmgr -- add --from mcp.json --project
+cargo run --bin mcpmgr -- list
+cargo run --bin mcpmgr -- remove context7 -a codex
+cargo run --bin mcpmgr -- rollback
 ```
 
 In a terminal, `add` walks you through choosing servers, clients and user or project scope, then shows what each client file will get before writing. Every step can be answered with a flag (`--server`, `--env`, `--app`, `--global`/`--project`, `--yes`); `--dry-run` previews and `--json` prints machine-readable output. Run inside an AI coding agent such as Claude Code or Codex, it skips the prompts and targets that agent's client.
@@ -243,7 +243,7 @@ mcp-manager/
   src-tauri/          tauri app (commands exposed to the frontend, online marketplace)
   crates/
     mcp-manager-core/ client adapters, parsing, safe writes (shared)
-    mcp-manager-cli/  command-line tool
+    mcp-manager-cli/  command-line tool (`mcpmgr`)
   public/             static assets and branding
   docs/               release notes and design references
   openspec/           change and spec tracking

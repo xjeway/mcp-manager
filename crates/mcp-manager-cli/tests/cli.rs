@@ -27,7 +27,7 @@ impl Sandbox {
     }
 
     fn command(&self, args: &[&str]) -> Command {
-        let mut command = Command::new(env!("CARGO_BIN_EXE_mcp-manager-cli"));
+        let mut command = Command::new(env!("CARGO_BIN_EXE_mcpmgr"));
         command
             .args(args)
             .current_dir(&self.project)
