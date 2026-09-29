@@ -36,6 +36,11 @@ export const cliTargets = Object.freeze([
 
 export const CLI_BIN_NAME = 'mcpmgr'
 
+// npm rejects an unscoped `mcpmgr` as too close to `mcp-mgr`, so every npm
+// package lives under the scope; the installed command is still `mcpmgr`.
+export const NPM_SCOPE = '@mcpmgr'
+export const NPM_MAIN_PACKAGE = `${NPM_SCOPE}/cli`
+
 function isWindowsTarget(target) {
   return target.endsWith('-windows-msvc')
 }
@@ -51,5 +56,5 @@ export function cliArchiveName(target) {
 }
 
 export function npmPlatformPackageName({ npm }) {
-  return `@${CLI_BIN_NAME}/${npm.os}-${npm.cpu}`
+  return `${NPM_SCOPE}/${npm.os}-${npm.cpu}`
 }

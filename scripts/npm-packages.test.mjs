@@ -10,6 +10,7 @@ import {
   buildPlaceholders,
   npmDistTag,
   parseVersionFromTag,
+  publishedVersion,
   renderMainPackageJson,
   renderPlatformPackageJson,
 } from './npm-packages.mjs'
@@ -69,7 +70,7 @@ describe('npm package manifests', () => {
   it('pins every platform package as an optional dependency of the same version', () => {
     const manifest = renderMainPackageJson('0.1.8')
 
-    expect(manifest.name).toBe('mcpmgr')
+    expect(manifest.name).toBe('@mcpmgr/cli')
     expect(manifest.bin).toEqual({ mcpmgr: 'bin/mcpmgr.js' })
     expect(manifest.optionalDependencies).toEqual(
       Object.fromEntries(cliTargets.map((entry) => [npmPlatformPackageName(entry), '0.1.8'])),
@@ -118,7 +119,7 @@ describe('building npm packages', () => {
 
     expect(dirs.map((dir) => path.basename(dir))).toEqual([
       ...cliTargets.map((entry) => entry.target),
-      'mcpmgr',
+      'cli',
     ])
     for (const entry of cliTargets) {
       const binary = path.join(outDir, entry.target, 'bin', cliBinaryName(entry.target))
@@ -127,8 +128,8 @@ describe('building npm packages', () => {
         expect(fs.statSync(binary).mode & 0o111).not.toBe(0)
       }
     }
-    expect(fs.existsSync(path.join(outDir, 'mcpmgr', 'bin', 'mcpmgr.js'))).toBe(true)
-    expect(fs.existsSync(path.join(outDir, 'mcpmgr', 'README.md'))).toBe(true)
+    expect(fs.existsSync(path.join(outDir, 'cli', 'bin', 'mcpmgr.js'))).toBe(true)
+    expect(fs.existsSync(path.join(outDir, 'cli', 'README.md'))).toBe(true)
   })
 
   it('refuses to build when a platform binary is missing', () => {
@@ -149,8 +150,37 @@ describe('building npm packages', () => {
 
     expect(names.map((manifest) => manifest.name)).toEqual([
       ...cliTargets.map((entry) => npmPlatformPackageName(entry)),
-      'mcpmgr',
+      '@mcpmgr/cli',
     ])
     expect(names.every((manifest) => manifest.version === '0.0.0' && !manifest.bin)).toBe(true)
+  })
+
+  it('leaves out names that are already claimed', () => {
+    const outDir = path.join(makeTempDir(), 'placeholders')
+
+    const dirs = buildPlaceholders({ outDir, skip: (name) => name !== '@mcpmgr/cli' })
+
+    expect(dirs.map((dir) => path.basename(dir))).toEqual(['cli'])
+  })
+})
+
+describe('checking npm', () => {
+  const failing = (stderr) => () => {
+    throw Object.assign(new Error('Command failed: npm view'), { stderr })
+  }
+
+  it('returns the published version', () => {
+    expect(publishedVersion('@mcpmgr/cli', () => '0.0.0\n')).toBe('0.0.0')
+  })
+
+  it('treats only a confirmed 404 as not published', () => {
+    expect(publishedVersion('@mcpmgr/cli', failing('npm error code E404\nnpm error 404 Not Found'))).toBe('')
+  })
+
+  it('refuses to guess when npm cannot be reached', () => {
+    expect(() => publishedVersion('@mcpmgr/cli', failing('npm error code ENOTFOUND'))).toThrow(
+      /Could not check @mcpmgr\/cli on npm: npm error code ENOTFOUND/,
+    )
+    expect(() => publishedVersion('@mcpmgr/cli', failing('npm error code E401'))).toThrow(/E401/)
   })
 })

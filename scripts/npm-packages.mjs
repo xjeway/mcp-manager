@@ -4,7 +4,7 @@ import process from 'node:process'
 import { execFileSync } from 'node:child_process'
 import { fileURLToPath } from 'node:url'
 
-import { CLI_BIN_NAME, cliBinaryName, cliTargets, npmPlatformPackageName } from './cli-targets.mjs'
+import { CLI_BIN_NAME, NPM_MAIN_PACKAGE, cliBinaryName, cliTargets, npmPlatformPackageName } from './cli-targets.mjs'
 import { isPrereleaseRef } from './release-args.mjs'
 
 const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..')
@@ -53,7 +53,7 @@ export function renderPlatformPackageJson(entry, version) {
 
 export function renderMainPackageJson(version) {
   return {
-    name: CLI_BIN_NAME,
+    name: NPM_MAIN_PACKAGE,
     version,
     description,
     ...sharedFields,
@@ -84,7 +84,7 @@ function copyFile(from, to, mode) {
 export function packageDirs(outDir) {
   return [
     ...cliTargets.map((entry) => path.join(outDir, entry.target)),
-    path.join(outDir, CLI_BIN_NAME),
+    path.join(outDir, 'cli'),
   ]
 }
 
@@ -106,7 +106,7 @@ export function buildPackages({ version, binariesDir, outDir }) {
     writeJson(path.join(dir, 'package.json'), renderPlatformPackageJson(entry, version))
   }
 
-  const mainDir = path.join(outDir, CLI_BIN_NAME)
+  const mainDir = path.join(outDir, 'cli')
   const launcher = `${CLI_BIN_NAME}.js`
   copyFile(path.join(templateDir, 'bin', launcher), path.join(mainDir, 'bin', launcher), 0o755)
   copyFile(path.join(templateDir, 'README.md'), path.join(mainDir, 'README.md'))
@@ -118,9 +118,11 @@ export function buildPackages({ version, binariesDir, outDir }) {
 
 // Trusted publishing can only be set up for a package that already exists, so
 // each name is claimed once by hand with an empty 0.0.0 before the first release.
-export function buildPlaceholders({ outDir }) {
+export function buildPlaceholders({ outDir, skip = () => false }) {
   fs.rmSync(outDir, { recursive: true, force: true })
-  const names = [...cliTargets.map((entry) => npmPlatformPackageName(entry)), CLI_BIN_NAME]
+  const names = [...cliTargets.map((entry) => npmPlatformPackageName(entry)), NPM_MAIN_PACKAGE].filter(
+    (name) => !skip(name),
+  )
 
   return names.map((name) => {
     const dir = path.join(outDir, name.replace(/^@[^/]+\//, ''))
@@ -135,16 +137,26 @@ export function buildPlaceholders({ outDir }) {
   })
 }
 
-function isPublished(name, version) {
+// The version npm has for `spec`, or '' when npm confirms it does not exist
+// (E404). Any other failure (network, auth, registry) throws, so nothing is
+// published or claimed on a guess.
+export function publishedVersion(spec, run = execFileSync) {
   try {
-    const output = execFileSync('npm', ['view', `${name}@${version}`, 'version'], {
+    return run('npm', ['view', spec, 'version'], {
       encoding: 'utf8',
-      stdio: ['ignore', 'pipe', 'ignore'],
-    })
-    return output.trim() === version
-  } catch {
-    return false
+      stdio: ['ignore', 'pipe', 'pipe'],
+    }).trim()
+  } catch (error) {
+    const stderr = String(error?.stderr ?? '')
+    if (/\bE404\b/.test(stderr)) {
+      return ''
+    }
+    throw new Error(`Could not check ${spec} on npm: ${stderr.trim() || error?.message || error}`)
   }
+}
+
+function isPublished(name, version) {
+  return publishedVersion(`${name}@${version}`) === version
 }
 
 // Skips versions already on the registry, so a rerun after a partial failure
@@ -219,7 +231,11 @@ function main() {
   }
 
   if (args.command === 'bootstrap') {
-    for (const dir of buildPlaceholders(args)) {
+    const dirs = buildPlaceholders({ ...args, skip: (name) => publishedVersion(name) !== '' })
+    if (dirs.length === 0) {
+      console.log('Every package name is already on npm; nothing to claim.')
+    }
+    for (const dir of dirs) {
       console.log(`npm publish ${dir} --access public`)
     }
     return
