@@ -30,15 +30,28 @@ export async function confirmDialog({
     return confirmWithBrowserFallback(message)
   }
 
+  // tauri-plugin-dialog dropped its `confirm` command; `message` with two buttons replaces it.
+  const okText = okLabel ?? 'OK'
+  const cancelText = cancelLabel ?? 'Cancel'
+
   try {
-    return await invoke<boolean>('plugin:dialog|confirm', {
-      cancelButtonLabel: cancelLabel,
+    const result = await invoke<unknown>('plugin:dialog|message', {
+      buttons: { OkCancelCustom: [okText, cancelText] },
       kind,
       message,
-      okButtonLabel: okLabel,
       title,
     })
+    return isAccepted(result, okText)
   } catch {
     return confirmWithBrowserFallback(message)
   }
+}
+
+// The plugin answers "Ok"/"Yes", or the pressed button's label (bare or as `{ Custom: label }`).
+function isAccepted(result: unknown, okText: string): boolean {
+  const label =
+    typeof result === 'object' && result !== null && 'Custom' in result
+      ? (result as { Custom: unknown }).Custom
+      : result
+  return label === true || label === 'Ok' || label === 'Yes' || label === okText
 }
