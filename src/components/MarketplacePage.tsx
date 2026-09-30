@@ -14,7 +14,7 @@ import {
   X,
 } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
-import { Tabs } from './Tabs'
+import { Tabs, tabId, tabPanelId } from './Tabs'
 import type { MCPServer } from '../types/config'
 import type {
   InstallOption,
@@ -213,6 +213,7 @@ export function MarketplacePage({ servers, onBack, onInstall }: MarketplacePageP
             <Tabs
               ariaLabel={t('marketplaceSource')}
               className="marketplace-sources"
+              idPrefix="marketplace-source"
               value={sourceId}
               onChange={(value) => {
                 setSourceId(value)
@@ -253,7 +254,12 @@ export function MarketplacePage({ servers, onBack, onInstall }: MarketplacePageP
         ) : null}
       </div>
 
-      <div className={selected ? 'marketplace-body has-selection' : 'marketplace-body'}>
+      <div
+        className={selected ? 'marketplace-body has-selection' : 'marketplace-body'}
+        {...(sources.length > 0
+          ? { role: 'tabpanel', id: tabPanelId('marketplace-source'), 'aria-labelledby': tabId('marketplace-source', sourceId) }
+          : {})}
+      >
         <section className="list-panel marketplace-list" aria-busy={state.kind === 'loading'}>
           {state.kind === 'loading' ? (
             <div className="empty-state empty-state-compact">

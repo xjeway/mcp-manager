@@ -93,7 +93,7 @@ export function Tooltip({ children, content }: TooltipProps) {
         onMouseLeave={hide}
         onFocus={show}
         onBlur={hide}
-        onClick={hide}
+        onClickCapture={hide}
       >
         {children}
       </span>
