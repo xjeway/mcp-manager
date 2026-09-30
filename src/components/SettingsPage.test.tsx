@@ -59,7 +59,7 @@ describe('SettingsPage', () => {
     expect(html).toContain('settings-item-label')
     expect(html).toContain('settings-item-icon')
     expect(html).toContain('settings-select-compact')
-    expect(html).toContain('settings-segment-control-compact')
+    expect(html).toContain('segmented-thumb')
     expect(html).toContain('settings-switch-compact')
     expect(html).toContain('settings-button-compact')
   })
