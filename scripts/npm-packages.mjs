@@ -169,7 +169,8 @@ function publishPackages({ outDir, dryRun }) {
       continue
     }
 
-    const args = ['publish', dir, '--access', 'public', '--tag', npmDistTag(version)]
+    // A relative `a/b` reads as a GitHub shorthand to npm, so pass an absolute path.
+    const args = ['publish', path.resolve(dir), '--access', 'public', '--tag', npmDistTag(version)]
     if (dryRun) {
       args.push('--dry-run')
     }
