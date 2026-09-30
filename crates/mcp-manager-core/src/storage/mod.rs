@@ -5,6 +5,7 @@ use serde_json::{Map, Value};
 use std::fs;
 use std::path::{Component, Path, PathBuf, Prefix};
 use std::sync::atomic::{AtomicU64, Ordering};
+use std::time::Duration;
 use toml::Table;
 
 fn base_dir() -> PathBuf {
@@ -82,7 +83,15 @@ pub fn backup_file(target: &Path) -> Result<Option<String>, String> {
         .and_then(|x| x.to_str())
         .ok_or_else(|| "invalid target file name".to_string())?;
 
-    let stamp = Utc::now().format("%Y%m%dT%H%M%S").to_string();
+    // Two backups of one file in the same second must not share a name, or
+    // the second would overwrite the first. No dots: the stamp is what follows
+    // the last dot of the name (see `backup_target`).
+    static NEXT_BACKUP_ID: AtomicU64 = AtomicU64::new(0);
+    let stamp = format!(
+        "{}-{}",
+        Utc::now().format("%Y%m%dT%H%M%S%3f"),
+        NEXT_BACKUP_ID.fetch_add(1, Ordering::Relaxed)
+    );
     let backup = backup_parent.join(format!("{}.{}.bak", file_name, stamp));
     fs::copy(target, &backup).map_err(|e| e.to_string())?;
 
@@ -102,11 +111,12 @@ pub fn atomic_write_bytes(path: &Path, content: &[u8]) -> Result<(), String> {
     ensure_parent(path)?;
     let mut tmp = path.as_os_str().to_owned();
     tmp.push(format!(
-        ".{}.{}.tmp",
+        ".{TEMP_MARKER}{}-{}.tmp",
         std::process::id(),
         NEXT_TEMP_ID.fetch_add(1, Ordering::Relaxed)
     ));
     let tmp = PathBuf::from(tmp);
+    remove_stale_temp_files(path);
     fs::write(&tmp, content).map_err(|e| e.to_string())?;
     fs::rename(&tmp, path).map_err(|e| {
         let _ = fs::remove_file(&tmp);
@@ -114,34 +124,126 @@ pub fn atomic_write_bytes(path: &Path, content: &[u8]) -> Result<(), String> {
     })
 }
 
+/// Marks a temporary file as this app's own, so cleanup never deletes another
+/// program's file that happens to end in `.<digits>.<digits>.tmp`. It is part of
+/// the name, so it survives the crash that left the file behind.
+const TEMP_MARKER: &str = "mcp-manager-";
+
+/// How old a leftover `<file>.mcp-manager-<pid>-<n>.tmp` must be before a later
+/// write deletes it, so a write still in progress in another process is never hit.
+const STALE_TEMP_AGE: Duration = Duration::from_secs(60 * 60);
+
+/// Deletes temporary files of `path` that a killed process left behind
+/// between writing and renaming. Best effort: failures are ignored.
+fn remove_stale_temp_files(path: &Path) {
+    let (Some(parent), Some(name)) = (path.parent(), path.file_name().and_then(|n| n.to_str()))
+    else {
+        return;
+    };
+    let Ok(entries) = fs::read_dir(parent) else {
+        return;
+    };
+    let prefix = format!("{name}.{TEMP_MARKER}");
+    for entry in entries.flatten() {
+        let file_name = entry.file_name();
+        let Some(file_name) = file_name.to_str() else {
+            continue;
+        };
+        let is_temp = file_name
+            .strip_prefix(&prefix)
+            .and_then(|rest| rest.strip_suffix(".tmp"))
+            .and_then(|ids| ids.split_once('-'))
+            .is_some_and(|(pid, n)| {
+                !pid.is_empty()
+                    && !n.is_empty()
+                    && pid.bytes().all(|b| b.is_ascii_digit())
+                    && n.bytes().all(|b| b.is_ascii_digit())
+            });
+        let stale = entry
+            .metadata()
+            .and_then(|m| m.modified())
+            .ok()
+            .and_then(|modified| modified.elapsed().ok())
+            .is_some_and(|age| age >= STALE_TEMP_AGE);
+        if is_temp && stale {
+            let _ = fs::remove_file(entry.path());
+        }
+    }
+}
+
 /// Files as they were at one moment, to put them back after a failed change.
-/// A file that did not exist is removed on restore.
+/// A file that did not exist is removed on restore, and so are the
+/// directories that had to be created for it (when they are left empty).
 #[derive(Debug, Default)]
-pub struct Snapshot(Vec<(PathBuf, Option<Vec<u8>>)>);
+pub struct Snapshot {
+    files: Vec<(PathBuf, Option<Vec<u8>>)>,
+    /// Directories that did not exist, parents before children.
+    new_dirs: Vec<PathBuf>,
+}
 
 impl Snapshot {
     /// Records `path` unless it is already recorded, so the first state wins.
     pub fn capture(&mut self, path: &Path) -> Result<(), String> {
-        if self.0.iter().any(|(seen, _)| seen == path) {
+        if self.files.iter().any(|(seen, _)| seen == path) {
             return Ok(());
         }
         let content = if path.exists() {
             Some(fs::read(path).map_err(|e| e.to_string())?)
         } else {
+            let mut missing = Vec::new();
+            let mut dir = path.parent();
+            while let Some(current) = dir.filter(|d| !d.as_os_str().is_empty() && !d.exists()) {
+                missing.push(current.to_path_buf());
+                dir = current.parent();
+            }
+            for dir in missing.into_iter().rev() {
+                if !self.new_dirs.contains(&dir) {
+                    self.new_dirs.push(dir);
+                }
+            }
             None
         };
-        self.0.push((path.to_path_buf(), content));
+        self.files.push((path.to_path_buf(), content));
         Ok(())
     }
 
     pub fn paths(&self) -> impl Iterator<Item = &Path> {
-        self.0.iter().map(|(path, _)| path.as_path())
+        self.files.iter().map(|(path, _)| path.as_path())
+    }
+
+    /// Files that did not exist when captured.
+    pub fn created_files(&self) -> Vec<PathBuf> {
+        self.files
+            .iter()
+            .filter(|(_, content)| content.is_none())
+            .map(|(path, _)| path.clone())
+            .collect()
+    }
+
+    /// Directories that did not exist when a file in them was captured.
+    pub fn created_dirs(&self) -> &[PathBuf] {
+        &self.new_dirs
+    }
+
+    /// Each captured file with the fingerprint (see `store::fingerprint`) it
+    /// had when captured.
+    pub fn fingerprints(&self) -> Result<Vec<(PathBuf, String)>, String> {
+        self.files
+            .iter()
+            .map(|(path, content)| {
+                let fingerprint = match content {
+                    Some(bytes) => crate::store::fingerprint_of_bytes(bytes)?,
+                    None => crate::store::ABSENT_FINGERPRINT.to_string(),
+                };
+                Ok((path.clone(), fingerprint))
+            })
+            .collect()
     }
 
     /// Puts every recorded file back, newest first, and reports each failure.
     pub fn restore(&self) -> Result<(), String> {
-        let failures = self
-            .0
+        let mut failures = self
+            .files
             .iter()
             .rev()
             .filter_map(|(path, original)| {
@@ -155,11 +257,20 @@ impl Snapshot {
                     .map(|e| format!("{}: {e}", path.to_string_lossy()))
             })
             .collect::<Vec<_>>();
+        remove_empty_dirs(&self.new_dirs);
         if failures.is_empty() {
             Ok(())
         } else {
-            Err(failures.join("; "))
+            Err(std::mem::take(&mut failures).join("; "))
         }
+    }
+}
+
+/// Removes each directory (children before parents) that is now empty.
+/// Others are left alone: something else put files there.
+pub fn remove_empty_dirs(dirs: &[PathBuf]) {
+    for dir in dirs.iter().rev() {
+        let _ = fs::remove_dir(dir);
     }
 }
 
@@ -391,35 +502,42 @@ pub fn apply_operations(artifacts: Vec<WriteOperation>) -> Result<Vec<String>, S
     Ok(backups)
 }
 
-pub fn rollback(backups: Vec<String>) -> Result<(), String> {
+/// The file a backup made by [`backup_file`] was taken of.
+pub fn backup_target(backup: &Path) -> Result<PathBuf, String> {
     let backup_root = base_dir().join("backups");
+    let relative = backup
+        .strip_prefix(&backup_root)
+        .map_err(|_| "backup is outside backup root".to_string())?;
 
+    let file_name = relative
+        .file_name()
+        .and_then(|x| x.to_str())
+        .ok_or_else(|| "invalid backup file name".to_string())?;
+
+    // filename format: <original>.<stamp>.bak
+    let original_name = file_name
+        .strip_suffix(".bak")
+        .and_then(|name| name.rsplit_once('.'))
+        .map(|(original, _stamp)| original)
+        .ok_or_else(|| "invalid backup name format".to_string())?;
+
+    Ok(restore_dir(relative.parent().unwrap_or(Path::new(""))).join(original_name))
+}
+
+/// Copies one backup over the file it was taken of.
+pub fn restore_backup(backup: &Path) -> Result<(), String> {
+    let target = backup_target(backup)?;
+    let content = fs::read(backup).map_err(|e| e.to_string())?;
+    atomic_write_bytes(&target, &content)
+}
+
+pub fn rollback(backups: Vec<String>) -> Result<(), String> {
     for backup in backups {
         let src = PathBuf::from(&backup);
         if !src.exists() {
             continue;
         }
-
-        let relative = src
-            .strip_prefix(&backup_root)
-            .map_err(|_| "backup is outside backup root".to_string())?;
-
-        let file_name = relative
-            .file_name()
-            .and_then(|x| x.to_str())
-            .ok_or_else(|| "invalid backup file name".to_string())?
-            .to_string();
-
-        // filename format: <original>.<stamp>.bak
-        let original_name = file_name
-            .strip_suffix(".bak")
-            .and_then(|name| name.rsplit_once('.'))
-            .map(|(original, _stamp)| original)
-            .ok_or_else(|| "invalid backup name format".to_string())?;
-
-        let target = restore_dir(relative.parent().unwrap_or(Path::new(""))).join(original_name);
-        ensure_parent(&target)?;
-        fs::copy(src, target).map_err(|e| e.to_string())?;
+        restore_backup(&src)?;
     }
 
     Ok(())
@@ -507,6 +625,62 @@ mod tests {
             r#"{"mcpServers":{"old":{"command":"old"}}}"#
         );
         assert!(!created.exists());
+        assert!(
+            !created.parent().unwrap().exists(),
+            "the folder made for it is removed too"
+        );
+    }
+
+    #[test]
+    fn backups_taken_in_the_same_second_keep_their_own_content() {
+        let _guard = env_lock()
+            .lock()
+            .unwrap_or_else(|poisoned| poisoned.into_inner());
+        let dir = tempfile::tempdir().expect("tmpdir");
+        let home = dir.path().join("home");
+        fs::create_dir_all(&home).expect("create home");
+        let target = dir.path().join("mcp.json");
+        let (previous_home, previous_dir) = set_test_runtime(&home, dir.path());
+
+        fs::write(&target, "first").expect("seed");
+        let first = backup_file(&target).expect("backup").expect("exists");
+        fs::write(&target, "second").expect("seed");
+        let second = backup_file(&target).expect("backup").expect("exists");
+        restore_test_runtime(previous_home, previous_dir);
+
+        assert_ne!(first, second);
+        assert_eq!(fs::read_to_string(first).expect("read"), "first");
+        assert_eq!(fs::read_to_string(second).expect("read"), "second");
+    }
+
+    #[test]
+    fn a_write_removes_only_old_leftover_temp_files() {
+        let dir = tempfile::tempdir().expect("tmpdir");
+        let target = dir.path().join("mcp.json");
+        let old = dir.path().join("mcp.json.mcp-manager-4242-0.tmp");
+        let recent = dir.path().join("mcp.json.mcp-manager-4242-1.tmp");
+        let unrelated = dir.path().join("mcp.json.notes.tmp");
+        // Same digits pattern but written by some other program: not ours to delete.
+        let foreign = dir.path().join("mcp.json.4242.0.tmp");
+        for file in [&old, &recent, &unrelated, &foreign] {
+            fs::write(file, "x").expect("seed");
+        }
+        let two_hours_ago = std::time::SystemTime::now() - std::time::Duration::from_secs(7200);
+        for file in [&old, &unrelated, &foreign] {
+            fs::File::options()
+                .write(true)
+                .open(file)
+                .and_then(|f| f.set_modified(two_hours_ago))
+                .expect("age file");
+        }
+
+        super::atomic_write(&target, "{}").expect("write");
+
+        assert!(!old.exists());
+        assert!(recent.exists(), "might belong to a write in progress");
+        assert!(unrelated.exists(), "not one of our temp file names");
+        assert!(foreign.exists(), "lacks the mcp-manager marker");
+        assert_eq!(fs::read_to_string(&target).expect("read"), "{}");
     }
 
     #[test]

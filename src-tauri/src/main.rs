@@ -6,7 +6,8 @@ use commands::{
     load_yaml_config, marketplace_add_source, marketplace_open_url, marketplace_refresh,
     marketplace_remove_source, marketplace_search, marketplace_set_enabled, marketplace_sources,
     open_path, open_releases_link, open_repository_link, reset_yaml_config, restart_app,
-    rollback_from_backups, save_yaml_config, yaml_config_fingerprint, yaml_config_path,
+    rollback_depth, rollback_last_change, save_yaml_config, yaml_config_fingerprint,
+    yaml_config_path,
 };
 
 fn main() {
@@ -27,7 +28,8 @@ fn main() {
             import_detected_configs,
             detect_installed_apps,
             apply_config,
-            rollback_from_backups,
+            rollback_depth,
+            rollback_last_change,
             restart_app,
             marketplace_set_enabled,
             marketplace_sources,

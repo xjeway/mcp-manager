@@ -283,6 +283,8 @@ export async function hasExternalConfigChange(): Promise<boolean> {
 export interface ApplyResult {
   backups: string[]
   warnings?: ApplyWarning[]
+  /** Set when the change was applied but could not be recorded, so it cannot be undone. */
+  historyError?: string
 }
 
 export async function applyConfig(
@@ -291,21 +293,49 @@ export async function applyConfig(
 ): Promise<ApplyResult> {
   if (!isDesktopRuntime()) {
     window.localStorage.setItem(BROWSER_CONFIG_KEY, JSON.stringify(config))
+    browserUndoStack.push(previousConfig)
     return { backups: ['browser-preview-backup'] }
   }
 
-  return invoke<ApplyResult>('apply_config', { config, previousConfig })
+  try {
+    // The fingerprint `saveConfig` just got back: the backend refuses to apply
+    // if another program saved servers.yaml in between.
+    return await invoke<ApplyResult>('apply_config', {
+      config,
+      previousConfig,
+      expectedFingerprint: loadedFingerprint,
+    })
+  } catch (error) {
+    if (String(error).startsWith(CONFLICT_ERROR)) {
+      throw new ConfigConflictError(String(error))
+    }
+    throw error
+  }
 }
 
-export async function rollback(backups: string[]): Promise<void> {
+// Browser preview has no history on disk: it remembers the config before each change it applied.
+const browserUndoStack: MCPConfig[] = []
+
+/** How many changes `rollback` can undo, one after another. */
+export async function getRollbackDepth(): Promise<number> {
   if (!isDesktopRuntime()) {
-    if (backups.length > 0) {
-      window.localStorage.setItem(BROWSER_CONFIG_KEY, JSON.stringify(defaultConfig()))
+    return browserUndoStack.length
+  }
+
+  return invoke<number>('rollback_depth')
+}
+
+/** Undoes the most recent change in servers.yaml and the client files; reload the config afterwards. */
+export async function rollback(): Promise<void> {
+  if (!isDesktopRuntime()) {
+    const previous = browserUndoStack.pop()
+    if (previous) {
+      window.localStorage.setItem(BROWSER_CONFIG_KEY, JSON.stringify(previous))
     }
     return
   }
 
-  await invoke('rollback_from_backups', { backups })
+  await invoke('rollback_last_change')
 }
 
 export async function importDetectedConfigs(): Promise<ImportDetectedResult> {

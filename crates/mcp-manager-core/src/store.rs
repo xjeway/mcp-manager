@@ -24,7 +24,7 @@ pub const CONFIG_VERSION: u64 = 1;
 pub const TOO_NEW_ERROR: &str = "CONFIG_TOO_NEW";
 
 const EMPTY_CONFIG_YAML: &str = "version: 1\nservers: []\n";
-const ABSENT_FINGERPRINT: &str = "absent";
+pub(crate) const ABSENT_FINGERPRINT: &str = "absent";
 
 pub fn config_path(ctx: &PlatformContext) -> PathBuf {
     ctx.app_data_dir().join(CONFIG_RELATIVE_PATH)
@@ -47,6 +47,12 @@ fn fingerprint_of(content: &str) -> String {
             (hash ^ u64::from(byte)).wrapping_mul(0x0100_0000_01b3)
         });
     format!("{hash:016x}")
+}
+
+/// [`fingerprint`] of a file holding `bytes`.
+pub(crate) fn fingerprint_of_bytes(bytes: &[u8]) -> Result<String, String> {
+    let text = std::str::from_utf8(bytes).map_err(|e| e.to_string())?;
+    Ok(fingerprint_of(text))
 }
 
 pub fn fingerprint(path: &Path) -> Result<String, String> {
@@ -92,6 +98,14 @@ fn lock(path: &Path) -> Result<WriteLock, String> {
         .map_err(|e| e.to_string())?;
     file.lock().map_err(|e| e.to_string())?;
     Ok(WriteLock(file))
+}
+
+/// Runs `f` while holding the exclusive lock on `<path>.lock`, for a
+/// read-modify-write of another file that the app and the CLI both touch.
+/// Take it after (never before) the servers.yaml lock when holding both.
+pub fn with_lock<T>(path: &Path, f: impl FnOnce() -> Result<T, String>) -> Result<T, String> {
+    let _lock = lock(path)?;
+    f()
 }
 
 /// The file parsed as plain data, keeping fields this build has no model for.
@@ -153,6 +167,18 @@ pub fn update<T>(
     ctx: &PlatformContext,
     edit: impl FnOnce(&mut MCPConfig) -> Result<T, String>,
 ) -> Result<T, String> {
+    update_guarded(ctx, edit, |error| error)
+}
+
+/// Like [`update`], but when `edit` succeeded and saving the file then fails,
+/// `on_save_failed` runs while the lock is still held (so nothing else can
+/// write in between) and turns the save error into the one returned. Use it
+/// to undo what `edit` did outside the file.
+pub fn update_guarded<T>(
+    ctx: &PlatformContext,
+    edit: impl FnOnce(&mut MCPConfig) -> Result<T, String>,
+    on_save_failed: impl FnOnce(String) -> String,
+) -> Result<T, String> {
     let path = config_path(ctx);
     let _lock = lock(&path)?;
     let content = read_text(&path)?.content;
@@ -163,10 +189,10 @@ pub fn update<T>(
     let result = edit(&mut config)?;
     let mut updated = to_value(&config)?;
     restore_unknown(&raw, &parsed, &mut updated);
-    atomic_write(
-        &path,
-        &serde_yaml::to_string(&updated).map_err(|e| e.to_string())?,
-    )?;
+    serde_yaml::to_string(&updated)
+        .map_err(|e| e.to_string())
+        .and_then(|yaml| atomic_write(&path, &yaml))
+        .map_err(on_save_failed)?;
     Ok(result)
 }
 

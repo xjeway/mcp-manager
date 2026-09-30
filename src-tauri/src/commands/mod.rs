@@ -1,6 +1,7 @@
 use mcp_manager_core::core::{ApplyResult, ImportResult, MCPConfig};
+use mcp_manager_core::history::{self, RollbackReport};
 use mcp_manager_core::platform::PlatformContext;
-use mcp_manager_core::storage::{resolve_relative_path, rollback};
+use mcp_manager_core::storage::resolve_relative_path;
 use mcp_manager_core::store::{self, StoredText};
 use mcp_manager_core::workflow::{self, WorkspaceInfo};
 use serde::Serialize;
@@ -246,17 +247,30 @@ pub fn current_workspace() -> Result<WorkspaceInfo, String> {
 pub fn apply_config(
     config: MCPConfig,
     previous_config: Option<MCPConfig>,
+    expected_fingerprint: Option<String>,
 ) -> Result<ApplyResult, String> {
-    workflow::apply(
-        &PlatformContext::current(),
-        &config,
-        previous_config.as_ref(),
-    )
+    let ctx = PlatformContext::current();
+    match previous_config {
+        // Recorded, so it can be undone with `rollback_last_change`. Refused
+        // if servers.yaml changed since the caller saved `config`.
+        Some(previous) => {
+            history::apply_recorded(&ctx, &config, &previous, expected_fingerprint.as_deref())
+        }
+        None => workflow::apply(&ctx, &config, None),
+    }
 }
 
+/// Undoes the most recent change, in servers.yaml and the client files. The
+/// caller reloads the server list afterwards.
 #[tauri::command]
-pub fn rollback_from_backups(backups: Vec<String>) -> Result<(), String> {
-    rollback(backups)
+pub fn rollback_last_change() -> Result<RollbackReport, String> {
+    history::rollback_last(&PlatformContext::current())
+}
+
+/// How many changes `rollback_last_change` can undo, one after another.
+#[tauri::command]
+pub fn rollback_depth() -> usize {
+    history::depth(&PlatformContext::current())
 }
 
 #[tauri::command]

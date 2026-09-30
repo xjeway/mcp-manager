@@ -2,12 +2,13 @@
 //! on each client file, show a summary, confirm, then save and apply.
 
 use crate::session::{Failure, Outcome, Session};
-use crate::state::{self, WrittenFile};
 use mcp_manager_core::core::{MCPConfig, PlacementScope};
+use mcp_manager_core::history::{self, ChangeRecord};
 use mcp_manager_core::ops::{validate, Issue};
 use mcp_manager_core::store;
 use mcp_manager_core::workflow::{self, ChangeAction, PlannedChange};
 use serde::Serialize;
+use std::cell::{Cell, RefCell};
 use std::collections::BTreeMap;
 
 pub struct Change {
@@ -66,79 +67,84 @@ pub fn commit(session: &Session, change: Change, dry_run: bool) -> Outcome<bool>
 
     let Change { before, after, .. } = change;
 
-    let mut remembered = None;
     // Client files as they were, in case servers.yaml cannot be saved after
     // they are written.
-    let mut client_files = None;
-    let result = store::update(&session.ctx, |current| {
-        if serde_json::to_value(&*current).ok() != serde_json::to_value(&before).ok() {
-            return Err(
-                "The server list changed while this command was running (another MCP Manager \
-                 window or command?). Nothing was written; run it again."
-                    .to_string(),
-            );
-        }
-        // Only now that this change will be applied, drop the previous
-        // rollback record: its backups will no longer describe the last
-        // change, and if saving the new record fails, rollback must not fall
-        // back to it. A command rejected above keeps the record intact.
-        let mut state = state::load(&session.ctx);
-        if state.has_rollback() {
-            state.clear_rollback();
-            state::save(&session.ctx, &state).map_err(|error| {
-                format!("Could not update the rollback record ({error}). Nothing was written.")
-            })?;
-        }
-        remembered = Some(state);
-        client_files = Some(workflow::snapshot(&session.ctx, &after, Some(&before))?);
-        let applied = workflow::apply(&session.ctx, &after, Some(&before))?;
-        *current = after.clone();
-        Ok(applied)
-    });
-    let result = match (result, &client_files) {
-        (Ok(result), _) => result,
-        // apply undoes its own partial writes, so on its failure this puts the
-        // files back as they already are; after it, it undoes the whole apply.
-        (Err(error), Some(files)) => {
-            return Err(Failure::Error(match files.restore() {
-                Ok(()) => format!("{error}. Client files were restored; nothing was changed."),
-                Err(restore_error) => {
+    let client_files = RefCell::new(None);
+    let backups = RefCell::new(Vec::new());
+    let recorded = Cell::new(false);
+    let record_error = RefCell::new(None);
+    store::update_guarded(
+        &session.ctx,
+        |current| {
+            if serde_json::to_value(&*current).ok() != serde_json::to_value(&before).ok() {
+                return Err(
+                    "The server list changed while this command was running (another MCP \
+                     Manager window or command?). Nothing was written; run it again."
+                        .to_string(),
+                );
+            }
+            let files = workflow::snapshot(&session.ctx, &after, Some(&before))?;
+            // apply undoes its own partial writes when it fails.
+            let applied = workflow::apply(&session.ctx, &after, Some(&before))?;
+            *current = after.clone();
+            // Recorded while the lock is held, so no other change or rollback
+            // can slip in between. A record that fails does not stop the
+            // change: it is already applied, and the user is told below.
+            match ChangeRecord::new(
+                &files,
+                applied.backups.clone(),
+                before.clone(),
+                after.clone(),
+            )
+            .and_then(|record| history::record(&session.ctx, record))
+            {
+                Ok(()) => recorded.set(true),
+                Err(error) => *record_error.borrow_mut() = Some(error),
+            }
+            *client_files.borrow_mut() = Some(files);
+            *backups.borrow_mut() = applied.backups;
+            Ok(())
+        },
+        // Runs before the lock is released, so nothing else can write the
+        // client files while they are put back.
+        |error| {
+            let mut error = match client_files.borrow().as_ref().map(|files| files.restore()) {
+                Some(Ok(())) => {
+                    format!("{error}. Client files were restored; nothing was changed.")
+                }
+                Some(Err(restore_error)) => {
                     format!("{error}. Restoring client files also failed: {restore_error}")
                 }
-            }))
-        }
-        (Err(error), None) => return Err(Failure::Error(error)),
-    };
+                None => error,
+            };
+            // Only this change's own record: never an earlier one.
+            if recorded.get() {
+                if let Err(forget_error) = history::forget_latest(&session.ctx) {
+                    error.push_str(&format!(
+                        " Its rollback record could not be removed either ({forget_error})."
+                    ));
+                }
+            }
+            error
+        },
+    )?;
 
-    let mut remembered = remembered.unwrap_or_default();
-    remembered.last_backups = result.backups.clone();
-    remembered.last_written_files = client_files
-        .iter()
-        .flat_map(|files| files.paths())
-        .map(|path| {
-            Ok(WrittenFile {
-                path: path.to_string_lossy().to_string(),
-                fingerprint: store::fingerprint(path)?,
-            })
-        })
-        .collect::<Result<_, String>>()?;
-    remembered.last_previous_config = Some(before);
-    remembered.last_applied_config = Some(after);
     // The change is already applied; say so rather than promising a rollback
     // that was never recorded.
-    state::save(&session.ctx, &remembered).map_err(|error| {
-        format!(
+    if let Some(error) = record_error.into_inner() {
+        return Err(format!(
             "The changes were applied, but they could not be recorded for rollback ({error}), \
              so `{} rollback` will not undo them.",
             env!("CARGO_BIN_NAME")
         )
-    })?;
-
+        .into());
+    }
+    let backups = backups.into_inner();
     if session.json {
         print_json(&Report {
             changes: &changes,
             applied: true,
-            backups: result.backups,
+            backups,
         })?;
     } else {
         let written = changes

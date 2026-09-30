@@ -126,9 +126,7 @@ pub fn run(session: &Session, args: &AddArgs) -> Outcome<()> {
     )?;
 
     if written && session.interactive {
-        let mut remembered = state::load(ctx);
-        remembered.last_apps = apps;
-        let _ = state::save(ctx, &remembered);
+        let _ = state::update(ctx, |remembered| remembered.last_apps = apps);
     }
     Ok(())
 }

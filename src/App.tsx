@@ -36,6 +36,7 @@ import {
   getCurrentWorkspace,
   importDetectedConfigs,
   loadConfig,
+  getRollbackDepth,
   rollback,
   saveConfig,
   startOverConfig,
@@ -134,7 +135,8 @@ function MainApp() {
   const [editorOrigin, setEditorOrigin] = useState<'dashboard' | 'marketplace'>('dashboard')
   const [marketplaceEnabled, setMarketplaceEnabled] = useState(readMarketplaceEnabledPreference)
   const [feedbacks, setFeedbacks] = useState<FeedbackItem[]>([])
-  const [backups, setBackups] = useState<string[]>([])
+  // How many changes can be undone one after another (kept on disk, so it survives restarts).
+  const [rollbackDepth, setRollbackDepth] = useState(0)
   const [visibleApps, setVisibleApps] = useState<SupportedApp[]>([...SUPPORTED_APPS])
   const [editorDirty, setEditorDirty] = useState(false)
   const closeConfirmedRef = useRef(false)
@@ -229,6 +231,14 @@ function MainApp() {
   }
 
   /** Replaces the in-memory config with servers.yaml as another program (e.g. the CLI) left it. */
+  const refreshRollbackDepth = async () => {
+    try {
+      setRollbackDepth(await getRollbackDepth())
+    } catch {
+      setRollbackDepth(0)
+    }
+  }
+
   const reloadConfigFromDisk = async (kind: FeedbackItem['kind'], message: string) => {
     try {
       setConfig(await loadConfig())
@@ -331,6 +341,7 @@ function MainApp() {
         }
         setConfig(loaded)
         setFeedbacks([])
+        void refreshRollbackDepth()
 
         if (readAutoImportOnLaunchPreference()) {
           try {
@@ -385,6 +396,8 @@ function MainApp() {
     // Changes are saved as they are made, so picking up an outside edit never
     // discards anything here; an open editor draft is separate state and survives.
     const handleFocus = async () => {
+      // The CLI may have recorded (or undone) a change meanwhile.
+      void refreshRollbackDepth()
       try {
         if (await hasExternalConfigChange()) {
           await reloadConfigFromDisk('info', t('configChangedExternally'))
@@ -540,8 +553,8 @@ function MainApp() {
         saveConfig,
       })
       setConfig(nextConfig)
-      setBackups(result.backups)
-      for (const message of applyWarningMessages(result.warnings ?? [], nextConfig.servers, t)) {
+      void refreshRollbackDepth()
+      for (const message of applyWarningMessages(result, nextConfig.servers, t)) {
         pushFeedback('warning', message)
       }
       if (successMessage) {
@@ -696,18 +709,19 @@ function MainApp() {
   }
 
   const handleRollback = async () => {
-    if (backups.length === 0) {
+    if (rollbackDepth === 0) {
       pushFeedback('info', t('rollbackUnavailable'))
       return
     }
 
     setActionState('rolling-back')
     try {
-      await rollback(backups)
-      pushFeedback('success', t('rollbackSuccess'))
+      await rollback()
+      await reloadConfigFromDisk('success', t('rollbackSuccess'))
     } catch (error) {
       pushFeedback('error', t('rollbackFailedDetail', { error: String(error) }))
     } finally {
+      await refreshRollbackDepth()
       setActionState('idle')
     }
   }
@@ -868,7 +882,7 @@ function MainApp() {
         <Dashboard
           workspace={workspace}
           busy={actionState}
-          canRollback={backups.length > 0}
+          canRollback={rollbackDepth > 0}
           visibleApps={visibleApps}
           onOpenRepository={() => void handleOpenRepository()}
           onSyncLocalConfig={() => void handleImport()}

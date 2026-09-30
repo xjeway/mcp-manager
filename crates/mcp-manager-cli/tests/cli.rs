@@ -58,6 +58,17 @@ impl Sandbox {
         String::from_utf8(output.stdout).unwrap()
     }
 
+    /// What the command printed, prompts and messages included.
+    fn all_output(&self, args: &[&str]) -> String {
+        let output = self.run(args);
+        assert!(output.status.success(), "{args:?} failed");
+        format!(
+            "{}{}",
+            String::from_utf8_lossy(&output.stdout),
+            String::from_utf8_lossy(&output.stderr)
+        )
+    }
+
     fn json(&self, args: &[&str]) -> Value {
         serde_json::from_str(&self.ok(args)).expect("json output")
     }
@@ -392,6 +403,57 @@ fn client_files_are_restored_when_the_server_list_cannot_be_saved() {
         cursor_before
     );
     assert_eq!(sandbox.listed_ids(), vec!["ctx"]);
+}
+
+#[test]
+fn rollback_undoes_several_changes_one_after_another() {
+    let sandbox = Sandbox::new();
+    sandbox.ok(ADD_CTX);
+    sandbox.ok(&["add", "two", "-a", "cursor", "-y", "--", "npx", "two-mcp"]);
+    assert!(sandbox.cursor_servers().get("two").is_some());
+
+    let output = sandbox.all_output(&["rollback", "-y"]);
+    assert!(
+        output.contains("1 earlier change can still be undone"),
+        "{output}"
+    );
+    assert!(sandbox.cursor_servers().get("two").is_none());
+    assert!(sandbox.cursor_servers().get("ctx").is_some());
+    assert_eq!(sandbox.listed_ids(), vec!["ctx"]);
+
+    sandbox.ok(&["rollback", "-y"]);
+    assert!(sandbox.listed_ids().is_empty());
+    assert!(sandbox
+        .all_output(&["rollback", "-y"])
+        .contains("Nothing to roll back"));
+}
+
+#[test]
+fn rollback_removes_the_files_and_folders_the_change_created() {
+    let sandbox = Sandbox::new();
+    sandbox.ok(ADD_CTX);
+    assert!(sandbox.home.join(".cursor/mcp.json").exists());
+    assert!(sandbox.home.join(".codex/config.toml").exists());
+
+    let output = sandbox.all_output(&["rollback", "-y"]);
+
+    assert!(output.contains("Removed 2 client files"), "{output}");
+    assert!(!sandbox.home.join(".cursor").exists());
+    assert!(!sandbox.home.join(".codex").exists());
+}
+
+#[test]
+fn rollback_can_finish_after_it_was_interrupted() {
+    let sandbox = Sandbox::new();
+    sandbox.ok(ADD_CTX);
+
+    // As if a rollback had put one client file back and then been killed.
+    fs::remove_file(sandbox.home.join(".codex/config.toml")).unwrap();
+
+    sandbox.ok(&["rollback", "-y"]);
+
+    assert!(!sandbox.home.join(".cursor/mcp.json").exists());
+    assert!(sandbox.listed_ids().is_empty());
 }
 
 #[test]
