@@ -57,9 +57,36 @@ describe('release workflow structure', () => {
     const job = workflow.jobs['publish-homebrew']
 
     expect(job.uses).toBe('./.github/workflows/homebrew.yml')
-    expect(job.needs).toEqual(['build-cli', 'publish-updater'])
+    expect(job.needs).toEqual(['build-cli', 'publish-updater', 'publish-release'])
     expect(job.with.release_tag).toBe('${{ github.ref_name }}')
     expect(job.secrets.HOMEBREW_TAP_PAT).toBe('${{ secrets.HOMEBREW_TAP_PAT }}')
+  })
+
+  it('generates notes from the commits before creating the draft', () => {
+    const workflow = readWorkflow()
+    const steps = workflow.jobs['prepare-release'].steps
+    const checkout = steps.find((step) => step.uses?.startsWith('actions/checkout@'))
+    const generate = steps.findIndex((step) => step.run?.includes('scripts/release-notes.mjs'))
+    const ensure = steps.findIndex((step) => step.run?.includes('github-release.mjs ensure'))
+
+    expect(checkout.with['fetch-depth']).toBe(0)
+    expect(generate).toBeGreaterThanOrEqual(0)
+    expect(generate).toBeLessThan(ensure)
+    expect(steps[ensure].env.RELEASE_NOTES_FILE).toBeDefined()
+  })
+
+  it('publishes the draft only after npm, and before Homebrew reads it', () => {
+    const workflow = readWorkflow()
+    const job = workflow.jobs['publish-release']
+
+    expect(job.needs).toEqual(['prepare-release', 'publish-npm'])
+    expect(
+      job.steps.some(
+        (step) =>
+          step.run?.includes('node scripts/github-release.mjs publish') &&
+          step.run.includes('needs.prepare-release.outputs.release_id'),
+      ),
+    ).toBe(true)
   })
 
   it('builds the CLI for every target the npm and Homebrew packages expect', () => {
