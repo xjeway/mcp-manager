@@ -188,3 +188,18 @@ describe('github release updater manifest', () => {
     ])
   })
 })
+
+describe('buildDefaultReleaseBody', () => {
+  it('puts the notes above the download text, separated by a rule', async () => {
+    const helpers = await loadReleaseHelpers()
+    const body = helpers.buildDefaultReleaseBody('v1.0.0', "## What's new\n\n* A")
+
+    expect(body.startsWith("## What's new\n\n* A\n\n---\n\nAutomated release for v1.0.0.")).toBe(true)
+  })
+
+  it('is just the download text when there are no notes', async () => {
+    const helpers = await loadReleaseHelpers()
+
+    expect(helpers.buildDefaultReleaseBody('v1.0.0').startsWith('Automated release for v1.0.0.')).toBe(true)
+  })
+})
