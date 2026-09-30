@@ -3,6 +3,8 @@ import process from 'node:process'
 import { fileURLToPath } from 'node:url'
 import path from 'node:path'
 
+import { isPrereleaseRef } from './release-args.mjs'
+
 // Only user-facing commit types reach the notes; chore, ci, test, docs and
 // refactor commits are left out.
 const sections = [
@@ -46,9 +48,17 @@ function git(args, run = execFileSync) {
 }
 
 // The tag before `tagName` in its own history; null for the first release.
+// A stable release counts from the previous stable one, so promoting a
+// prerelease (even one on the same commit) still announces the whole cycle
+// instead of an empty range.
 export function previousTag(tagName, run = execFileSync) {
+  const args = ['describe', '--tags', '--abbrev=0']
+  if (!isPrereleaseRef(tagName)) {
+    args.push('--exclude=*-*')
+  }
+
   try {
-    return git(['describe', '--tags', '--abbrev=0', `${tagName}^`], run) || null
+    return git([...args, `${tagName}^`], run) || null
   } catch {
     return null
   }

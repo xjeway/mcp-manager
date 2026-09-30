@@ -440,7 +440,9 @@ async function publishRelease(releaseId) {
 
   if (!hasReleaseNotes(release.body)) {
     throw new Error(
-      `${release.tag_name} has no release notes; write them on the draft and publish it manually: ${release.html_url}`,
+      `${release.tag_name} has no release notes. Write them on the draft, then run ` +
+        `\`node scripts/github-release.mjs upload-updater ${releaseId}\` so latest.json carries them, ` +
+        `and publish it manually: ${release.html_url}`,
     )
   }
 
