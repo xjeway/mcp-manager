@@ -5,7 +5,7 @@ import { useTranslation } from 'react-i18next'
 import { getVisibleClients } from './clientMeta'
 import { JsonEditor } from './JsonEditor'
 import { Segmented } from './Segmented'
-import { Tabs } from './Tabs'
+import { Tabs, tabId, tabPanelId } from './Tabs'
 import { Tooltip } from './Tooltip'
 import { parseMcpJson } from '../services/jsonParser'
 import { openPath } from '../services/externalLinks'
@@ -509,6 +509,7 @@ export function ServerEditor({
               <Tabs
                 ariaLabel={t('serverConfiguration')}
                 className="editor-mode-tabs"
+                idPrefix="editor-mode"
                 value={mode}
                 onChange={(value) => {
                   if (value === 'json') {
@@ -525,7 +526,12 @@ export function ServerEditor({
               />
             </div>
 
-            <div className="editor-card-body">
+            <div
+              className="editor-card-body"
+              role="tabpanel"
+              id={tabPanelId('editor-mode')}
+              aria-labelledby={tabId('editor-mode', mode)}
+            >
               {mode === 'form' ? (
                 <div className="editor-field editor-field-inline">
                   <span className="editor-field-label">{t('transport')}</span>
