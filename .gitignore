@@ -50,7 +50,8 @@ openspec
 .playwright-mcp/
 
 # Local Claude Code settings
-.claude/
+.claude/*
+!.claude/steward.json
 
 # Gemini CLI (issue triage)
 .gemini/
