@@ -14,7 +14,7 @@ import {
   X,
 } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
-import { Tooltip } from './Tooltip'
+import { Tabs } from './Tabs'
 import type { MCPServer } from '../types/config'
 import type {
   InstallOption,
@@ -199,11 +199,9 @@ export function MarketplacePage({ servers, onBack, onInstall }: MarketplacePageP
       <div className="mac-window-drag-region" data-tauri-drag-region aria-hidden="true" />
       <div className="page-header">
         <div className="brand-block">
-          <Tooltip content={t('back')}>
-            <button type="button" className="icon-button toolbar-icon" onClick={onBack} aria-label={t('back')}>
-              <ArrowLeft size={16} />
-            </button>
-          </Tooltip>
+          <button type="button" className="icon-button toolbar-icon" onClick={onBack} aria-label={t('back')}>
+            <ArrowLeft size={16} />
+          </button>
           <div>
             <p className="eyebrow">{t('marketplace')}</p>
             <h1 className="shell-title">{t('marketplaceTitle')}</h1>
@@ -212,23 +210,16 @@ export function MarketplacePage({ servers, onBack, onInstall }: MarketplacePageP
 
         {sources.length > 0 ? (
           <div className="header-controls" data-tauri-no-drag>
-            <div className="segment-control marketplace-sources" role="tablist" aria-label={t('marketplaceSource')}>
-              {sources.map((item) => (
-                <button
-                  key={item.id}
-                  type="button"
-                  role="tab"
-                  aria-selected={item.id === sourceId}
-                  className={item.id === sourceId ? 'segment-button active' : 'segment-button'}
-                  onClick={() => {
-                    setSourceId(item.id)
-                    setSelectedId(null)
-                  }}
-                >
-                  {item.label}
-                </button>
-              ))}
-            </div>
+            <Tabs
+              ariaLabel={t('marketplaceSource')}
+              className="marketplace-sources"
+              value={sourceId}
+              onChange={(value) => {
+                setSourceId(value)
+                setSelectedId(null)
+              }}
+              options={sources.map((item) => ({ label: item.label, value: item.id }))}
+            />
           </div>
         ) : null}
       </div>
@@ -410,11 +401,9 @@ function EntryDetail({
               {entry.version ? ` · ${entry.version}` : ''}
             </code>
           </div>
-          <Tooltip content={t('close')}>
-            <button type="button" className="icon-button compact-icon marketplace-detail-close" onClick={onClose} aria-label={t('close')}>
-              <X size={14} />
-            </button>
-          </Tooltip>
+          <button type="button" className="icon-button compact-icon marketplace-detail-close" onClick={onClose} aria-label={t('close')}>
+            <X size={14} />
+          </button>
         </header>
 
         <div className="marketplace-links">

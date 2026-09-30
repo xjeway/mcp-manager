@@ -4,6 +4,8 @@ import { ArrowLeft, Check, Code, Eye, EyeOff, FileUp, FolderOpen, LayoutTemplate
 import { useTranslation } from 'react-i18next'
 import { getVisibleClients } from './clientMeta'
 import { JsonEditor } from './JsonEditor'
+import { Segmented } from './Segmented'
+import { Tabs } from './Tabs'
 import { Tooltip } from './Tooltip'
 import { parseMcpJson } from '../services/jsonParser'
 import { openPath } from '../services/externalLinks'
@@ -37,34 +39,6 @@ interface ServerEditorProps {
 
 function normalizeEntries(entries: EditorDraft['envEntries']): EditorDraft['envEntries'] {
   return entries.length > 0 ? entries : [{ key: '', value: '' }]
-}
-
-function Segmented({
-  compact = false,
-  options,
-  value,
-  onChange,
-}: {
-  compact?: boolean
-  options: Array<{ icon?: ReactNode; label: string; value: string }>
-  value: string
-  onChange: (value: string) => void
-}) {
-  return (
-    <div className={compact ? 'segment-control segment-control-compact' : 'segment-control'}>
-      {options.map((option) => (
-        <button
-          key={option.value}
-          type="button"
-          className={value === option.value ? 'segment-button active' : 'segment-button'}
-          onClick={() => onChange(option.value)}
-        >
-          {option.icon}
-          <span>{option.label}</span>
-        </button>
-      ))}
-    </div>
-  )
 }
 
 function Switch({
@@ -532,8 +506,9 @@ export function ServerEditor({
           <section className="editor-reference-card editor-reference-config-card">
             <div className="editor-card-header">
               <h2>{t('serverConfiguration')}</h2>
-              <Segmented
-                compact
+              <Tabs
+                ariaLabel={t('serverConfiguration')}
+                className="editor-mode-tabs"
                 value={mode}
                 onChange={(value) => {
                   if (value === 'json') {
@@ -541,7 +516,7 @@ export function ServerEditor({
                   } else {
                     setBatchServers([])
                   }
-                  setMode(value as EditorMode)
+                  setMode(value)
                 }}
                 options={[
                   { value: 'form', label: t('formMode'), icon: <LayoutTemplate size={12} /> },
@@ -555,9 +530,9 @@ export function ServerEditor({
                 <div className="editor-field editor-field-inline">
                   <span className="editor-field-label">{t('transport')}</span>
                   <Segmented
-                    compact
+                    ariaLabel={t('transport')}
                     value={draft.transportType}
-                    onChange={(value) => setDraft((current) => ({ ...current, transportType: value as 'stdio' | 'http' }))}
+                    onChange={(value) => setDraft((current) => ({ ...current, transportType: value }))}
                     options={[
                       { value: 'stdio', label: 'STDIO' },
                       { value: 'http', label: 'HTTP / SSE' },
