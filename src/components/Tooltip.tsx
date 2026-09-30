@@ -2,6 +2,11 @@ import type { ReactNode } from 'react'
 import { useEffect, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
 
+const OPEN_DELAY_MS = 450
+// Once one tooltip has been seen, neighbours open instantly for a short while.
+const WARM_WINDOW_MS = 300
+let lastClosedAt = 0
+
 interface TooltipProps {
   children: ReactNode
   content: string
@@ -10,6 +15,7 @@ interface TooltipProps {
 export function Tooltip({ children, content }: TooltipProps) {
   const triggerRef = useRef<HTMLSpanElement | null>(null)
   const [open, setOpen] = useState(false)
+  const timerRef = useRef<number | null>(null)
   const [position, setPosition] = useState({ left: 0, top: 0 })
   const [placement, setPlacement] = useState<'top' | 'bottom'>('top')
 
@@ -45,21 +51,49 @@ export function Tooltip({ children, content }: TooltipProps) {
     }
   }, [open])
 
+  const show = () => {
+    syncPosition()
+    if (timerRef.current !== null) {
+      window.clearTimeout(timerRef.current)
+    }
+    const warm = Date.now() - lastClosedAt < WARM_WINDOW_MS
+    if (warm) {
+      setOpen(true)
+      return
+    }
+    timerRef.current = window.setTimeout(() => setOpen(true), OPEN_DELAY_MS)
+  }
+
+  const hide = () => {
+    if (timerRef.current !== null) {
+      window.clearTimeout(timerRef.current)
+      timerRef.current = null
+    }
+    if (open) {
+      lastClosedAt = Date.now()
+    }
+    setOpen(false)
+  }
+
+  useEffect(
+    () => () => {
+      if (timerRef.current !== null) {
+        window.clearTimeout(timerRef.current)
+      }
+    },
+    [],
+  )
+
   return (
     <>
       <span
         ref={triggerRef}
         className="tooltip-trigger"
-        onMouseEnter={() => {
-          syncPosition()
-          setOpen(true)
-        }}
-        onMouseLeave={() => setOpen(false)}
-        onFocus={() => {
-          syncPosition()
-          setOpen(true)
-        }}
-        onBlur={() => setOpen(false)}
+        onMouseEnter={show}
+        onMouseLeave={hide}
+        onFocus={show}
+        onBlur={hide}
+        onClickCapture={hide}
       >
         {children}
       </span>

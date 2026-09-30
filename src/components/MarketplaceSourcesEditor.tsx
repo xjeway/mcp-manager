@@ -1,7 +1,6 @@
 import { type FormEvent, useEffect, useState } from 'react'
 import { LoaderCircle, Plus, Trash2 } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
-import { Tooltip } from './Tooltip'
 import type { MarketplaceError, MarketplaceSource } from '../types/marketplace'
 import {
   addMarketplaceSource,
@@ -73,17 +72,15 @@ export function MarketplaceSourcesEditor() {
             {source.builtin ? (
               <span className="marketplace-source-badge">{t('settingsMarketplaceSourceBuiltin')}</span>
             ) : (
-              <Tooltip content={t('settingsMarketplaceSourceRemove')}>
-                <button
-                  type="button"
-                  className="icon-button"
-                  onClick={() => void remove(source)}
-                  disabled={removingId === source.id}
-                  aria-label={`${t('settingsMarketplaceSourceRemove')} ${source.label}`}
-                >
-                  <Trash2 size={14} />
-                </button>
-              </Tooltip>
+              <button
+                type="button"
+                className="icon-button"
+                onClick={() => void remove(source)}
+                disabled={removingId === source.id}
+                aria-label={`${t('settingsMarketplaceSourceRemove')} ${source.label}`}
+              >
+                <Trash2 size={14} />
+              </button>
             )}
           </li>
         ))}

@@ -140,7 +140,6 @@ export function Dashboard({
               className="brand-logo-button"
               onClick={onOpenRepository}
               aria-label={t('settingsRepositoryAction')}
-              title={t('settingsRepositoryAction')}
             >
               <AppLogo className="brand-logo" alt={t('title')} />
             </button>
@@ -151,11 +150,9 @@ export function Dashboard({
           </div>
 
           <div className="header-controls" data-tauri-no-drag>
-            <Tooltip content={t('settings')}>
-              <button type="button" className="icon-button toolbar-icon" onClick={onOpenSettings} aria-label={t('settings')}>
-                <Settings size={14} />
-              </button>
-            </Tooltip>
+            <button type="button" className="icon-button toolbar-icon" onClick={onOpenSettings} aria-label={t('settings')}>
+              <Settings size={14} />
+            </button>
 
             <Tooltip content={t('syncLocalConfig')}>
               <button
@@ -194,37 +191,33 @@ export function Dashboard({
               </Tooltip>
             ) : null}
 
-            <Tooltip content={t('add')}>
-              <button
-                type="button"
-                className="icon-button toolbar-icon toolbar-accent"
-                onClick={onAdd}
-                disabled={busy !== 'idle'}
-                aria-label={t('add')}
-              >
-                <Plus size={14} />
-              </button>
-            </Tooltip>
+            <button
+              type="button"
+              className="icon-button toolbar-icon toolbar-accent"
+              onClick={onAdd}
+              disabled={busy !== 'idle'}
+              aria-label={t('add')}
+            >
+              <Plus size={14} />
+            </button>
           </div>
         </div>
 
         <section className="stats-strip">
           {workspace.stats.map((stat) => (
-            <Tooltip key={stat.id} content={t(activeAppFilter === stat.id ? 'clientFilterClear' : 'clientFilterApply', { client: stat.label })}>
-              <button
-                type="button"
-                className={activeAppFilter === stat.id ? `stat-card ${stat.accent} is-active` : `stat-card ${stat.accent}`}
-                aria-pressed={activeAppFilter === stat.id}
-                onClick={() => setAppFilter((current) => (current === stat.id ? null : stat.id))}
-                data-tauri-no-drag
-              >
-                <div className="stat-topline">
-                  <span className="stat-icon-wrap">{stat.icon}</span>
-                </div>
-                <strong className="stat-value">{stat.count}</strong>
-                <span className="stat-caption">{stat.label}</span>
-              </button>
-            </Tooltip>
+            <button key={stat.id}
+              type="button"
+              className={activeAppFilter === stat.id ? `stat-card ${stat.accent} is-active` : `stat-card ${stat.accent}`}
+              aria-pressed={activeAppFilter === stat.id}
+              onClick={() => setAppFilter((current) => (current === stat.id ? null : stat.id))}
+              data-tauri-no-drag
+            >
+              <div className="stat-topline">
+                <span className="stat-icon-wrap">{stat.icon}</span>
+              </div>
+              <strong className="stat-value">{stat.count}</strong>
+              <span className="stat-caption">{stat.label}</span>
+            </button>
           ))}
         </section>
       </div>
@@ -293,16 +286,14 @@ export function Dashboard({
                     )
                   })}
                 </div>
-                <Tooltip content={t('batchClear')}>
-                  <button
-                    type="button"
-                    className="icon-button compact-icon batch-clear"
-                    onClick={() => setSelectedIds([])}
-                    aria-label={t('batchClear')}
-                  >
-                    <X size={14} />
-                  </button>
-                </Tooltip>
+                <button
+                  type="button"
+                  className="icon-button compact-icon batch-clear"
+                  onClick={() => setSelectedIds([])}
+                  aria-label={t('batchClear')}
+                >
+                  <X size={14} />
+                </button>
               </>
             ) : null}
             <div className="server-search">
@@ -409,34 +400,30 @@ export function Dashboard({
                       <Copy size={14} />
                     </button>
                   </Tooltip>
-                  <Tooltip content={t('edit')}>
-                    <button
-                      type="button"
-                      className="icon-button compact-icon server-row-action"
-                      onClick={(event) => {
-                        event.stopPropagation()
-                        onEdit(row.id)
-                      }}
-                      aria-label={t('edit')}
-                      disabled={busy !== 'idle'}
-                    >
-                      <PenSquare size={14} />
-                    </button>
-                  </Tooltip>
-                  <Tooltip content={t('delete')}>
-                    <button
-                      type="button"
-                      className="icon-button compact-icon server-row-action server-row-action-danger"
-                      onClick={(event) => {
-                        event.stopPropagation()
-                        onDelete(row.id)
-                      }}
-                      aria-label={t('delete')}
-                      disabled={busy !== 'idle'}
-                    >
-                      <Trash2 size={14} />
-                    </button>
-                  </Tooltip>
+                  <button
+                    type="button"
+                    className="icon-button compact-icon server-row-action"
+                    onClick={(event) => {
+                      event.stopPropagation()
+                      onEdit(row.id)
+                    }}
+                    aria-label={t('edit')}
+                    disabled={busy !== 'idle'}
+                  >
+                    <PenSquare size={14} />
+                  </button>
+                  <button
+                    type="button"
+                    className="icon-button compact-icon server-row-action server-row-action-danger"
+                    onClick={(event) => {
+                      event.stopPropagation()
+                      onDelete(row.id)
+                    }}
+                    aria-label={t('delete')}
+                    disabled={busy !== 'idle'}
+                  >
+                    <Trash2 size={14} />
+                  </button>
                 </div>
               </article>
             ))}

@@ -2,9 +2,9 @@ import { ArrowLeft, BadgeInfo, Boxes, ExternalLink, FolderGit2, Languages, Libra
 import { type ReactNode, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { AppLogo } from './AppLogo'
+import { Segmented } from './Segmented'
 import { LanguageMenu } from './LanguageMenu'
 import { MarketplaceSourcesEditor } from './MarketplaceSourcesEditor'
-import { Tooltip } from './Tooltip'
 
 interface SettingsPageProps {
   appVersion: string
@@ -95,11 +95,9 @@ export function SettingsPage({
       <div className="mac-window-drag-region" data-tauri-drag-region aria-hidden="true" />
       <div className="page-header">
         <div className="brand-block">
-          <Tooltip content={t('back')}>
-            <button type="button" className="icon-button toolbar-icon" onClick={onBack} aria-label={t('back')}>
-              <ArrowLeft size={16} />
-            </button>
-          </Tooltip>
+          <button type="button" className="icon-button toolbar-icon" onClick={onBack} aria-label={t('back')}>
+            <ArrowLeft size={16} />
+          </button>
           <div>
             <p className="eyebrow">{t('settings')}</p>
             <h1 className="shell-title">{t('settingsTitle')}</h1>
@@ -159,23 +157,16 @@ export function SettingsPage({
                 <div className="settings-item">
                   <SettingsItemLabel icon={<Palette size={14} />} label={t('theme')} />
                   <div className="settings-action-slot settings-action-slot-theme">
-                    <div className="segment-control settings-segment-control settings-segment-control-compact">
-                      {([
-                        { icon: <SunMedium size={14} />, label: t('light'), value: 'light' as const },
-                        { icon: <Moon size={14} />, label: t('dark'), value: 'dark' as const },
-                        { icon: <Monitor size={14} />, label: t('system'), value: 'system' as const },
-                      ]).map((option) => (
-                        <button
-                          key={option.value}
-                          type="button"
-                          className={theme === option.value ? 'segment-button active' : 'segment-button'}
-                          onClick={() => onThemeChange(option.value)}
-                        >
-                          {option.icon}
-                          <span>{option.label}</span>
-                        </button>
-                      ))}
-                    </div>
+                    <Segmented
+                      ariaLabel={t('theme')}
+                      value={theme}
+                      onChange={onThemeChange}
+                      options={[
+                        { icon: <SunMedium size={13} />, label: t('light'), value: 'light' },
+                        { icon: <Moon size={13} />, label: t('dark'), value: 'dark' },
+                        { icon: <Monitor size={13} />, label: t('system'), value: 'system' },
+                      ]}
+                    />
                   </div>
                 </div>
                 <div className="settings-item">
@@ -225,7 +216,6 @@ export function SettingsPage({
                   className="settings-about-logo-button"
                   onClick={onOpenRepository}
                   aria-label={t('settingsRepositoryAction')}
-                  title={t('settingsRepositoryAction')}
                 >
                   <AppLogo className="brand-logo settings-about-logo" alt={t('title')} />
                 </button>
