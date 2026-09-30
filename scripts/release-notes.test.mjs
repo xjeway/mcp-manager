@@ -82,7 +82,7 @@ describe('commit range', () => {
 
   it('walks from the previous tag to this one', () => {
     const run = runner({
-      'describe --tags --abbrev=0 v0.2.0^': 'v0.1.7\n',
+      'describe --tags --abbrev=0 --exclude=*-* v0.2.0^': 'v0.1.7\n',
       'log --no-merges --format=%s v0.1.7..v0.2.0': 'feat: a\nfix: b\n',
     })
 
@@ -92,11 +92,29 @@ describe('commit range', () => {
 
   it('takes the whole history for the first tag', () => {
     const run = runner({
-      'describe --tags --abbrev=0 v0.1.0^': new Error('no tags'),
+      'describe --tags --abbrev=0 --exclude=*-* v0.1.0^': new Error('no tags'),
       'log --no-merges --format=%s v0.1.0': 'feat: first\n',
     })
 
     expect(previousTag('v0.1.0', run)).toBeNull()
     expect(collectSubjects('v0.1.0', run)).toEqual(['feat: first'])
+  })
+
+  it('counts a stable release from the previous stable tag, skipping prereleases', () => {
+    const run = runner({
+      'describe --tags --abbrev=0 --exclude=*-* v0.3.0^': 'v0.2.0\n',
+      'log --no-merges --format=%s v0.2.0..v0.3.0': 'feat: from the rc cycle\n',
+    })
+
+    expect(previousTag('v0.3.0', run)).toBe('v0.2.0')
+    expect(collectSubjects('v0.3.0', run)).toEqual(['feat: from the rc cycle'])
+  })
+
+  it('counts a prerelease from whatever tag came before it', () => {
+    const run = runner({
+      'describe --tags --abbrev=0 v0.3.0-rc.2^': 'v0.3.0-rc.1\n',
+    })
+
+    expect(previousTag('v0.3.0-rc.2', run)).toBe('v0.3.0-rc.1')
   })
 })
