@@ -20,7 +20,7 @@ describe('nativeDialogs', () => {
 
   it('uses the Tauri dialog command when running in Tauri', async () => {
     isTauriMock.mockReturnValue(true)
-    invokeMock.mockResolvedValue(true)
+    invokeMock.mockResolvedValue('Delete')
     vi.stubGlobal('window', {
       confirm: vi.fn(),
     })
@@ -36,13 +36,27 @@ describe('nativeDialogs', () => {
     ).resolves.toBe(true)
 
     expect(invokeMock).toHaveBeenCalledTimes(1)
-    expect(invokeMock).toHaveBeenCalledWith('plugin:dialog|confirm', {
-      cancelButtonLabel: 'Cancel',
+    expect(invokeMock).toHaveBeenCalledWith('plugin:dialog|message', {
+      buttons: { OkCancelCustom: ['Delete', 'Cancel'] },
       kind: 'warning',
       message: 'Delete server?',
-      okButtonLabel: 'Delete',
       title: 'Delete',
     })
+  })
+
+  it('treats the cancel button as declining', async () => {
+    isTauriMock.mockReturnValue(true)
+    invokeMock.mockResolvedValue('Keep editing')
+    vi.stubGlobal('window', { confirm: vi.fn() })
+
+    await expect(
+      confirmDialog({ cancelLabel: 'Keep editing', message: 'Discard?', okLabel: 'Discard' }),
+    ).resolves.toBe(false)
+
+    invokeMock.mockResolvedValue({ Custom: 'Discard' })
+    await expect(
+      confirmDialog({ cancelLabel: 'Keep editing', message: 'Discard?', okLabel: 'Discard' }),
+    ).resolves.toBe(true)
   })
 
   it('falls back to window.confirm if the Tauri dialog command fails', async () => {
