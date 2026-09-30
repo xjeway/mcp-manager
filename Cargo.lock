@@ -2106,7 +2106,7 @@ dependencies = [
 
 [[package]]
 name = "mcp-manager"
-version = "0.1.7"
+version = "0.2.0"
 dependencies = [
  "chrono",
  "mcp-manager-core",
@@ -2124,7 +2124,7 @@ dependencies = [
 
 [[package]]
 name = "mcp-manager-cli"
-version = "0.1.7"
+version = "0.2.0"
 dependencies = [
  "clap",
  "cliclack",
@@ -2136,7 +2136,7 @@ dependencies = [
 
 [[package]]
 name = "mcp-manager-core"
-version = "0.1.7"
+version = "0.2.0"
 dependencies = [
  "chrono",
  "serde",

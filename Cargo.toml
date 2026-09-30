@@ -3,7 +3,7 @@ members = ["src-tauri", "crates/*"]
 resolver = "2"
 
 [workspace.package]
-version = "0.1.7"
+version = "0.2.0"
 authors = ["xJeway"]
 license = "MIT"
 edition = "2021"
