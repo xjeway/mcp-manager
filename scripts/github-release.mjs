@@ -4,6 +4,7 @@ import process from 'node:process'
 import { fileURLToPath } from 'node:url'
 
 import { isPrereleaseRef } from './release-args.mjs'
+import { hasReleaseNotes } from './release-notes.mjs'
 
 const apiBaseUrl = (process.env.GITHUB_API_URL || 'https://api.github.com').replace(/\/$/, '')
 const uploadsBaseUrl = 'https://uploads.github.com'
@@ -123,14 +124,16 @@ function writeGithubOutputs(outputs) {
   }
 }
 
-export function buildDefaultReleaseBody(tagName) {
-  return [
+export function buildDefaultReleaseBody(tagName, notes = '') {
+  const boilerplate = [
     `Automated release for ${tagName}.`,
     '',
     'Download the installer or archive that matches your platform from the assets below.',
     '',
     'macOS note: public macOS builds may still be unsigned while Apple signing is being prepared. If Gatekeeper blocks `MCP Manager.app`, move it to `/Applications`, try Finder `Open` once, or run `xattr -dr com.apple.quarantine "/Applications/MCP Manager.app"` and open it again.',
   ].join('\n')
+
+  return notes ? `${notes}\n\n---\n\n${boilerplate}` : boilerplate
 }
 
 export function normalizeArch(archToken) {
@@ -293,6 +296,12 @@ export function buildLatestManifest({ version, notes, pubDate, entries }) {
   }
 }
 
+// The workflow writes the generated notes to a file; a local run has none.
+function readReleaseNotes() {
+  const file = process.env.RELEASE_NOTES_FILE
+  return file && fs.existsSync(file) ? fs.readFileSync(file, 'utf8').trim() : ''
+}
+
 async function ensureRelease(tagName) {
   const { owner, repo } = getRepositoryContext()
   const releases = await listReleases(owner, repo)
@@ -315,7 +324,7 @@ async function ensureRelease(tagName) {
     body: {
       tag_name: tagName,
       name: `MCP Manager ${tagName}`,
-      body: buildDefaultReleaseBody(tagName),
+      body: buildDefaultReleaseBody(tagName, readReleaseNotes()),
       draft: true,
       prerelease: isPrereleaseRef(tagName),
     },
@@ -418,11 +427,36 @@ async function uploadAssets(releaseId, filePaths) {
   }
 }
 
+// Publishing is the last step of the release workflow, so a draft that never
+// got notes stops here for someone to write them rather than going out empty.
+async function publishRelease(releaseId) {
+  const { owner, repo } = getRepositoryContext()
+  const release = await githubJson(`/repos/${owner}/${repo}/releases/${releaseId}`)
+
+  if (!release.draft) {
+    console.log(`${release.tag_name} is already published`)
+    return
+  }
+
+  if (!hasReleaseNotes(release.body)) {
+    throw new Error(
+      `${release.tag_name} has no release notes; write them on the draft and publish it manually: ${release.html_url}`,
+    )
+  }
+
+  await githubJson(`/repos/${owner}/${repo}/releases/${releaseId}`, {
+    method: 'PATCH',
+    body: { draft: false, make_latest: release.prerelease ? 'false' : 'true' },
+  })
+  console.log(`Published ${release.tag_name}: ${release.html_url}`)
+}
+
 function printUsage() {
   console.error('Usage:')
   console.error('  node scripts/github-release.mjs ensure <tag-name>')
   console.error('  node scripts/github-release.mjs upload-updater <release-id>')
   console.error('  node scripts/github-release.mjs upload-assets <release-id> <file>...')
+  console.error('  node scripts/github-release.mjs publish <release-id>')
 }
 
 async function main() {
@@ -459,6 +493,17 @@ async function main() {
       }
 
       await uploadAssets(releaseId, rest)
+      return
+    }
+
+    if (command === 'publish') {
+      const releaseId = Number(value || process.env.RELEASE_ID)
+
+      if (!Number.isInteger(releaseId) || releaseId <= 0) {
+        throw new Error('Missing valid release id for publish command')
+      }
+
+      await publishRelease(releaseId)
       return
     }
 
