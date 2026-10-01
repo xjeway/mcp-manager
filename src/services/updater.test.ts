@@ -75,6 +75,25 @@ describe('updater', () => {
     void i18n.changeLanguage('en-US')
   })
 
+  it('makes no update request when automatic checks are disabled', async () => {
+    isDesktopRuntimeMock.mockReturnValue(true)
+    stubWindow({
+      localStorage: {
+        getItem: vi.fn((key: string) => (key === 'ui-automatic-update-checks' ? 'false' : null)),
+        removeItem: vi.fn(),
+        setItem: vi.fn(),
+      } as unknown as Storage,
+    })
+    const { checkForUpdatesAndPrompt } = await loadUpdaterModule()
+
+    await checkForUpdatesAndPrompt({ silentIfNoUpdate: true })
+    expect(checkMock).not.toHaveBeenCalled()
+    expect(invokeMock).not.toHaveBeenCalled()
+
+    await checkForUpdatesAndPrompt()
+    expect(checkMock).toHaveBeenCalledTimes(1)
+  })
+
   it('does not alert on startup when silent check fails', async () => {
     isDesktopRuntimeMock.mockReturnValue(true)
     checkMock.mockRejectedValue(new Error('updater.check not allowed'))

@@ -1,6 +1,13 @@
-import { ArrowLeft, BadgeInfo, Boxes, ExternalLink, FolderGit2, Languages, Library, Monitor, Moon, Palette, RefreshCw, Search, Store, SunMedium } from 'lucide-react'
-import { type ReactNode, useMemo, useRef, useState } from 'react'
+import { invoke } from '@tauri-apps/api/core'
+import { ArrowLeft, BadgeInfo, Boxes, ExternalLink, FolderGit2, Languages, Library, Monitor, Moon, Palette, RefreshCw, Search, Shield, Store, SunMedium } from 'lucide-react'
+import { type ReactNode, useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
+import {
+  readAutomaticUpdateChecks,
+  readPreferPinnedMarketplaceInstalls,
+  saveAutomaticUpdateChecks,
+  savePreferPinnedMarketplaceInstalls,
+} from '../services/appPreferences'
 import { AppLogo } from './AppLogo'
 import { Segmented } from './Segmented'
 import { LanguageMenu } from './LanguageMenu'
@@ -21,6 +28,86 @@ interface SettingsPageProps {
   onCheckUpdates: () => void
   onLanguageChange: (language: 'zh-CN' | 'en-US') => void
   onThemeChange: (theme: 'light' | 'dark' | 'system') => void
+}
+
+function PrivacyControls() {
+  const { t } = useTranslation()
+  const [automaticUpdates, setAutomaticUpdates] = useState(readAutomaticUpdateChecks)
+  const [preferPinned, setPreferPinned] = useState(readPreferPinnedMarketplaceInstalls)
+
+  useEffect(() => {
+    let cancelled = false
+    void invoke<{ automaticUpdateChecks: boolean; preferPinnedMarketplaceInstalls: boolean }>('privacy_settings')
+      .then((settings) => {
+        if (cancelled) {
+          return
+        }
+        setAutomaticUpdates(settings.automaticUpdateChecks)
+        setPreferPinned(settings.preferPinnedMarketplaceInstalls)
+        saveAutomaticUpdateChecks(settings.automaticUpdateChecks)
+        savePreferPinnedMarketplaceInstalls(settings.preferPinnedMarketplaceInstalls)
+      })
+      .catch(() => undefined)
+    return () => {
+      cancelled = true
+    }
+  }, [])
+
+  const persist = (automaticUpdateChecks: boolean, preferPinnedMarketplaceInstalls: boolean) => {
+    saveAutomaticUpdateChecks(automaticUpdateChecks)
+    savePreferPinnedMarketplaceInstalls(preferPinnedMarketplaceInstalls)
+    void invoke('save_privacy_settings', {
+      settings: { automaticUpdateChecks, preferPinnedMarketplaceInstalls },
+    }).catch(() => undefined)
+  }
+
+  return (
+    <>
+      <div className="settings-item settings-item-block">
+        <SettingsItemLabel icon={<Shield size={14} />} label={t('settingsPrivacy')} />
+        <p className="settings-help">{t('settingsTelemetry')}</p>
+        <p className="settings-help">{t('settingsTelemetryHelp')}</p>
+      </div>
+      <div className="settings-item">
+        <div className="settings-item-stack">
+          <SettingsItemLabel icon={<RefreshCw size={14} />} label={t('settingsAutomaticUpdates')} />
+          <p className="settings-help">{t('settingsAutomaticUpdatesHelp')}</p>
+        </div>
+        <button
+          type="button"
+          className={automaticUpdates ? 'switch-control settings-switch-compact checked' : 'switch-control settings-switch-compact'}
+          onClick={() => {
+            const next = !automaticUpdates
+            setAutomaticUpdates(next)
+            persist(next, preferPinned)
+          }}
+          aria-pressed={automaticUpdates}
+          aria-label={t('settingsAutomaticUpdates')}
+        >
+          <span className="switch-thumb" />
+        </button>
+      </div>
+      <div className="settings-item">
+        <div className="settings-item-stack">
+          <SettingsItemLabel icon={<Shield size={14} />} label={t('settingsPreferPinned')} />
+          <p className="settings-help">{t('settingsPreferPinnedHelp')}</p>
+        </div>
+        <button
+          type="button"
+          className={preferPinned ? 'switch-control settings-switch-compact checked' : 'switch-control settings-switch-compact'}
+          onClick={() => {
+            const next = !preferPinned
+            setPreferPinned(next)
+            persist(automaticUpdates, next)
+          }}
+          aria-pressed={preferPinned}
+          aria-label={t('settingsPreferPinned')}
+        >
+          <span className="switch-thumb" />
+        </button>
+      </div>
+    </>
+  )
 }
 
 function SettingsItemLabel({ icon, label }: { icon: ReactNode; label: string }) {
@@ -203,6 +290,7 @@ export function SettingsPage({
                     <MarketplaceSourcesEditor />
                   </div>
                 ) : null}
+                <PrivacyControls />
               </div>
             </section>
           ) : null}

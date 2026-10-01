@@ -4,6 +4,7 @@ import { check, type DownloadEvent, type Update } from '@tauri-apps/plugin-updat
 import i18n from '../i18n'
 import { RELEASES_URL, openReleasesLink } from './externalLinks'
 import { confirmDialog } from './nativeDialogs'
+import { readAutomaticUpdateChecks } from './appPreferences'
 import { isDesktopRuntime } from './runtime'
 import { isUpdateProgressWindowVisible, showUpdateProgressWindow } from './updateProgressWindow'
 import { UPDATE_PROGRESS_WINDOW_LABEL, UPDATE_STATE_EVENT } from './updaterEvents'
@@ -181,6 +182,22 @@ export async function checkForUpdatesAndPrompt(options?: { silentIfNoUpdate?: bo
   if (updateState.phase === 'error') {
     setUpdateState({ ...INITIAL_UPDATE_STATE })
     await resetActiveUpdate()
+  }
+
+  const automatic = options?.silentIfNoUpdate === true
+  if (automatic && !readAutomaticUpdateChecks()) {
+    return
+  }
+  if (isDesktopRuntime()) {
+    try {
+      await invoke('authorize_update_check', { automatic })
+    } catch {
+      // A manual check still runs. An automatic check stops so a refused
+      // authorisation cannot fall through into a network request.
+      if (automatic) {
+        return
+      }
+    }
   }
 
   try {
