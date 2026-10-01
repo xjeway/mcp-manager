@@ -15,6 +15,7 @@ import {
 } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import { Tabs, tabId, tabPanelId } from './Tabs'
+import { readPreferPinnedMarketplaceInstalls } from '../services/appPreferences'
 import type { MCPServer } from '../types/config'
 import type {
   InstallOption,
@@ -30,8 +31,10 @@ import {
   searchMarketplace,
 } from '../services/marketplaceService'
 import {
+  acknowledgementRequired,
   buildServerFromOption,
   commandPreview,
+  executionPlan,
   defaultOptionIndex,
   editableInputs,
   isEntryAdded,
@@ -340,6 +343,7 @@ export function MarketplacePage({ servers, onBack, onInstall }: MarketplacePageP
           <EntryDetail
             key={`${selected.sourceId}:${selected.id}`}
             entry={selected}
+            source={sources.find((item) => item.id === selected.sourceId)}
             servers={servers}
             onClose={() => setSelectedId(null)}
             onInstall={onInstall}
@@ -354,13 +358,28 @@ export function MarketplacePage({ servers, onBack, onInstall }: MarketplacePageP
   )
 }
 
+function trustCopy(source: MarketplaceSource | undefined): string {
+  if (!source || !source.builtin) {
+    return 'marketplaceTrustCustom'
+  }
+  if (source.trust === 'curated') {
+    return 'marketplaceTrustCurated'
+  }
+  if (source.trust === 'official') {
+    return 'marketplaceTrustOfficial'
+  }
+  return 'marketplaceTrustCommunity'
+}
+
 function EntryDetail({
   entry,
+  source,
   servers,
   onClose,
   onInstall,
 }: {
   entry: MarketplaceEntry
+  source?: MarketplaceSource
   servers: MCPServer[]
   onClose: () => void
   onInstall: (server: MCPServer) => void
@@ -369,7 +388,17 @@ function EntryDetail({
   const [optionIndex, setOptionIndex] = useState(() => defaultOptionIndex(entry.installOptions))
   const [values, setValues] = useState<InputValues>({})
   const [showMissing, setShowMissing] = useState(false)
+  const [ackPin, setAckPin] = useState(false)
+  const [ackRuntime, setAckRuntime] = useState(false)
   const option = entry.installOptions[optionIndex] as InstallOption | undefined
+  const plan = option && option.kind !== 'unsupported' ? executionPlan(option, values) : null
+  const requiredAck = acknowledgementRequired(option, readPreferPinnedMarketplaceInstalls())
+  const needsRuntimeAck = requiredAck.runtime
+  const needsPinAck = requiredAck.pin
+  useEffect(() => {
+    setAckPin(false)
+    setAckRuntime(false)
+  }, [optionIndex, entry.id])
   const inputs = useMemo(() => (option ? editableInputs(option) : []), [option])
   const missing = option ? missingRequiredInputs(option, values) : []
   const headers = option ? headerPreview(option, values) : []
@@ -381,6 +410,9 @@ function EntryDetail({
     }
     if (missing.length > 0) {
       setShowMissing(true)
+      return
+    }
+    if ((needsPinAck && !ackPin) || (needsRuntimeAck && !ackRuntime)) {
       return
     }
     onInstall(
@@ -514,17 +546,52 @@ function EntryDetail({
             </div>
           ) : null}
 
-          {option && option.kind !== 'unsupported' ? (
+          {option && option.kind !== 'unsupported' && plan ? (
             <div className="marketplace-run-preview">
               <span className="marketplace-run-label">
                 {option.kind === 'http' ? t('marketplaceWillConnect') : t('marketplaceWillRun')}
               </span>
+              <ul className="marketplace-plan">
+                <li>
+                  {t('marketplacePlanExecutable')}: <code>{plan.executable}</code>
+                </li>
+                <li>
+                  {t('marketplacePlanArguments')}: <code>{plan.arguments || '—'}</code>
+                </li>
+                <li>
+                  {t('marketplacePlanEnvironment')}: <code>{plan.environment}</code>
+                </li>
+                <li>
+                  {t('marketplacePlanSource')}: <code>{source?.label ?? entry.sourceId}</code>
+                </li>
+                <li>
+                  {t('marketplacePlanRepository')}: <code>{entry.repositoryUrl ?? '—'}</code>
+                </li>
+                <li>
+                  {t('marketplacePlanTrust')}: {t(trustCopy(source))}
+                </li>
+              </ul>
               <code>
                 <span className="marketplace-run-prompt" aria-hidden="true">
                   {option.kind === 'http' ? '→' : '$'}
                 </span>
                 {commandPreview(option, values)}
               </code>
+              {option.kind === 'stdio' && option.pinStatus === 'unpinned' ? <p>{t('marketplaceUnpinned')}</p> : null}
+              {option.kind === 'stdio' && option.pinStatus === 'mutable-tag' ? <p>{t('marketplaceMutableTag')}</p> : null}
+              {needsRuntimeAck ? <p>{t('marketplaceArbitraryRuntime')}</p> : null}
+              {needsPinAck ? (
+                <label className="marketplace-ack">
+                  <input type="checkbox" checked={ackPin} onChange={(event) => setAckPin(event.target.checked)} />
+                  {t('marketplaceAckUnpinned')}
+                </label>
+              ) : null}
+              {needsRuntimeAck ? (
+                <label className="marketplace-ack">
+                  <input type="checkbox" checked={ackRuntime} onChange={(event) => setAckRuntime(event.target.checked)} />
+                  {t('marketplaceAckRuntime')}
+                </label>
+              ) : null}
             </div>
           ) : null}
         </section>
@@ -542,7 +609,7 @@ function EntryDetail({
           type="button"
           className="primary-button"
           onClick={install}
-          disabled={!option || option.kind === 'unsupported'}
+          disabled={!option || option.kind === 'unsupported' || (needsPinAck && !ackPin) || (needsRuntimeAck && !ackRuntime)}
         >
           <Plus size={14} />
           {t('marketplaceAddToWorkspace')}

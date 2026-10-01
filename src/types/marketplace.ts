@@ -23,6 +23,9 @@ export interface InstallInput {
 
 export type PackageType = 'npm' | 'pypi' | 'oci' | 'other'
 
+/** Mirrors `PinStatus` in the Rust marketplace model. */
+export type PinStatus = 'pinned' | 'unpinned' | 'mutable-tag'
+
 export type InstallOption =
   | {
       kind: 'stdio'
@@ -35,6 +38,10 @@ export type InstallOption =
       inputs: InstallInput[]
       /** The package type or runtime was guessed rather than declared by the publisher. */
       inferred: boolean
+      /** Missing and `"latest"` stay `unpinned`. An OCI tag is `mutable-tag`. */
+      pinStatus: PinStatus
+      /** Publisher named an executable this app does not recognise. */
+      arbitraryRuntime: boolean
     }
   | {
       kind: 'http'

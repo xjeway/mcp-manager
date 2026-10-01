@@ -107,6 +107,12 @@ pub enum InstallOption {
         inputs: Vec<InstallInput>,
         /// True when the package type or runtime was guessed rather than declared.
         inferred: bool,
+        /// Whether the package reference is immutable, missing, or a moving tag.
+        /// `"latest"` stays [`PinStatus::Unpinned`] and is not rewritten as a pin.
+        pin_status: PinStatus,
+        /// The publisher named an executable this app does not recognise.
+        /// Registry inclusion is not a review of that program.
+        arbitrary_runtime: bool,
     },
     Http {
         transport: String,
@@ -128,6 +134,19 @@ pub enum PackageType {
     Oci,
     /// A publisher-declared runtime we do not model (e.g. `uv`, `python`).
     Other,
+}
+
+/// How reproducible a marketplace package reference is.
+///
+/// A digest is pinned. A version tag such as `1.2.3` on an OCI image can move,
+/// so it is [`PinStatus::MutableTag`]. A missing version or `"latest"` is
+/// [`PinStatus::Unpinned`] and is never displayed as if it were pinned.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "kebab-case")]
+pub enum PinStatus {
+    Pinned,
+    Unpinned,
+    MutableTag,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]

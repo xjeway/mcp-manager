@@ -3,7 +3,7 @@
 //! Registry schema 2025-07-09 uses snake_case and later versions camelCase, so every
 //! multi-word field accepts both spellings.
 
-use super::{InstallInput, InstallOption, PackageType};
+use super::{InstallInput, InstallOption, PackageType, PinStatus};
 use serde::Deserialize;
 use std::collections::BTreeMap;
 
@@ -210,23 +210,19 @@ fn package_option(package: &RawPackage) -> InstallOption {
     let version = pinned_version(package);
 
     let mut arg_groups = Vec::new();
-    let program = match package_type {
+    let (program, pin_status) = match package_type {
         PackageType::Npm => {
             arg_groups.push(vec!["-y".to_string()]);
             arg_groups.extend(runtime_groups);
-            arg_groups.push(vec![match version {
-                Some(version) => format!("{}@{version}", package.identifier),
-                None => package.identifier.clone(),
-            }]);
-            "npx".to_string()
+            let (spec, status) = package_spec(&package.identifier, version, "@");
+            arg_groups.push(vec![spec]);
+            ("npx".to_string(), status)
         }
         PackageType::Pypi => {
             arg_groups.extend(runtime_groups);
-            arg_groups.push(vec![match version {
-                Some(version) => format!("{}=={version}", package.identifier),
-                None => package.identifier.clone(),
-            }]);
-            "uvx".to_string()
+            let (spec, status) = package_spec(&package.identifier, version, "==");
+            arg_groups.push(vec![spec]);
+            ("uvx".to_string(), status)
         }
         PackageType::Oci => {
             arg_groups.push(vec![
@@ -237,27 +233,32 @@ fn package_option(package: &RawPackage) -> InstallOption {
             arg_groups.extend(runtime_groups);
             // `-e NAME` forwards the variable from the env the MCP client passes to docker.
             arg_groups.extend(env.keys().map(|name| vec!["-e".to_string(), name.clone()]));
-            let has_tag = package
-                .identifier
-                .rsplit('/')
-                .next()
-                .is_some_and(|last| last.contains(':') || last.contains('@'));
-            arg_groups.push(vec![match version {
-                Some(version) if !has_tag => format!("{}:{version}", package.identifier),
-                _ => package.identifier.clone(),
-            }]);
-            "docker".to_string()
+            let (reference, status) = oci_reference(&package.identifier, version);
+            arg_groups.push(vec![reference]);
+            ("docker".to_string(), status)
         }
         PackageType::Other => {
-            // The publisher named a runtime we do not model; trust its arguments as given.
+            // The publisher named a runtime we do not model. The UI must ask
+            // before this program is added to a client config.
             arg_groups.extend(runtime_groups);
-            package
-                .runtime_hint
-                .clone()
-                .unwrap_or_else(|| package.identifier.clone())
+            let status = if version.is_some() {
+                PinStatus::Pinned
+            } else {
+                PinStatus::Unpinned
+            };
+            (
+                package
+                    .runtime_hint
+                    .clone()
+                    .unwrap_or_else(|| package.identifier.clone()),
+                status,
+            )
         }
     };
     arg_groups.extend(package_groups);
+    // `PackageType::Other` is always an unrecognised runtime, even when the
+    // name happens to be a tool we know in another context (`uv`).
+    let arbitrary_runtime = package_type == PackageType::Other || !runtime_is_recognised(&program);
 
     InstallOption::Stdio {
         package_type,
@@ -267,7 +268,82 @@ fn package_option(package: &RawPackage) -> InstallOption {
         env,
         inputs: inputs.into_vec(),
         inferred,
+        pin_status,
+        arbitrary_runtime,
     }
+}
+
+fn package_spec(identifier: &str, version: Option<&str>, joiner: &str) -> (String, PinStatus) {
+    match version {
+        Some(version) => (format!("{identifier}{joiner}{version}"), PinStatus::Pinned),
+        None => (identifier.to_string(), PinStatus::Unpinned),
+    }
+}
+
+/// A digest is the only OCI reference that does not move. Tags, including a
+/// version that looks like `1.2.3`, stay marked as moving. `"latest"` is not
+/// rewritten into a tag that looks pinned.
+fn oci_reference(identifier: &str, version: Option<&str>) -> (String, PinStatus) {
+    if let Some(version) = version {
+        if version.starts_with("sha256:") {
+            return (
+                format!("{}@{version}", strip_oci_tag(identifier)),
+                PinStatus::Pinned,
+            );
+        }
+        let has_tag = identifier
+            .rsplit('/')
+            .next()
+            .is_some_and(|last| last.contains(':') || last.contains('@'));
+        if has_tag {
+            return (identifier.to_string(), PinStatus::MutableTag);
+        }
+        return (format!("{identifier}:{version}"), PinStatus::MutableTag);
+    }
+    if identifier.contains("@sha256:") {
+        return (identifier.to_string(), PinStatus::Pinned);
+    }
+    let has_tag = identifier
+        .rsplit('/')
+        .next()
+        .is_some_and(|last| last.contains(':'));
+    if has_tag {
+        (identifier.to_string(), PinStatus::MutableTag)
+    } else {
+        (identifier.to_string(), PinStatus::Unpinned)
+    }
+}
+
+/// Removes `:tag` from `registry/image:tag`. A colon that introduces a port
+/// (`localhost:5000/org/image`) is kept because the text after it contains `/`.
+fn strip_oci_tag(identifier: &str) -> &str {
+    let without_digest = identifier
+        .split_once('@')
+        .map(|(image, _)| image)
+        .unwrap_or(identifier);
+    if let Some((left, right)) = without_digest.rsplit_once(':') {
+        if !right.contains('/') && left.contains('/') {
+            return left;
+        }
+    }
+    without_digest
+}
+
+fn runtime_is_recognised(program: &str) -> bool {
+    matches!(
+        program,
+        "npx"
+            | "uvx"
+            | "docker"
+            | "node"
+            | "python"
+            | "python3"
+            | "uv"
+            | "bun"
+            | "deno"
+            | "pipx"
+            | "conda"
+    )
 }
 
 fn remote_option(remote: &RawRemote) -> InstallOption {
@@ -772,6 +848,79 @@ mod tests {
         assert_eq!(program, "uv");
         assert!(inferred);
         assert_eq!(flat_args(&options[0]), ["run"]);
+    }
+
+    #[test]
+    fn an_unrecognised_runtime_is_flagged_and_latest_is_not_presented_as_pinned() {
+        let options = install_options(
+            &packages(json!([{
+                "identifier": "evil",
+                "runtime_hint": "bash",
+                "version": "latest",
+                "package_arguments": [{ "type": "positional", "value": "-c" }]
+            }])),
+            &[],
+        );
+        let InstallOption::Stdio {
+            program,
+            pin_status,
+            arbitrary_runtime,
+            ..
+        } = &options[0]
+        else {
+            panic!("stdio option")
+        };
+        assert_eq!(program, "bash");
+        assert!(*arbitrary_runtime);
+        assert_eq!(*pin_status, super::PinStatus::Unpinned);
+        assert!(
+            !flat_args(&options[0])
+                .iter()
+                .any(|arg| arg.contains("@latest") || arg.contains("==latest")),
+            "latest must not be rewritten as a pin"
+        );
+    }
+
+    #[test]
+    fn an_oci_digest_is_pinned_and_a_tag_is_not() {
+        let digest = "sha256:0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef";
+        let pinned = install_options(
+            &packages(json!([{
+                "registryType": "oci",
+                "identifier": "ghcr.io/example/server:1.2.3",
+                "version": digest
+            }])),
+            &[],
+        );
+        let InstallOption::Stdio {
+            pin_status,
+            arbitrary_runtime,
+            ..
+        } = &pinned[0]
+        else {
+            panic!("digest option")
+        };
+        assert_eq!(*pin_status, super::PinStatus::Pinned);
+        assert!(!*arbitrary_runtime);
+        assert!(flat_args(&pinned[0])
+            .iter()
+            .any(|arg| arg == &format!("ghcr.io/example/server@{digest}")));
+
+        let moving = install_options(
+            &packages(json!([{
+                "registryType": "oci",
+                "identifier": "ghcr.io/example/server",
+                "version": "1.2.3"
+            }])),
+            &[],
+        );
+        let InstallOption::Stdio { pin_status, .. } = &moving[0] else {
+            panic!("tag option")
+        };
+        assert_eq!(*pin_status, super::PinStatus::MutableTag);
+        assert!(flat_args(&moving[0])
+            .iter()
+            .any(|arg| arg == "ghcr.io/example/server:1.2.3"));
     }
 
     #[test]

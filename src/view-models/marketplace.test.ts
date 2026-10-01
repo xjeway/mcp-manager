@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import {
+  acknowledgementRequired,
   buildServerFromOption,
   commandPreview,
   defaultOptionIndex,
@@ -31,6 +32,8 @@ const npmOption: InstallOption = {
   env: { CONTEXT7_API_KEY: '{CONTEXT7_API_KEY}', MODE: 'stdio' },
   inputs: [input('CONTEXT7_API_KEY', { required: true, secret: true })],
   inferred: false,
+  pinStatus: 'pinned',
+  arbitraryRuntime: false,
 }
 
 const dockerOption: InstallOption = {
@@ -47,6 +50,8 @@ const dockerOption: InstallOption = {
   env: { LOG_LEVEL: '{LOG_LEVEL}' },
   inputs: [input('token', { secret: true }), input('region', { defaultValue: 'us' }), input('LOG_LEVEL')],
   inferred: true,
+  pinStatus: 'mutable-tag',
+  arbitraryRuntime: false,
 }
 
 const httpOption: InstallOption = {
@@ -151,6 +156,7 @@ describe('buildServerFromOption', () => {
         program: 'npx',
         args: ['-y', '@upstash/context7-mcp@4.1.1'],
         env: { CONTEXT7_API_KEY: 'secret', MODE: 'stdio' },
+        secretEnv: ['CONTEXT7_API_KEY'],
       },
     })
     expect(Object.values(server.apps).every((enabled) => !enabled)).toBe(true)
@@ -225,6 +231,17 @@ describe('commandPreview', () => {
   it('quotes arguments containing spaces', () => {
     const option: InstallOption = { ...npmOption, argGroups: [['--name', 'two words']] }
     expect(commandPreview(option, {})).toBe("npx --name 'two words'")
+  })
+})
+
+describe('acknowledgementRequired', () => {
+  it('asks before an unpinned or unrecognised runtime and skips pinned known ones', () => {
+    expect(acknowledgementRequired(npmOption, true)).toEqual({ pin: false, runtime: false })
+    expect(acknowledgementRequired({ ...npmOption, pinStatus: 'unpinned' }, true)).toEqual({ pin: true, runtime: false })
+    expect(acknowledgementRequired(dockerOption, true)).toEqual({ pin: true, runtime: false })
+    expect(acknowledgementRequired({ ...npmOption, pinStatus: 'unpinned' }, false)).toEqual({ pin: false, runtime: false })
+    expect(acknowledgementRequired({ ...npmOption, arbitraryRuntime: true }, true)).toEqual({ pin: false, runtime: true })
+    expect(acknowledgementRequired(httpOption, true)).toEqual({ pin: false, runtime: false })
   })
 })
 

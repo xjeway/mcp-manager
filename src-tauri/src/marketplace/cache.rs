@@ -27,7 +27,7 @@ impl Cache {
             return;
         };
         if fs::create_dir_all(&self.dir).is_ok() {
-            let _ = fs::write(self.path(key), content);
+            let _ = mcp_manager_core::storage::atomic_write(&self.path(key), &content);
         }
     }
 

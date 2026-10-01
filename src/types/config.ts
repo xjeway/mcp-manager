@@ -25,6 +25,8 @@ export interface CommandSpec {
   program: string
   args: string[]
   env: Record<string, string>
+  /** Env keys whose values are secrets even when the name does not look like one. */
+  secretEnv?: string[]
 }
 
 export interface MCPServer {

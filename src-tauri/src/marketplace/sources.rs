@@ -4,7 +4,6 @@ use super::cache::fnv1a;
 use super::{MarketplaceError, MarketplaceSource};
 use std::fs;
 use std::path::PathBuf;
-use std::sync::atomic::{AtomicU64, Ordering};
 
 /// Longest label kept for a user source, so the source tabs stay readable.
 const MAX_LABEL_CHARS: usize = 40;
@@ -39,20 +38,9 @@ impl SourceStore {
         if let Some(dir) = self.path.parent() {
             fs::create_dir_all(dir).map_err(io_error)?;
         }
-        // Written aside and renamed over the target, so a failed write never leaves a
-        // truncated file. The name is unique per process and write, so saves from other
-        // app instances never share a temporary file.
-        static NEXT: AtomicU64 = AtomicU64::new(0);
-        let temp = self.path.with_extension(format!(
-            "json.{}-{}.tmp",
-            std::process::id(),
-            NEXT.fetch_add(1, Ordering::Relaxed)
-        ));
-        let result = fs::write(&temp, content).and_then(|()| fs::rename(&temp, &self.path));
-        if result.is_err() {
-            let _ = fs::remove_file(&temp);
-        }
-        result.map_err(io_error)
+        // Same private atomic replace as servers.yaml. A failed rename removes the temp file.
+        mcp_manager_core::storage::atomic_write(&self.path, &content)
+            .map_err(MarketplaceError::Network)
     }
 }
 

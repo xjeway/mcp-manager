@@ -16,6 +16,7 @@ function normalizeServer(server: MCPServer) {
           program: server.command.program,
           args: [...server.command.args],
           env: Object.fromEntries(Object.entries(server.command.env).sort(([left], [right]) => left.localeCompare(right))),
+          secretEnv: [...(server.command.secretEnv ?? [])].sort((left, right) => left.localeCompare(right)),
         }
       : null,
     apps: Object.fromEntries(SUPPORTED_APPS.map((app) => [app, Boolean(server.apps[app])])),

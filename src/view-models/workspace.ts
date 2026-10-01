@@ -55,6 +55,8 @@ export interface EditorDraft {
   description: string
   enabled: boolean
   envEntries: Array<{ key: string; value: string }>
+  /** Env keys marked secret. Dropped when the key is removed from `envEntries`. */
+  secretEnv: string[]
   headerEntries: Array<{ key: string; value: string }>
   homepage: string
   id: string
@@ -215,6 +217,7 @@ export function createEmptyEditorDraft(): EditorDraft {
     args: [],
     url: '',
     envEntries: [],
+    secretEnv: [],
     headerEntries: [],
     apps: emptyApps(),
   }
@@ -239,6 +242,7 @@ export function serverToEditorDraft(server: MCPServer | null | undefined): Edito
     args: server.command?.args ?? [],
     url: server.transport.url ?? '',
     envEntries,
+    secretEnv: (server.command?.secretEnv ?? []).filter((key) => envEntries.some((entry) => entry.key === key)),
     headerEntries,
     apps: { ...server.apps },
     placements: getServerPlacements(server),
@@ -287,6 +291,7 @@ export function editorDraftToServer(draft: EditorDraft): MCPServer {
             program: draft.program.trim(),
             args: draft.args,
             env,
+            ...(draft.secretEnv.some((key) => key in env) ? { secretEnv: draft.secretEnv.filter((key) => key in env) } : {}),
         }
         : undefined,
     apps,

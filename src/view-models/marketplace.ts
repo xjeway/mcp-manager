@@ -170,9 +170,15 @@ export function buildServerFromOption(
     }
   }
   if (option.kind === 'stdio') {
+    const secretEnv = option.inputs.filter((item) => item.secret).map((item) => item.key)
     return {
       ...base,
-      command: { program: option.program, args: resolveArgs(option, values, false), env: resolveEnv(option, values) },
+      command: {
+        program: option.program,
+        args: resolveArgs(option, values, false),
+        env: resolveEnv(option, values),
+        ...(secretEnv.length > 0 ? { secretEnv } : {}),
+      },
     }
   }
   return base
@@ -180,6 +186,51 @@ export function buildServerFromOption(
 
 function quote(arg: string): string {
   return /[\s'"]/.test(arg) ? `'${arg.replace(/'/g, `'\\''`)}'` : arg
+}
+
+/** The command a marketplace install would add, with secret values masked. */
+export function executionPlan(
+  option: InstallOption,
+  values: InputValues,
+): { executable: string; arguments: string; environment: string } {
+  if (option.kind === 'http') {
+    const environment = headerPreview(option, values)
+      .map((header) => `${header.name}=${header.value}`)
+      .join(' ')
+    return {
+      executable: option.transport,
+      arguments: resolve(option.url, option.inputs, values, true).text,
+      environment: environment || '—',
+    }
+  }
+  if (option.kind === 'stdio') {
+    const environment = Object.entries(option.env)
+      .map(([name, template]) => {
+        const resolved = resolve(template, option.inputs, values, true)
+        return `${name}=${resolved.text}`
+      })
+      .join(' ')
+    return {
+      executable: option.program,
+      arguments: resolveArgs(option, values, true).join(' '),
+      environment: environment || '—',
+    }
+  }
+  return { executable: option.identifier, arguments: '', environment: '—' }
+}
+
+/** The install button stays disabled until each required box is ticked. */
+export function acknowledgementRequired(
+  option: InstallOption | undefined,
+  preferPinned: boolean,
+): { pin: boolean; runtime: boolean } {
+  if (!option || option.kind !== 'stdio') {
+    return { pin: false, runtime: false }
+  }
+  return {
+    pin: preferPinned && option.pinStatus !== 'pinned',
+    runtime: option.arbitraryRuntime,
+  }
 }
 
 /** What will run, as a shell-style line; secret values are masked. */
