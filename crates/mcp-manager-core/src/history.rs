@@ -7,10 +7,12 @@
 
 use crate::core::{ApplyResult, MCPConfig};
 use crate::platform::PlatformContext;
+use crate::security::{config_fingerprint, redact_config};
 use crate::storage::{self, atomic_write, remove_empty_dirs, Snapshot};
 use crate::store::{self, ABSENT_FINGERPRINT};
 use crate::workflow;
 use serde::{Deserialize, Serialize};
+use std::collections::HashSet;
 use std::fs;
 use std::path::{Path, PathBuf};
 
@@ -42,16 +44,31 @@ pub struct ChangeRecord {
     pub files: Vec<FileChange>,
     /// Directories the change had to create.
     pub created_dirs: Vec<String>,
-    /// servers.yaml before the change.
+    /// servers.yaml before the change. Secret values are redacted. Rollback
+    /// restores the real file from [`Self::config_backup`].
     pub previous_config: MCPConfig,
-    /// servers.yaml as the change wrote it.
+    /// servers.yaml as the change wrote it, with the same redaction.
     pub applied_config: MCPConfig,
+    /// SHA-256 of the full previous config, including secrets.
+    #[serde(default, skip_serializing_if = "String::is_empty")]
+    pub previous_fingerprint: String,
+    /// SHA-256 of the full applied config, including secrets.
+    #[serde(default, skip_serializing_if = "String::is_empty")]
+    pub applied_fingerprint: String,
+    /// Private copy of the full previous servers.yaml under the backup root.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub config_backup: Option<String>,
 }
 
 impl ChangeRecord {
     /// Call after the change was applied. `snapshot` is what
     /// [`workflow::snapshot`] took before it.
+    ///
+    /// `history.json` stores redacted configs. The full previous config is
+    /// written to `config_backup` so rollback does not need the secrets in
+    /// the history file.
     pub fn new(
+        app_data: &Path,
         snapshot: &Snapshot,
         backups: Vec<String>,
         previous_config: MCPConfig,
@@ -68,6 +85,10 @@ impl ChangeRecord {
                 })
             })
             .collect::<Result<Vec<_>, String>>()?;
+        let previous_fingerprint = config_fingerprint(&previous_config)?;
+        let applied_fingerprint = config_fingerprint(&applied_config)?;
+        let yaml = store::to_yaml(&previous_config)?;
+        let backup = storage::write_internal_backup(app_data, yaml.as_bytes())?;
         Ok(ChangeRecord {
             backups,
             files,
@@ -76,15 +97,26 @@ impl ChangeRecord {
                 .iter()
                 .map(|dir| dir.to_string_lossy().to_string())
                 .collect(),
-            previous_config,
-            applied_config,
+            previous_config: redact_config(&previous_config),
+            applied_config: redact_config(&applied_config),
+            previous_fingerprint,
+            applied_fingerprint,
+            config_backup: Some(backup.to_string_lossy().to_string()),
         })
     }
 
     /// Whether the change altered neither the server list nor any client file.
+    ///
+    /// Fingerprints cover secret values, so a secret-only edit is not a no-op
+    /// even though the redacted copies look the same.
     pub fn is_noop(&self) -> bool {
-        self.files.iter().all(|file| file.before == file.after)
-            && same_config(&self.previous_config, &self.applied_config)
+        let configs_same =
+            if self.previous_fingerprint.is_empty() && self.applied_fingerprint.is_empty() {
+                same_config(&self.previous_config, &self.applied_config)
+            } else {
+                self.previous_fingerprint == self.applied_fingerprint
+            };
+        self.files.iter().all(|file| file.before == file.after) && configs_same
     }
 
     /// Client files this change would put back or remove.
@@ -103,21 +135,123 @@ fn path(ctx: &PlatformContext) -> PathBuf {
     ctx.app_data_dir().join(FILE_NAME)
 }
 
-/// Missing or unreadable history is treated as empty.
-fn load(path: &Path) -> History {
+/// Missing or unreadable history is treated as empty. Does not rewrite the file.
+fn load_raw(path: &Path) -> History {
     fs::read_to_string(path)
         .ok()
         .and_then(|content| serde_json::from_str(&content).ok())
         .unwrap_or_default()
 }
 
+/// Loads history and, when an older record still holds plaintext secrets,
+/// moves the previous config into a protected backup and redacts the record.
+fn load(ctx: &PlatformContext) -> History {
+    let path = path(ctx);
+    store::with_lock(&path, || {
+        let mut history = load_raw(&path);
+        match sanitize(ctx, &mut history) {
+            Ok(true) => save(&path, &history)?,
+            Ok(false) => {}
+            // Leave the file as it is. Redacting without a backup would drop
+            // the only copy of the previous config.
+            Err(_) => return Ok(load_raw(&path)),
+        }
+        Ok(history)
+    })
+    .unwrap_or_else(|_| load_raw(&path))
+}
+
 fn save(path: &Path, history: &History) -> Result<(), String> {
+    if let Some(parent) = path.parent() {
+        fs::create_dir_all(parent).map_err(|e| e.to_string())?;
+        // history.json sits in the application-data directory.
+        let _ = crate::security::restrict_new_dir(parent);
+    }
     let content = serde_json::to_string_pretty(history).map_err(|e| e.to_string())?;
     atomic_write(path, &content)
 }
 
+fn contains_plaintext_secret(config: &MCPConfig) -> bool {
+    serde_json::to_value(config).ok() != serde_json::to_value(redact_config(config)).ok()
+}
+
+/// Spills legacy plaintext secrets into a backup, then redacts the record.
+/// Returns whether `history` changed. A backup that cannot be written leaves
+/// the record untouched so rollback data is not discarded.
+fn sanitize(ctx: &PlatformContext, history: &mut History) -> Result<bool, String> {
+    let mut changed = false;
+    for change in &mut history.changes {
+        let previous_secret = contains_plaintext_secret(&change.previous_config);
+        let applied_secret = contains_plaintext_secret(&change.applied_config);
+        if !previous_secret && !applied_secret {
+            continue;
+        }
+        if change.config_backup.is_none() {
+            if change.previous_fingerprint.is_empty() {
+                change.previous_fingerprint = config_fingerprint(&change.previous_config)?;
+            }
+            if change.applied_fingerprint.is_empty() {
+                change.applied_fingerprint = config_fingerprint(&change.applied_config)?;
+            }
+            let yaml = store::to_yaml(&change.previous_config)?;
+            let backup = storage::write_internal_backup(&ctx.app_data_dir(), yaml.as_bytes())?;
+            change.config_backup = Some(backup.to_string_lossy().to_string());
+        }
+        change.previous_config = redact_config(&change.previous_config);
+        change.applied_config = redact_config(&change.applied_config);
+        changed = true;
+    }
+    Ok(changed)
+}
+
+fn owned_backups(change: &ChangeRecord) -> Vec<PathBuf> {
+    change
+        .backups
+        .iter()
+        .chain(change.config_backup.iter())
+        .map(PathBuf::from)
+        .collect()
+}
+
+fn referenced_backups(history: &History) -> HashSet<PathBuf> {
+    history.changes.iter().flat_map(owned_backups).collect()
+}
+
+/// Deletes backup files that `history` no longer names. Ordinary unlink only.
+fn retire_backups(ctx: &PlatformContext, history: &History, retired: &[ChangeRecord]) {
+    let app_data = ctx.app_data_dir();
+    let referenced = referenced_backups(history);
+    for change in retired {
+        for backup in owned_backups(change) {
+            if !referenced.contains(&backup) {
+                let _ = storage::delete_owned_backup(&app_data, &backup);
+            }
+        }
+    }
+    let _ = storage::cleanup_orphan_backups(&app_data, &referenced, 200);
+}
+
 fn same_config(a: &MCPConfig, b: &MCPConfig) -> bool {
     serde_json::to_value(a).ok() == serde_json::to_value(b).ok()
+}
+
+/// `fingerprint` is of the full config. The stored config may be redacted, so
+/// a missing fingerprint falls back to comparing the stored values.
+fn matches_recorded(current: &MCPConfig, recorded: &MCPConfig, fingerprint: &str) -> bool {
+    if !fingerprint.is_empty() {
+        return config_fingerprint(current).ok().as_deref() == Some(fingerprint);
+    }
+    same_config(current, recorded)
+}
+
+fn full_previous(ctx: &PlatformContext, change: &ChangeRecord) -> Result<MCPConfig, String> {
+    let Some(backup) = change.config_backup.as_deref() else {
+        return Ok(change.previous_config.clone());
+    };
+    let bytes = storage::read_backup_bytes(&ctx.app_data_dir(), Path::new(backup))?;
+    let text = String::from_utf8(bytes)
+        .map_err(|error| format!("config backup is not valid UTF-8: {error}"))?;
+    crate::parser::parse_yaml_config(&text)
 }
 
 /// Adds a change on top of the ones that can be undone. Call it while holding
@@ -126,17 +260,20 @@ fn same_config(a: &MCPConfig, b: &MCPConfig) -> bool {
 pub fn record(ctx: &PlatformContext, change: ChangeRecord) -> Result<(), String> {
     let path = path(ctx);
     store::with_lock(&path, || {
-        let mut history = load(&path);
+        let mut history = load_raw(&path);
+        sanitize(ctx, &mut history)?;
         history.changes.push(change);
         let excess = history.changes.len().saturating_sub(MAX_CHANGES);
-        history.changes.drain(..excess);
-        save(&path, &history)
+        let retired = history.changes.drain(..excess).collect::<Vec<_>>();
+        save(&path, &history)?;
+        retire_backups(ctx, &history, &retired);
+        Ok(())
     })
 }
 
 /// How many changes can be undone.
 pub fn depth(ctx: &PlatformContext) -> usize {
-    load(&path(ctx)).changes.len()
+    load(ctx).changes.len()
 }
 
 /// Drops the newest record again, for a change that could not be saved after
@@ -144,7 +281,10 @@ pub fn depth(ctx: &PlatformContext) -> usize {
 pub fn forget_latest(ctx: &PlatformContext) -> Result<(), String> {
     let path = path(ctx);
     store::with_lock(&path, || {
-        let mut history = load(&path);
+        let mut history = load_raw(&path);
+        // Do not delete backups here. The caller may put this record back if
+        // saving servers.yaml failed, and it still names those files.
+        sanitize(ctx, &mut history)?;
         history.changes.pop();
         save(&path, &history)
     })
@@ -152,7 +292,7 @@ pub fn forget_latest(ctx: &PlatformContext) -> Result<(), String> {
 
 /// The change [`rollback_last`] would undo.
 pub fn latest(ctx: &PlatformContext) -> Option<ChangeRecord> {
-    load(&path(ctx)).changes.pop()
+    load(ctx).changes.pop()
 }
 
 /// Applies `config` to every client like [`workflow::apply`] and records it
@@ -186,6 +326,7 @@ pub fn apply_recorded(
         // only costs the undo, which the caller is told about through
         // `history_error`.
         let recorded = ChangeRecord::new(
+            &ctx.app_data_dir(),
             &snapshot,
             result.backups.clone(),
             previous_config.clone(),
@@ -236,14 +377,20 @@ pub fn rollback_last(ctx: &PlatformContext) -> Result<RollbackReport, String> {
     // Read and removed under the servers.yaml lock, like every record, so it
     // is the change that was undone and not one recorded meanwhile.
     let undone = std::cell::RefCell::new(None);
+    let retired_backups = std::cell::RefCell::new(Vec::new());
 
     store::update_guarded(
         ctx,
         |config| {
             let change = latest(ctx).ok_or_else(|| "Nothing to roll back.".to_string())?;
             // Undoing on top of a later edit would silently discard it.
-            if !same_config(config, &change.applied_config)
-                && !same_config(config, &change.previous_config)
+            // Fingerprints include secret values; the stored configs do not.
+            if !matches_recorded(config, &change.applied_config, &change.applied_fingerprint)
+                && !matches_recorded(
+                    config,
+                    &change.previous_config,
+                    &change.previous_fingerprint,
+                )
             {
                 return Err(
                     "The server list changed after the last change made here (in MCP Manager or \
@@ -252,6 +399,7 @@ pub fn rollback_last(ctx: &PlatformContext) -> Result<RollbackReport, String> {
                         .to_string(),
                 );
             }
+            let previous = full_previous(ctx, &change)?;
             let edited = change
                 .files
                 .iter()
@@ -289,13 +437,14 @@ pub fn rollback_last(ctx: &PlatformContext) -> Result<RollbackReport, String> {
                     })?;
                 let current = store::fingerprint(&target)?;
                 if current == file.after && file.before != file.after {
-                    let bytes = fs::read(&backup).map_err(|e| {
-                        format!(
-                            "The backup {} cannot be read ({e}), so {target_key} cannot be \
+                    let bytes =
+                        storage::read_backup_bytes(&ctx.app_data_dir(), &backup).map_err(|e| {
+                            format!(
+                                "The backup {} cannot be read ({e}), so {target_key} cannot be \
                              restored. Nothing was changed.",
-                            backup.to_string_lossy()
-                        )
-                    })?;
+                                backup.to_string_lossy()
+                            )
+                        })?;
                     if store::fingerprint_of_bytes(&bytes).ok().as_deref()
                         != Some(file.before.as_str())
                     {
@@ -325,12 +474,14 @@ pub fn rollback_last(ctx: &PlatformContext) -> Result<RollbackReport, String> {
                 .collect::<Vec<_>>();
             remove_empty_dirs(&dirs);
 
-            *config = change.previous_config.clone();
+            *config = previous;
             // Forgotten only now that everything is back; if servers.yaml
             // cannot be saved after all, the record is put back below and
             // running the rollback again finishes without touching anything.
+            // Backups are deleted only after that save succeeds.
             forget_latest(ctx)?;
             report.remaining = depth(ctx);
+            *retired_backups.borrow_mut() = owned_backups(&change);
             *undone.borrow_mut() = Some(change);
             Ok(())
         },
@@ -345,6 +496,15 @@ pub fn rollback_last(ctx: &PlatformContext) -> Result<RollbackReport, String> {
             None => error,
         },
     )?;
+    let history = load(ctx);
+    let referenced = referenced_backups(&history);
+    let app_data = ctx.app_data_dir();
+    for backup in retired_backups.into_inner() {
+        if !referenced.contains(&backup) {
+            let _ = storage::delete_owned_backup(&app_data, &backup);
+        }
+    }
+    let _ = storage::cleanup_orphan_backups(&app_data, &referenced, 200);
     Ok(report)
 }
 
@@ -425,5 +585,151 @@ mod tests {
         let result = apply_recorded(&ctx, &config(2), &config(1), None).expect("apply");
         assert!(result.history_error.is_some());
         assert_eq!(depth(&ctx), 0);
+    }
+
+    const SECRET: &str = "ghp_SUPERSECRETVALUE1234567890";
+
+    fn secret_config() -> MCPConfig {
+        use crate::core::{CommandSpec, MCPServer, TransportSpec};
+        use std::collections::{BTreeSet, HashMap};
+        MCPConfig {
+            version: 1,
+            servers: vec![MCPServer {
+                description: None,
+                homepage: None,
+                id: "demo".to_string(),
+                name: "Demo".to_string(),
+                enabled: true,
+                transport: TransportSpec {
+                    kind: "stdio".to_string(),
+                    url: None,
+                    headers: Default::default(),
+                },
+                command: Some(CommandSpec {
+                    program: "npx".to_string(),
+                    args: vec![],
+                    env: HashMap::from([("API_TOKEN".to_string(), SECRET.to_string())]),
+                    secret_env: BTreeSet::new(),
+                }),
+                apps: HashMap::new(),
+                placements: vec![],
+            }],
+        }
+    }
+
+    fn write_config(ctx: &PlatformContext, config: &MCPConfig) {
+        let yaml = store::to_yaml(config).expect("yaml");
+        store::write_text_checked(&store::config_path(ctx), &yaml, None).expect("save");
+    }
+
+    fn bak_files(ctx: &PlatformContext) -> Vec<std::path::PathBuf> {
+        let root = ctx.app_data_dir().join("backups");
+        let mut found = Vec::new();
+        let mut dirs = vec![root];
+        while let Some(dir) = dirs.pop() {
+            let Ok(entries) = fs::read_dir(&dir) else {
+                continue;
+            };
+            for entry in entries.flatten() {
+                let path = entry.path();
+                if path.is_dir() {
+                    dirs.push(path);
+                } else if path.extension().and_then(|ext| ext.to_str()) == Some("bak") {
+                    found.push(path);
+                }
+            }
+        }
+        found
+    }
+
+    #[test]
+    fn history_json_does_not_keep_plaintext_secrets_and_rollback_restores_them() {
+        let dir = tempdir().expect("tempdir");
+        let ctx = ctx(dir.path());
+        let previous = secret_config();
+        let applied = config(1);
+        write_config(&ctx, &applied);
+        apply_recorded(&ctx, &applied, &previous, None).expect("apply");
+
+        let history_path = path(&ctx);
+        let history_text = fs::read_to_string(&history_path).expect("history");
+        assert!(
+            !history_text.contains(SECRET),
+            "history.json retained a secret: {history_text}"
+        );
+        let history: serde_json::Value = serde_json::from_str(&history_text).expect("json");
+        let backup = history["changes"][0]["configBackup"]
+            .as_str()
+            .expect("config backup")
+            .to_string();
+        assert!(std::path::Path::new(&backup).is_file());
+        let backup_text = fs::read_to_string(&backup).expect("backup");
+        assert!(
+            backup_text.contains(SECRET),
+            "rollback backup must keep the secret"
+        );
+
+        #[cfg(unix)]
+        {
+            use std::os::unix::fs::PermissionsExt;
+            let mode = |path: &std::path::Path| {
+                fs::metadata(path).expect("meta").permissions().mode() & 0o777
+            };
+            assert_eq!(mode(std::path::Path::new(&backup)), 0o600);
+            assert_eq!(mode(&history_path), 0o600);
+        }
+
+        super::rollback_last(&ctx).expect("rollback");
+        let restored = fs::read_to_string(store::config_path(&ctx)).expect("servers.yaml");
+        assert!(restored.contains(SECRET), "{restored}");
+        assert!(!std::path::Path::new(&backup).exists());
+        let after = fs::read_to_string(&history_path).unwrap_or_default();
+        assert!(!after.contains(SECRET), "{after}");
+    }
+
+    #[test]
+    fn rolling_history_deletes_backups_owned_only_by_expired_entries() {
+        let dir = tempdir().expect("tempdir");
+        let ctx = ctx(dir.path());
+        for version in 1..=super::MAX_CHANGES + 1 {
+            apply_recorded(
+                &ctx,
+                &config(version as u32 + 1),
+                &config(version as u32),
+                None,
+            )
+            .expect("apply");
+        }
+        assert_eq!(depth(&ctx), super::MAX_CHANGES);
+        assert_eq!(bak_files(&ctx).len(), super::MAX_CHANGES);
+    }
+
+    #[test]
+    fn legacy_history_with_plaintext_secrets_is_redacted_on_load() {
+        let dir = tempdir().expect("tempdir");
+        let ctx = ctx(dir.path());
+        let previous = secret_config();
+        let applied = config(1);
+        write_config(&ctx, &applied);
+        let legacy = super::History {
+            changes: vec![super::ChangeRecord {
+                backups: vec![],
+                files: vec![],
+                created_dirs: vec![],
+                previous_config: previous,
+                applied_config: applied,
+                previous_fingerprint: String::new(),
+                applied_fingerprint: String::new(),
+                config_backup: None,
+            }],
+        };
+        super::save(&path(&ctx), &legacy).expect("seed history");
+        assert_eq!(depth(&ctx), 1);
+        let history_text = fs::read_to_string(path(&ctx)).expect("history");
+        assert!(!history_text.contains(SECRET), "{history_text}");
+
+        super::rollback_last(&ctx).expect("rollback");
+        let restored = fs::read_to_string(store::config_path(&ctx)).expect("servers.yaml");
+        assert!(restored.contains(SECRET), "{restored}");
     }
 }

@@ -140,6 +140,7 @@ fn parse_server(id: &str, input: &Map<String, Value>) -> Result<MCPServer, Strin
                     .and_then(Value::as_object)
                     .map(|env| string_map(env).collect::<HashMap<_, _>>())
                     .unwrap_or_default(),
+                secret_env: Default::default(),
             });
 
     let http_url = input

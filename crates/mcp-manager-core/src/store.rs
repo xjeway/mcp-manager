@@ -331,6 +331,7 @@ mod tests {
                         program: "npx".to_string(),
                         args: vec!["-y".to_string(), "@upstash/context7-mcp@latest".to_string()],
                         env: HashMap::from([("TOKEN".to_string(), "${env:TOKEN}".to_string())]),
+                        secret_env: Default::default(),
                     }),
                     apps,
                     placements: vec![ServerPlacement {

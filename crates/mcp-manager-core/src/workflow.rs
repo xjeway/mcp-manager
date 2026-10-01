@@ -105,6 +105,16 @@ pub fn plan(
         .collect()
 }
 
+fn validate_write_paths(
+    ctx: &PlatformContext,
+    operations: &[WriteOperation],
+) -> Result<(), String> {
+    for operation in operations {
+        crate::security::validate_client_config_path(ctx, &operation.path)?;
+    }
+    Ok(())
+}
+
 fn plan_by_app(
     ctx: &PlatformContext,
     config: &MCPConfig,
@@ -129,8 +139,11 @@ pub fn snapshot(
     config: &MCPConfig,
     previous_config: Option<&MCPConfig>,
 ) -> Result<Snapshot, String> {
+    let operations = plan(ctx, config, previous_config);
+    // Reading is enough to leak or to follow a symlink. Check before either.
+    validate_write_paths(ctx, &operations)?;
     let mut snapshot = Snapshot::default();
-    for operation in plan(ctx, config, previous_config) {
+    for operation in operations {
         snapshot.capture(&ctx.resolve_path(&operation.path))?;
     }
     Ok(snapshot)
@@ -142,7 +155,21 @@ pub fn apply(
     config: &MCPConfig,
     previous_config: Option<&MCPConfig>,
 ) -> Result<ApplyResult, String> {
+    let validation = crate::ops::validate(config);
+    if !validation.blocking_errors.is_empty() {
+        let message = validation
+            .blocking_errors
+            .iter()
+            .map(crate::ops::Issue::summary)
+            .collect::<Vec<_>>()
+            .join("; ");
+        return Err(format!(
+            "refusing to apply an invalid configuration: {message}"
+        ));
+    }
+
     let operations = plan(ctx, config, previous_config);
+    validate_write_paths(ctx, &operations)?;
 
     for operation in &operations {
         let path = ctx.resolve_path(&operation.path);
@@ -313,9 +340,10 @@ pub fn workspace_info(ctx: &PlatformContext) -> WorkspaceInfo {
 
 #[cfg(test)]
 mod tests {
-    use super::{preview, workspace_info, ChangeAction};
+    use super::{apply, preview, workspace_info, ChangeAction};
     use crate::core::{
-        empty_apps, CommandSpec, MCPConfig, MCPServer, PlacementScope, SupportedApp, TransportSpec,
+        empty_apps, CommandSpec, MCPConfig, MCPServer, PlacementScope, ServerPlacement,
+        SupportedApp, TransportSpec,
     };
     use crate::platform::test_paths::{abs, UnixPath};
     use crate::platform::{PlatformContext, PlatformOs};
@@ -374,6 +402,7 @@ mod tests {
                 program: program.to_string(),
                 args: vec![],
                 env: HashMap::new(),
+                secret_env: Default::default(),
             }),
             apps: enabled,
             placements: vec![],
@@ -492,5 +521,67 @@ mod tests {
             action_for(&changes, "ctx", codex),
             Some(ChangeAction::Unchanged)
         );
+    }
+
+    #[test]
+    fn apply_rejects_paths_outside_known_client_configs() {
+        let home = tempdir().expect("tempdir");
+        let ctx = PlatformContext {
+            os: PlatformOs::Linux,
+            home_dir: home.path().join("home"),
+            workspace_root: home.path().join("workspace"),
+        };
+        fs::create_dir_all(&ctx.home_dir).expect("home");
+        fs::create_dir_all(&ctx.workspace_root).expect("workspace");
+        let evil = home.path().join("evil.json");
+        let mut server = stdio_server("ctx", "npx", &[SupportedApp::Cursor]);
+        server.placements.push(ServerPlacement {
+            app: SupportedApp::Cursor,
+            scope: PlacementScope::User,
+            path: Some(evil.to_string_lossy().to_string()),
+            enabled: true,
+            managed: true,
+        });
+        let error = apply(&ctx, &config(vec![server]), None).expect_err("escape");
+        assert!(error.contains("refusing"), "{error}");
+        assert!(!evil.exists(), "apply must not create the escaped file");
+
+        let mut traversal = stdio_server("ctx", "npx", &[SupportedApp::Cursor]);
+        traversal.placements.push(ServerPlacement {
+            app: SupportedApp::Cursor,
+            scope: PlacementScope::User,
+            path: Some("../escape.json".to_string()),
+            enabled: true,
+            managed: true,
+        });
+        let error = apply(&ctx, &config(vec![traversal]), None).expect_err("traversal");
+        assert!(
+            error.contains("refusing") || error.contains(".."),
+            "{error}"
+        );
+    }
+
+    #[test]
+    fn apply_refuses_secret_headers_on_insecure_remote_http() {
+        let home = tempdir().expect("tempdir");
+        let ctx = PlatformContext {
+            os: PlatformOs::Linux,
+            home_dir: home.path().join("home"),
+            workspace_root: home.path().join("workspace"),
+        };
+        fs::create_dir_all(&ctx.home_dir).expect("home");
+        let mut server = stdio_server("remote", "npx", &[SupportedApp::Cursor]);
+        server.command = None;
+        server.transport = TransportSpec {
+            kind: "http".to_string(),
+            url: Some("http://example.com/mcp".to_string()),
+            headers: [("Authorization".to_string(), "Bearer secret".to_string())]
+                .into_iter()
+                .collect(),
+        };
+        let target = ctx.home_dir.join(".cursor/mcp.json");
+        let error = apply(&ctx, &config(vec![server]), None).expect_err("http");
+        assert!(error.contains("refusing to apply"), "{error}");
+        assert!(!target.exists(), "invalid config must not be written");
     }
 }

@@ -152,6 +152,7 @@ args = ["@playwright/mcp@latest"]
                         program: "npx".to_string(),
                         args: vec!["@playwright/mcp@latest".to_string()],
                         env: HashMap::new(),
+                        secret_env: Default::default(),
                     }),
                     apps,
                     placements: vec![],

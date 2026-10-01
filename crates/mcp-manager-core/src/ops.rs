@@ -159,6 +159,11 @@ pub fn import_servers(config: &mut MCPConfig, servers: &[MCPServer]) -> ImportOu
 pub enum Issue {
     NoServers,
     EmptyId,
+    /// Ids become path fragments in some clients. `/`, `\`, NUL and `..` are rejected.
+    #[serde(rename_all = "camelCase")]
+    InvalidId {
+        server_id: String,
+    },
     #[serde(rename_all = "camelCase")]
     MissingProgram {
         server_id: String,
@@ -183,6 +188,34 @@ pub enum Issue {
     },
 }
 
+impl Issue {
+    /// Stable wording shared by the CLI and the GUI apply path.
+    pub fn summary(&self) -> String {
+        match self {
+            Issue::NoServers => "There are no servers.".to_string(),
+            Issue::EmptyId => "A server has an empty id.".to_string(),
+            Issue::InvalidId { server_id } => {
+                format!("{server_id}: server id must not contain '/', '\\', a NUL byte, or '..'.")
+            }
+            Issue::MissingProgram { server_id } => {
+                format!("{server_id}: stdio server has no command.")
+            }
+            Issue::InvalidUrl { server_id } => {
+                format!("{server_id}: URL must be an http:// or https:// URL with a host.")
+            }
+            Issue::NoClientEnabled { server_id } => {
+                format!("{server_id}: not enabled for any client.")
+            }
+            Issue::InsecureHeaders { server_id } => format!(
+                "{server_id}: request headers would be sent unencrypted; use an https:// URL."
+            ),
+            Issue::DuplicateHeader { server_id, header } => {
+                format!("{server_id}: header {header} is set more than once (names ignore case).")
+            }
+        }
+    }
+}
+
 #[derive(Debug, Default, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct Validation {
@@ -204,6 +237,10 @@ pub fn validate(config: &MCPConfig) -> Validation {
         let server_id = server.id.clone();
         if server.id.trim().is_empty() {
             result.blocking_errors.push(Issue::EmptyId);
+        } else if server_id_is_unsafe(&server.id) {
+            result.blocking_errors.push(Issue::InvalidId {
+                server_id: server_id.clone(),
+            });
         }
 
         match server.transport.kind.as_str() {
@@ -219,7 +256,7 @@ pub fn validate(config: &MCPConfig) -> Validation {
             }
             "http" => {
                 let url = server.transport.url.as_deref().unwrap_or_default();
-                if !url.starts_with("http://") && !url.starts_with("https://") {
+                if !http_url_has_host(url) {
                     result.blocking_errors.push(Issue::InvalidUrl {
                         server_id: server_id.clone(),
                     });
@@ -246,6 +283,22 @@ pub fn validate(config: &MCPConfig) -> Validation {
     }
 
     result
+}
+
+fn server_id_is_unsafe(id: &str) -> bool {
+    id.contains(['/', '\\', '\0']) || id.split(['/', '\\']).any(|part| part == "..")
+}
+
+fn http_url_has_host(url: &str) -> bool {
+    let Some(rest) = url
+        .strip_prefix("https://")
+        .or_else(|| url.strip_prefix("http://"))
+    else {
+        return false;
+    };
+    let authority = rest.split(['/', '?', '#']).next().unwrap_or("");
+    let host = authority.rsplit('@').next().unwrap_or("");
+    !host.is_empty() && !host.starts_with(':')
 }
 
 #[cfg(test)]
@@ -367,6 +420,7 @@ mod tests {
                 program: program.to_string(),
                 args: vec![],
                 env: HashMap::new(),
+                secret_env: Default::default(),
             }),
             apps: HashMap::from([(SupportedApp::Cursor, true)]),
             placements: vec![],
@@ -497,6 +551,39 @@ mod tests {
                 server_id: "dupe".to_string(),
                 header: "authorization".to_string(),
             }]
+        );
+    }
+
+    #[test]
+    fn rejects_unsafe_server_ids_and_urls_without_a_host() {
+        let mut traversal = server("ok", "stdio", None, Some("npx"));
+        traversal.id = "../secret".to_string();
+        let mut slash = server("ok", "stdio", None, Some("npx"));
+        slash.id = "a/b".to_string();
+        let config = MCPConfig {
+            version: 1,
+            servers: vec![
+                traversal,
+                slash,
+                server("nohost", "http", Some("http://"), None),
+                server("scheme", "http", Some("https://example.com/mcp"), None),
+            ],
+        };
+        let codes = validate(&config)
+            .blocking_errors
+            .into_iter()
+            .map(|issue| match issue {
+                Issue::InvalidId { server_id } => format!("id:{server_id}"),
+                Issue::InvalidUrl { server_id } => format!("url:{server_id}"),
+                other => format!("other:{}", other.summary()),
+            })
+            .collect::<Vec<_>>();
+        assert!(codes.contains(&"id:../secret".to_string()), "{codes:?}");
+        assert!(codes.contains(&"id:a/b".to_string()), "{codes:?}");
+        assert!(codes.contains(&"url:nohost".to_string()), "{codes:?}");
+        assert!(
+            !codes.iter().any(|code| code.contains("scheme")),
+            "{codes:?}"
         );
     }
 }

@@ -1,5 +1,5 @@
 use serde::{Deserialize, Serialize};
-use std::collections::{BTreeMap, HashMap};
+use std::collections::{BTreeMap, BTreeSet, HashMap};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -131,6 +131,11 @@ pub struct CommandSpec {
     pub program: String,
     pub args: Vec<String>,
     pub env: HashMap<String, String>,
+    /// Env keys whose values are secrets even when the name does not look like
+    /// one. Marketplace inputs with `secret: true` are recorded here. Client
+    /// adapters write `env` only, so this stays in servers.yaml.
+    #[serde(default, skip_serializing_if = "BTreeSet::is_empty")]
+    pub secret_env: BTreeSet<String>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

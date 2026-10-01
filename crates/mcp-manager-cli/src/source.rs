@@ -81,6 +81,7 @@ pub fn resolve(source: &Source) -> Result<Resolved, String> {
                 program: program.clone(),
                 args: args.to_vec(),
                 env: HashMap::new(),
+                secret_env: Default::default(),
             }),
         )
     } else {

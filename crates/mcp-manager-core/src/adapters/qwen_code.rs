@@ -140,6 +140,7 @@ mod tests {
                             "@modelcontextprotocol/server-filesystem".to_string(),
                         ],
                         env: HashMap::new(),
+                        secret_env: Default::default(),
                     }),
                     apps,
                     placements: vec![],

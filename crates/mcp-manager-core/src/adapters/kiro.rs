@@ -122,6 +122,7 @@ mod tests {
                         program: "uvx".to_string(),
                         args: vec!["mcp-server-github".to_string()],
                         env: HashMap::new(),
+                        secret_env: Default::default(),
                     }),
                     apps,
                     placements: vec![],

@@ -2,6 +2,7 @@ use crate::core::WriteOperation;
 use crate::platform::PlatformContext;
 use chrono::Utc;
 use serde_json::{Map, Value};
+use std::collections::HashSet;
 use std::fs;
 use std::path::{Component, Path, PathBuf, Prefix};
 use std::sync::atomic::{AtomicU64, Ordering};
@@ -16,13 +17,8 @@ pub fn resolve_path(path: &str) -> PathBuf {
     PlatformContext::current().resolve_path(path)
 }
 
-pub fn resolve_relative_path(relative_path: &str) -> PathBuf {
-    let candidate = PathBuf::from(relative_path);
-    if candidate.is_absolute() {
-        return candidate;
-    }
-
-    base_dir().join(candidate)
+pub fn resolve_relative_path(relative_path: &str) -> Result<PathBuf, String> {
+    crate::security::resolve_internal_relative(relative_path)
 }
 
 pub fn ensure_parent(path: &Path) -> Result<(), String> {
@@ -77,6 +73,12 @@ pub fn backup_file(target: &Path) -> Result<Option<String>, String> {
         target.parent().unwrap_or(Path::new("")),
     ));
     fs::create_dir_all(&backup_parent).map_err(|e| e.to_string())?;
+    // Backups are MCP Manager files and hold config contents. Keep them
+    // private even when the client file itself was group- or world-readable.
+    let _ = crate::security::restrict_new_dir(&backup_parent);
+    if let Some(root) = backup_parent.parent() {
+        let _ = crate::security::restrict_new_dir(root);
+    }
 
     let file_name = target
         .file_name()
@@ -94,6 +96,7 @@ pub fn backup_file(target: &Path) -> Result<Option<String>, String> {
     );
     let backup = backup_parent.join(format!("{}.{}.bak", file_name, stamp));
     fs::copy(target, &backup).map_err(|e| e.to_string())?;
+    crate::security::restrict_new_file(&backup)?;
 
     Ok(Some(backup.to_string_lossy().to_string()))
 }
@@ -109,6 +112,7 @@ pub fn atomic_write_bytes(path: &Path, content: &[u8]) -> Result<(), String> {
     // never share a temporary file, even for `config.json` and `config.toml`.
     static NEXT_TEMP_ID: AtomicU64 = AtomicU64::new(0);
     ensure_parent(path)?;
+    crate::security::tighten_app_data_dirs(path);
     let mut tmp = path.as_os_str().to_owned();
     tmp.push(format!(
         ".{TEMP_MARKER}{}-{}.tmp",
@@ -117,11 +121,14 @@ pub fn atomic_write_bytes(path: &Path, content: &[u8]) -> Result<(), String> {
     ));
     let tmp = PathBuf::from(tmp);
     remove_stale_temp_files(path);
-    fs::write(&tmp, content).map_err(|e| e.to_string())?;
-    fs::rename(&tmp, path).map_err(|e| {
+    let written = (|| {
+        crate::security::atomic_replace_file(&tmp, path, content)?;
+        fs::rename(&tmp, path).map_err(|e| e.to_string())
+    })();
+    if written.is_err() {
         let _ = fs::remove_file(&tmp);
-        e.to_string()
-    })
+    }
+    written
 }
 
 /// Marks a temporary file as this app's own, so cleanup never deletes another
@@ -311,6 +318,23 @@ fn apply_replace_json(path: &Path, content: &str) -> Result<(), String> {
     atomic_write(path, &pretty)
 }
 
+/// Parses an existing client file. Empty files start as `{}`. Malformed JSON
+/// is an error so a bad file is not replaced with only the field being merged.
+/// Comments are stripped first because several clients store JSONC.
+fn read_json_host(path: &Path, existing: &str) -> Result<Value, String> {
+    if existing.trim().is_empty() {
+        return Ok(Value::Object(Map::new()));
+    }
+    let parsed = serde_json::from_str::<Value>(existing)
+        .or_else(|_| serde_json::from_str::<Value>(&crate::parser::strip_json_comments(existing)));
+    parsed.map_err(|error| {
+        format!(
+            "{} is not valid JSON ({error}); the file was not changed",
+            path.to_string_lossy()
+        )
+    })
+}
+
 fn apply_merge_json_field(path: &Path, field: &str, content: &str) -> Result<(), String> {
     let field_value: Value = serde_json::from_str(content).map_err(|e| e.to_string())?;
     let existing = if path.exists() {
@@ -318,8 +342,7 @@ fn apply_merge_json_field(path: &Path, field: &str, content: &str) -> Result<(),
     } else {
         "{}".to_string()
     };
-    let mut host =
-        serde_json::from_str::<Value>(&existing).unwrap_or_else(|_| Value::Object(Map::new()));
+    let mut host = read_json_host(path, &existing)?;
     let Some(host_map) = host.as_object_mut() else {
         return Err(format!(
             "{} does not contain a JSON object",
@@ -347,8 +370,7 @@ fn apply_merge_json_object_entries(
     } else {
         "{}".to_string()
     };
-    let mut host =
-        serde_json::from_str::<Value>(&existing).unwrap_or_else(|_| Value::Object(Map::new()));
+    let mut host = read_json_host(path, &existing)?;
     let Some(host_map) = host.as_object_mut() else {
         return Err(format!(
             "{} does not contain a JSON object",
@@ -525,10 +547,148 @@ pub fn backup_target(backup: &Path) -> Result<PathBuf, String> {
 }
 
 /// Copies one backup over the file it was taken of.
+///
+/// The backup path has to stay inside the backup store after symlink
+/// resolution, and the restored file has to be a modeled client config path.
 pub fn restore_backup(backup: &Path) -> Result<(), String> {
     let target = backup_target(backup)?;
-    let content = fs::read(backup).map_err(|e| e.to_string())?;
+    let ctx = PlatformContext::current();
+    crate::security::validate_client_config_path(&ctx, &target.to_string_lossy())?;
+    let content = read_backup_bytes(&ctx.app_data_dir(), backup)?;
     atomic_write_bytes(&target, &content)
+}
+
+/// Writes `bytes` under `app_data/backups/internal` as a private file.
+/// History uses this for the previous `servers.yaml`, so rollback does not
+/// need the secrets to live in `history.json`.
+pub fn write_internal_backup(app_data: &Path, bytes: &[u8]) -> Result<PathBuf, String> {
+    let dir = app_data.join("backups").join("internal");
+    fs::create_dir_all(&dir).map_err(|e| e.to_string())?;
+    let _ = crate::security::restrict_new_dir(app_data);
+    let _ = crate::security::restrict_new_dir(&app_data.join("backups"));
+    crate::security::restrict_new_dir(&dir)?;
+    static NEXT_INTERNAL_ID: AtomicU64 = AtomicU64::new(0);
+    let name = format!(
+        "servers.yaml.{}-{}.bak",
+        Utc::now().format("%Y%m%dT%H%M%S%3f"),
+        NEXT_INTERNAL_ID.fetch_add(1, Ordering::Relaxed)
+    );
+    let path = dir.join(name);
+    atomic_write_bytes(&path, bytes)?;
+    Ok(path)
+}
+
+/// Reads a backup file. Symlinks are refused so a planted link cannot make a
+/// restore or a history migration copy an arbitrary file.
+pub fn read_backup_bytes(app_data: &Path, candidate: &Path) -> Result<Vec<u8>, String> {
+    let path = contained_backup(app_data, candidate, false)?;
+    fs::read(&path).map_err(|e| e.to_string())
+}
+
+/// Deletes one MCP Manager backup. A symlink is removed as a link and its
+/// target is left in place. Paths outside the backup root are rejected.
+pub fn delete_owned_backup(app_data: &Path, candidate: &Path) -> Result<(), String> {
+    let path = contained_backup(app_data, candidate, true)?;
+    if path.exists() || path.symlink_metadata().is_ok() {
+        fs::remove_file(&path).map_err(|e| e.to_string())?;
+    }
+    Ok(())
+}
+
+/// Removes `*.bak` files under the backup root that `referenced` does not name.
+/// At most `limit` files are removed. This is ordinary deletion: it does not
+/// promise that an SSD has forgotten the bytes.
+pub fn cleanup_orphan_backups(
+    app_data: &Path,
+    referenced: &HashSet<PathBuf>,
+    limit: usize,
+) -> Result<usize, String> {
+    let root = app_data.join("backups");
+    if !root.exists() {
+        return Ok(0);
+    }
+    let mut removed = 0usize;
+    let mut dirs = vec![root];
+    while let Some(dir) = dirs.pop() {
+        let entries = match fs::read_dir(&dir) {
+            Ok(entries) => entries,
+            Err(error) => return Err(error.to_string()),
+        };
+        for entry in entries.flatten() {
+            if removed >= limit {
+                return Ok(removed);
+            }
+            let path = entry.path();
+            let meta = match fs::symlink_metadata(&path) {
+                Ok(meta) => meta,
+                Err(_) => continue,
+            };
+            if meta.file_type().is_symlink() {
+                if is_backup_name(&path) && !referenced.contains(&path) {
+                    // `remove_file` on a symlink deletes the link, not the target.
+                    fs::remove_file(&path).map_err(|e| e.to_string())?;
+                    removed += 1;
+                }
+                continue;
+            }
+            if meta.is_dir() {
+                dirs.push(path);
+                continue;
+            }
+            if meta.is_file() && is_backup_name(&path) && !referenced.contains(&path) {
+                delete_owned_backup(app_data, &path)?;
+                removed += 1;
+            }
+        }
+    }
+    Ok(removed)
+}
+
+fn is_backup_name(path: &Path) -> bool {
+    path.file_name()
+        .and_then(|name| name.to_str())
+        .is_some_and(|name| name.ends_with(".bak"))
+}
+
+/// `allow_symlink` is for deletion, which unlinks the symlink itself.
+/// Reads pass `false` and refuse the link.
+fn contained_backup(
+    app_data: &Path,
+    candidate: &Path,
+    allow_symlink: bool,
+) -> Result<PathBuf, String> {
+    if candidate
+        .components()
+        .any(|component| component == Component::ParentDir)
+    {
+        return Err("backup path traversal rejected".to_string());
+    }
+    let root = app_data.join("backups");
+    if !candidate.starts_with(&root) {
+        return Err(format!(
+            "backup path is outside the backup store: {}",
+            candidate.display()
+        ));
+    }
+    let meta = fs::symlink_metadata(candidate).map_err(|e| e.to_string())?;
+    if meta.file_type().is_symlink() {
+        if allow_symlink {
+            return Ok(candidate.to_path_buf());
+        }
+        return Err("refusing to follow a symlink in the backup store".to_string());
+    }
+    if root.exists() {
+        if let Ok(root_canon) = root.canonicalize() {
+            if let Ok(canon) = candidate.canonicalize() {
+                if !canon.starts_with(&root_canon) {
+                    return Err(
+                        "backup path escapes the backup store after canonicalization".to_string(),
+                    );
+                }
+            }
+        }
+    }
+    Ok(candidate.to_path_buf())
 }
 
 pub fn rollback(backups: Vec<String>) -> Result<(), String> {
@@ -854,7 +1014,7 @@ mod tests {
 
         let (previous_home, previous_dir) = set_test_runtime(&home, &workspace);
 
-        let resolved = resolve_relative_path("config/servers.yaml");
+        let resolved = resolve_relative_path("config/servers.yaml").expect("relative path");
 
         restore_test_runtime(previous_home, previous_dir);
 
@@ -862,6 +1022,68 @@ mod tests {
             resolved,
             expected_app_data_dir(&home).join("config/servers.yaml")
         );
+    }
+
+    #[test]
+    fn rejects_internal_paths_that_escape_app_data() {
+        for bad in ["../servers.yaml", "/etc/passwd", "config/../../.ssh/id_rsa"] {
+            assert!(resolve_relative_path(bad).is_err(), "{bad}");
+        }
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn preserves_existing_modes_and_creates_private_files() {
+        use std::os::unix::fs::PermissionsExt;
+        let dir = tempfile::tempdir().expect("tmpdir");
+        let mode_of = |path: &Path| fs::metadata(path).expect("meta").permissions().mode() & 0o777;
+        let set_mode = |path: &Path, mode: u32| {
+            let mut permissions = fs::metadata(path).expect("meta").permissions();
+            permissions.set_mode(mode);
+            fs::set_permissions(path, permissions).expect("chmod");
+        };
+
+        let private = dir.path().join("private.toml");
+        fs::write(&private, "before").expect("seed");
+        set_mode(&private, 0o600);
+        super::atomic_write(&private, "after").expect("rewrite");
+        assert_eq!(mode_of(&private), 0o600);
+        assert_eq!(fs::read_to_string(&private).expect("read"), "after");
+
+        let group = dir.path().join("group.toml");
+        fs::write(&group, "before").expect("seed");
+        set_mode(&group, 0o640);
+        super::atomic_write(&group, "after").expect("rewrite");
+        assert_eq!(mode_of(&group), 0o640, "0640 must not widen to 0644");
+
+        let created = dir.path().join("history.json");
+        super::atomic_write(&created, "{\"token\":\"x\"}").expect("create");
+        assert_eq!(
+            mode_of(&created) & 0o077,
+            0,
+            "new secret file is world-readable"
+        );
+    }
+
+    #[test]
+    fn a_failed_replacement_does_not_leave_a_secret_temp_file() {
+        let dir = tempfile::tempdir().expect("tmpdir");
+        let dest = dir.path().join("servers.yaml");
+        fs::create_dir(&dest).expect("dir");
+        let error = super::atomic_write(&dest, "super-secret-token").expect_err("rename onto dir");
+        assert!(!error.is_empty());
+        let names = fs::read_dir(dir.path())
+            .expect("list")
+            .map(|entry| {
+                entry
+                    .expect("entry")
+                    .file_name()
+                    .to_string_lossy()
+                    .into_owned()
+            })
+            .collect::<Vec<_>>();
+        assert_eq!(names, ["servers.yaml"]);
+        assert!(!dir.path().join("servers.yaml").is_file());
     }
 
     #[test]
@@ -918,5 +1140,86 @@ mod tests {
         restored.expect("rollback");
         assert_eq!(fs::read_to_string(&target).expect("read"), "original");
         assert!(!target.with_file_name("mcp").exists());
+    }
+
+    #[test]
+    fn malformed_json_and_toml_are_left_unchanged() {
+        let dir = tempfile::tempdir().expect("tmpdir");
+        let json_path = dir.path().join("client.json");
+        let toml_path = dir.path().join("config.toml");
+        let json_body = "{ this is not json, \"theme\": \"dark\" ";
+        let toml_body = "model = \"gpt\"\n[mcp_servers\n";
+        fs::write(&json_path, json_body).expect("json");
+        fs::write(&toml_path, toml_body).expect("toml");
+
+        let json_error = super::apply_operation(
+            &json_path,
+            &WriteOperation {
+                path: json_path.to_string_lossy().to_string(),
+                mode: "merge_json_object_entries".to_string(),
+                field: Some("mcpServers".to_string()),
+                remove_keys: None,
+                content: r#"{"demo":{"command":"npx"}}"#.to_string(),
+            },
+        )
+        .expect_err("json");
+        let toml_error = super::apply_operation(
+            &toml_path,
+            &WriteOperation {
+                path: toml_path.to_string_lossy().to_string(),
+                mode: "merge_toml_table_entries".to_string(),
+                field: Some("mcp_servers".to_string()),
+                remove_keys: None,
+                content: r#"{"demo":{"command":"npx"}}"#.to_string(),
+            },
+        )
+        .expect_err("toml");
+
+        assert!(json_error.contains("not valid JSON"), "{json_error}");
+        assert!(
+            toml_error.contains("TOML") || toml_error.contains("toml"),
+            "{toml_error}"
+        );
+        assert_eq!(fs::read_to_string(&json_path).expect("json"), json_body);
+        assert_eq!(fs::read_to_string(&toml_path).expect("toml"), toml_body);
+    }
+
+    #[test]
+    fn backup_deletion_rejects_traversal_and_does_not_follow_symlinks() {
+        let dir = tempfile::tempdir().expect("tmpdir");
+        let app_data = dir.path().join("app");
+        let backups = app_data.join("backups");
+        fs::create_dir_all(&backups).expect("backups");
+        let outside = dir.path().join("outside-secret.txt");
+        fs::write(&outside, "keep-me").expect("outside");
+
+        let traversal = app_data
+            .join("backups")
+            .join("..")
+            .join("outside-secret.txt");
+        let error = super::delete_owned_backup(&app_data, &traversal).expect_err("traversal");
+        assert!(
+            error.contains("traversal") || error.contains("outside"),
+            "{error}"
+        );
+        assert_eq!(fs::read_to_string(&outside).expect("kept"), "keep-me");
+
+        let absolute = dir.path().join("not-a-backup.bak");
+        fs::write(&absolute, "nope").expect("absolute");
+        assert!(super::delete_owned_backup(&app_data, &absolute).is_err());
+        assert!(absolute.exists());
+
+        #[cfg(unix)]
+        {
+            let link = backups.join("linked.bak");
+            std::os::unix::fs::symlink(&outside, &link).expect("symlink");
+            super::delete_owned_backup(&app_data, &link).expect("unlink");
+            assert!(!link.exists(), "the symlink itself is removed");
+            assert_eq!(fs::read_to_string(&outside).expect("target"), "keep-me");
+            std::os::unix::fs::symlink(&outside, &link).expect("symlink again");
+            let error = super::read_backup_bytes(&app_data, &link).expect_err("read link");
+            assert!(error.contains("symlink"), "{error}");
+            assert_eq!(fs::read_to_string(&outside).expect("target"), "keep-me");
+        }
     }
 }

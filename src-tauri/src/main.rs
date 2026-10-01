@@ -2,12 +2,12 @@ mod commands;
 mod marketplace;
 
 use commands::{
-    apply_config, current_workspace, detect_installed_apps, import_detected_configs,
-    load_yaml_config, marketplace_add_source, marketplace_open_url, marketplace_refresh,
-    marketplace_remove_source, marketplace_search, marketplace_set_enabled, marketplace_sources,
-    open_path, open_releases_link, open_repository_link, reset_yaml_config, restart_app,
-    rollback_depth, rollback_last_change, save_yaml_config, yaml_config_fingerprint,
-    yaml_config_path,
+    apply_config, authorize_update_check, current_workspace, detect_installed_apps,
+    import_detected_configs, load_yaml_config, marketplace_add_source, marketplace_open_url,
+    marketplace_refresh, marketplace_remove_source, marketplace_search, marketplace_set_enabled,
+    marketplace_sources, open_path, open_releases_link, open_repository_link, privacy_settings,
+    reset_yaml_config, restart_app, rollback_depth, rollback_last_change, save_privacy_settings,
+    save_yaml_config, yaml_config_fingerprint, yaml_config_path,
 };
 
 fn main() {
@@ -31,6 +31,9 @@ fn main() {
             rollback_depth,
             rollback_last_change,
             restart_app,
+            privacy_settings,
+            save_privacy_settings,
+            authorize_update_check,
             marketplace_set_enabled,
             marketplace_sources,
             marketplace_search,

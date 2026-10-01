@@ -91,6 +91,7 @@ pub fn commit(session: &Session, change: Change, dry_run: bool) -> Outcome<bool>
             // can slip in between. A record that fails does not stop the
             // change: it is already applied, and the user is told below.
             match ChangeRecord::new(
+                &session.ctx.app_data_dir(),
                 &files,
                 applied.backups.clone(),
                 before.clone(),
@@ -167,21 +168,7 @@ pub fn print_json(value: &impl Serialize) -> Outcome<()> {
 }
 
 fn describe_issue(issue: &Issue) -> String {
-    match issue {
-        Issue::NoServers => "There are no servers.".to_string(),
-        Issue::EmptyId => "A server has an empty id.".to_string(),
-        Issue::MissingProgram { server_id } => format!("{server_id}: stdio server has no command."),
-        Issue::InvalidUrl { server_id } => {
-            format!("{server_id}: URL must start with http:// or https://.")
-        }
-        Issue::NoClientEnabled { server_id } => format!("{server_id}: not enabled for any client."),
-        Issue::InsecureHeaders { server_id } => {
-            format!("{server_id}: request headers would be sent unencrypted; use an https:// URL.")
-        }
-        Issue::DuplicateHeader { server_id, header } => {
-            format!("{server_id}: header {header} is set more than once (names ignore case).")
-        }
-    }
+    issue.summary()
 }
 
 fn action_label(action: ChangeAction) -> &'static str {

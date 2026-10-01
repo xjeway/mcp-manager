@@ -11,7 +11,20 @@ chrono.workspace = true
 serde.workspace = true
 serde_json.workspace = true
 serde_yaml.workspace = true
+sha2 = "0.10"
 toml.workspace = true
+
+[target.'cfg(unix)'.dependencies]
+libc = "0.2"
+
+# Restrictive Windows DACLs. Not used on Unix.
+[target.'cfg(windows)'.dependencies]
+windows-sys = { version = "0.59", features = [
+    "Win32_Foundation",
+    "Win32_Security",
+    "Win32_Security_Authorization",
+    "Win32_Storage_FileSystem",
+] }
 
 [dev-dependencies]
 tempfile.workspace = true

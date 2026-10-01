@@ -21,7 +21,7 @@ const RELEASES_URL: &str = "https://github.com/xjeway/mcp-manager/releases";
 
 #[tauri::command]
 pub fn load_yaml_config(relative_path: String) -> Result<StoredText, String> {
-    store::read_text(&resolve_relative_path(&relative_path))
+    store::read_text(&resolve_relative_path(&relative_path)?)
 }
 
 /// Saves unless the file changed since `expected_fingerprint` was read, in
@@ -34,7 +34,7 @@ pub fn save_yaml_config(
     expected_fingerprint: Option<String>,
 ) -> Result<String, String> {
     store::write_text_checked(
-        &resolve_relative_path(&relative_path),
+        &resolve_relative_path(&relative_path)?,
         &content,
         expected_fingerprint.as_deref(),
     )
@@ -42,14 +42,14 @@ pub fn save_yaml_config(
 
 #[tauri::command]
 pub fn yaml_config_fingerprint(relative_path: String) -> Result<String, String> {
-    store::fingerprint(&resolve_relative_path(&relative_path))
+    store::fingerprint(&resolve_relative_path(&relative_path)?)
 }
 
 #[tauri::command]
-pub fn yaml_config_path(relative_path: String) -> String {
-    resolve_relative_path(&relative_path)
+pub fn yaml_config_path(relative_path: String) -> Result<String, String> {
+    Ok(resolve_relative_path(&relative_path)?
         .to_string_lossy()
-        .into_owned()
+        .into_owned())
 }
 
 #[derive(Debug, Serialize)]
@@ -70,7 +70,7 @@ pub fn reset_yaml_config(
     expected_fingerprint: String,
 ) -> Result<ResetResult, String> {
     reset_with_backup(
-        &resolve_relative_path(&relative_path),
+        &resolve_relative_path(&relative_path)?,
         &content,
         &expected_fingerprint,
         &chrono::Local::now().format("%Y%m%d-%H%M%S").to_string(),
@@ -125,6 +125,8 @@ fn write_new_backup(path: &Path, content: &str, stamp: &str) -> Result<PathBuf, 
                 file.write_all(content.as_bytes())
                     .and_then(|()| file.sync_all())
                     .map_err(|e| e.to_string())?;
+                // A broken servers.yaml can contain credentials. Keep the copy private.
+                mcp_manager_core::security::restrict_new_file(&candidate)?;
                 return Ok(candidate);
             }
             Err(error) if error.kind() == ErrorKind::AlreadyExists => continue,
@@ -271,6 +273,29 @@ pub fn rollback_last_change() -> Result<RollbackReport, String> {
 #[tauri::command]
 pub fn rollback_depth() -> usize {
     history::depth(&PlatformContext::current())
+}
+
+#[tauri::command]
+pub fn privacy_settings() -> mcp_manager_core::security::PrivacySettings {
+    mcp_manager_core::security::load_privacy(&PlatformContext::current())
+}
+
+#[tauri::command]
+pub fn save_privacy_settings(
+    settings: mcp_manager_core::security::PrivacySettings,
+) -> Result<(), String> {
+    mcp_manager_core::security::save_privacy(&PlatformContext::current(), &settings)
+}
+
+/// The updater plugin is callable from the webview. This command is what the
+/// app's own check goes through first. `automatic` is true for the startup
+/// check and false for the button in Settings.
+#[tauri::command]
+pub fn authorize_update_check(automatic: bool) -> Result<(), String> {
+    mcp_manager_core::security::automatic_update_check_allowed(
+        &PlatformContext::current(),
+        automatic,
+    )
 }
 
 #[tauri::command]

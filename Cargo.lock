@@ -2139,11 +2139,14 @@ name = "mcp-manager-core"
 version = "0.2.0"
 dependencies = [
  "chrono",
+ "libc",
  "serde",
  "serde_json",
  "serde_yaml",
+ "sha2",
  "tempfile",
  "toml 1.1.6+spec-1.1.0",
+ "windows-sys 0.59.0",
 ]
 
 [[package]]

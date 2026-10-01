@@ -122,6 +122,7 @@ mod tests {
                         program: "uvx".to_string(),
                         args: vec!["mcp-server-github".to_string()],
                         env: HashMap::new(),
+                        secret_env: Default::default(),
                     }),
                     apps,
                     placements: vec![],
@@ -157,6 +158,7 @@ mod tests {
                         program: "npx".to_string(),
                         args: vec!["@playwright/mcp@latest".to_string()],
                         env: HashMap::new(),
+                        secret_env: Default::default(),
                     }),
                     apps,
                     placements: vec![
@@ -224,6 +226,7 @@ mod tests {
                     program: "npx".to_string(),
                     args: vec!["@playwright/mcp@latest".to_string()],
                     env: HashMap::new(),
+                    secret_env: Default::default(),
                 }),
                 apps: current_apps,
                 placements: vec![crate::core::ServerPlacement {
@@ -253,6 +256,7 @@ mod tests {
                     program: "npx".to_string(),
                     args: vec!["@playwright/mcp@latest".to_string()],
                     env: HashMap::new(),
+                    secret_env: Default::default(),
                 }),
                 apps: previous_apps,
                 placements: vec![crate::core::ServerPlacement {
