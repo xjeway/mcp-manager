@@ -26,7 +26,7 @@ jobs:
 
     steps:
       - name: Checkout
-        uses: actions/checkout@v7
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
 
       - name: Prepare prompt context
         env:
@@ -45,7 +45,7 @@ jobs:
 
       - name: Run Gemini
         id: gemini
-        uses: google-github-actions/run-gemini-cli@v0
+        uses: google-github-actions/run-gemini-cli@f77273f4c914e4bf38440cf36a0369cb64a37489 # v0
         env:
           GEMINI_CLI_TRUST_WORKSPACE: 'true'
           # The issue text is untrusted, so the model gets no GitHub token and no tools.
@@ -86,7 +86,7 @@ jobs:
 
     steps:
       - name: Apply labels and ask for missing info
-        uses: actions/github-script@v9
+        uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3 # v9
         env:
           SELECTED_LABELS: ${{ needs.triage.outputs.labels }}
         with:

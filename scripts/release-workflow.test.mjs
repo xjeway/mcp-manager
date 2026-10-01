@@ -126,13 +126,18 @@ describe('release workflow structure', () => {
 
   // tauri-action v1 renames includeUpdaterJson, adds the version to .app.tar.gz
   // names (which the Homebrew cask relies on) and rewrites release notes.
-  it('stays on tauri-action v0 until the release pipeline is migrated to v1', () => {
+  // The pin is the v0.6.2 commit, not the floating tag.
+  it('stays on the pinned tauri-action v0.6.2 commit', () => {
     const workflow = readWorkflow()
+    const raw = fs.readFileSync(workflowPath, 'utf8')
     const steps = findTauriSteps(workflow.jobs['publish-tauri'])
+    const pinned = 'tauri-apps/tauri-action@84b9d35b5fc46c1e45415bdb6144030364f7ebc5'
 
     expect(steps.length).toBeGreaterThan(0)
     for (const step of steps) {
-      expect(step.uses).toMatch(/^tauri-apps\/tauri-action@v0\./)
+      expect(step.uses).toBe(pinned)
     }
+    expect(raw).toContain(`${pinned} # v0.6.2`)
+    expect(raw).not.toMatch(/tauri-apps\/tauri-action@v1/)
   })
 })

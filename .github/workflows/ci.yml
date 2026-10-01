@@ -20,10 +20,10 @@ jobs:
 
     steps:
       - name: Checkout
-        uses: actions/checkout@v7
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
 
       - name: Setup Node.js
-        uses: actions/setup-node@v7
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7
         with:
           node-version: 20
           cache: npm
@@ -39,7 +39,7 @@ jobs:
 
       # The Tauri crate embeds the built frontend at compile time.
       - name: Upload frontend build
-        uses: actions/upload-artifact@v7
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
         with:
           name: frontend-dist
           path: dist
@@ -57,10 +57,10 @@ jobs:
 
     steps:
       - name: Checkout
-        uses: actions/checkout@v7
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
 
       - name: Download frontend build
-        uses: actions/download-artifact@v8
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8
         with:
           name: frontend-dist
           path: dist
@@ -83,12 +83,12 @@ jobs:
             wget
 
       - name: Setup Rust
-        uses: dtolnay/rust-toolchain@stable
+        uses: dtolnay/rust-toolchain@02cb101ec7c40f2c49e1d9714d64511d8e1b74de # stable
         with:
           components: clippy, rustfmt
 
       - name: Cache Rust dependencies
-        uses: swatinem/rust-cache@v2
+        uses: swatinem/rust-cache@49a0bdc70d2e1b713ca9e2869b211fcce03d3c1c # v2
         with:
           workspaces: |
             . -> target
@@ -98,7 +98,76 @@ jobs:
         run: cargo fmt --all --check
 
       - name: Run clippy
-        run: cargo clippy --locked --workspace --all-targets -- -D warnings
+        run: cargo clippy --locked --workspace --all-targets --all-features -- -D warnings
 
       - name: Run Rust tests
         run: cargo test --locked --workspace
+
+  security:
+    name: Security
+    runs-on: ubuntu-22.04
+    permissions:
+      contents: read
+      pull-requests: read
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+
+      - name: Setup Node.js
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7
+        with:
+          node-version: 20
+          cache: npm
+
+      - name: Install frontend dependencies
+        run: npm ci
+
+      - name: Audit npm dependencies
+        # Low advisories are reported in the log and do not fail the job.
+        # Raise the level only for an advisory this repository cannot yet fix,
+        # and record that exception in SECURITY.md.
+        run: npm audit --audit-level=moderate
+
+      - name: Setup Rust
+        uses: dtolnay/rust-toolchain@02cb101ec7c40f2c49e1d9714d64511d8e1b74de # stable
+
+      - name: Cache Rust dependencies
+        uses: swatinem/rust-cache@49a0bdc70d2e1b713ca9e2869b211fcce03d3c1c # v2
+
+      # cargo-audit 0.22 reads the current lockfile format. The audit-check
+      # action installs whatever `cargo install` resolves and also needs
+      # checks: write, so the scanner runs directly instead.
+      - name: Install cargo-audit
+        run: cargo install cargo-audit --locked --version 0.22.2
+
+      - name: Audit Cargo dependencies
+        run: cargo audit
+
+      # cargo-deny 0.18 cannot read metadata from current stable Cargo.
+      # 0.20.2 is the binary this job runs, pinned by its published checksum.
+      - name: Check Cargo dependency policy
+        run: |
+          set -euo pipefail
+          version=0.20.2
+          archive="cargo-deny-${version}-x86_64-unknown-linux-musl.tar.gz"
+          curl -fsSL -o "$archive" "https://github.com/EmbarkStudios/cargo-deny/releases/download/${version}/${archive}"
+          echo "9f12ed4c49936e09b48bf862b595cde2fe64fcbd9d74dfacac6131ca824c8d5f  ${archive}" | sha256sum -c
+          tar -xzf "$archive" --strip-components=1
+          ./cargo-deny --all-features check
+
+      # The gitleaks GitHub Action is under a separate licence. The scanner
+      # binary is the tool this job runs, pinned by its published checksum.
+      - name: Scan for secrets
+        run: |
+          set -euo pipefail
+          version=8.30.1
+          archive="gitleaks_${version}_linux_x64.tar.gz"
+          curl -fsSL -o "$archive" "https://github.com/gitleaks/gitleaks/releases/download/v${version}/${archive}"
+          echo "551f6fc83ea457d62a0d98237cbad105af8d557003051f41f3e7ca7b3f2470eb  ${archive}" | sha256sum -c
+          tar -xzf "$archive" gitleaks
+          ./gitleaks detect --source . --redact --no-banner --exit-code 1
+
+      - name: Review dependency changes
+        if: github.event_name == 'pull_request'
+        uses: actions/dependency-review-action@a1d282b36b6f3519aa1f3fc636f609c47dddb294 # v5.0.0

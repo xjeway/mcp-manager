@@ -202,4 +202,14 @@ describe('buildDefaultReleaseBody', () => {
 
     expect(helpers.buildDefaultReleaseBody('v1.0.0').startsWith('Automated release for v1.0.0.')).toBe(true)
   })
+
+  it('says an unsigned macOS build is unsigned and does not clear quarantine', async () => {
+    const helpers = await loadReleaseHelpers()
+    const body = helpers.buildDefaultReleaseBody('v1.0.0')
+
+    expect(body).toContain('unsigned')
+    expect(body).toContain('not the install method')
+    expect(body).not.toContain('xattr')
+    expect(body).not.toContain('com.apple.quarantine')
+  })
 })

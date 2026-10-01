@@ -130,7 +130,7 @@ export function buildDefaultReleaseBody(tagName, notes = '') {
     '',
     'Download the installer or archive that matches your platform from the assets below.',
     '',
-    'macOS note: public macOS builds may still be unsigned while Apple signing is being prepared. If Gatekeeper blocks `MCP Manager.app`, move it to `/Applications`, try Finder `Open` once, or run `xattr -dr com.apple.quarantine "/Applications/MCP Manager.app"` and open it again.',
+    'macOS note: unless this release says it is signed and notarized, the macOS build is unsigned. Gatekeeper will block it. Prefer a signed, notarized build. Clearing the quarantine attribute is not the install method.',
   ].join('\n')
 
   return notes ? `${notes}\n\n---\n\n${boilerplate}` : boilerplate
