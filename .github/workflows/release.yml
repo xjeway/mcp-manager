@@ -29,7 +29,7 @@ jobs:
       - name: Setup Node.js
         uses: actions/setup-node@v7
         with:
-          node-version: 20
+          node-version: 24
 
       - name: Generate release notes
         run: node scripts/release-notes.mjs "${{ github.ref_name }}" > release-notes.md
@@ -98,7 +98,7 @@ jobs:
       - name: Setup Node.js
         uses: actions/setup-node@v7
         with:
-          node-version: 20
+          node-version: 24
           cache: npm
 
       - name: Setup Rust
@@ -283,7 +283,7 @@ jobs:
       - name: Setup Node.js
         uses: actions/setup-node@v7
         with:
-          node-version: 20
+          node-version: 24
 
       - name: Upload archive to release
         env:
@@ -304,7 +304,7 @@ jobs:
       - name: Setup Node.js
         uses: actions/setup-node@v7
         with:
-          node-version: 20
+          node-version: 24
 
       - name: Upload latest.json
         env:
@@ -359,7 +359,7 @@ jobs:
       - name: Setup Node.js
         uses: actions/setup-node@v7
         with:
-          node-version: 20
+          node-version: 24
 
       - name: Publish the draft
         env:
