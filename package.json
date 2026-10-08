@@ -15,10 +15,10 @@
     "release:tag": "node scripts/release.mjs tag"
   },
   "dependencies": {
-    "@tauri-apps/api": "^2.12.0",
-    "@tauri-apps/plugin-updater": "^2.13.0",
+    "@tauri-apps/api": "^2.12.1",
+    "@tauri-apps/plugin-updater": "^2.13.1",
     "i18next": "^26.4.2",
-    "lucide-react": "^1.48.0",
+    "lucide-react": "^1.50.0",
     "react": "^19.3.0",
     "react-dom": "^19.3.0",
     "react-i18next": "^17.0.15",
@@ -26,7 +26,7 @@
   },
   "devDependencies": {
     "@tailwindcss/postcss": "^4.3.3",
-    "@tauri-apps/cli": "^2.12.0",
+    "@tauri-apps/cli": "^2.12.1",
     "@types/react": "^19.3.0",
     "@types/react-dom": "^19.3.0",
     "@vitejs/plugin-react": "^6.1.1",
@@ -35,7 +35,7 @@
     "postcss": "^8.5.28",
     "tailwindcss": "^4.3.3",
     "typescript": "^7.0.2",
-    "vite": "^8.3.1",
-    "vitest": "^5.0.2"
+    "vite": "^8.3.2",
+    "vitest": "^5.0.3"
   }
 }
