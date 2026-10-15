@@ -1,3 +1,5 @@
+import type { AppLanguage } from '../i18n/languages'
+
 export const SUPPORTED_APPS = [
   'vscode',
   'cursor',
@@ -94,7 +96,7 @@ export interface ApplyRiskSummary {
 }
 
 export interface AppSettings {
-  language: 'zh-CN' | 'en-US'
+  language: AppLanguage
   autoUpdatePolicy: 'prompt_confirm'
 }
 

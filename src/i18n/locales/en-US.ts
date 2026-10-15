@@ -248,4 +248,6 @@ const enUS = {
   noEnvironmentVariables: 'No environment variables added yet',
 }
 
+export type LocaleMessages = typeof enUS
+
 export default enUS

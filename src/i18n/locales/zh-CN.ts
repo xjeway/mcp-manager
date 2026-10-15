@@ -1,4 +1,6 @@
-const zhCN = {
+import type { LocaleMessages } from './en-US'
+
+const zhCN: LocaleMessages = {
   title: 'MCP Manager',
   add: '添加 Server',
   appScope: '客户端范围',
