@@ -38,7 +38,9 @@
 
 ## Screenshots
 
-![MCP Manager interface in English](./docs/page-en.png)
+![MCP Manager interface in English, light theme](./docs/page-en.png)
+
+![MCP Manager interface in English, dark theme](./docs/page-en-dark.png)
 
 ## Download & Installation
 

@@ -36,7 +36,9 @@
 
 ## 界面截图
 
-![MCP Manager 中文界面](./docs/page-cn.png)
+![MCP Manager 中文界面（浅色主题）](./docs/page-cn.png)
+
+![MCP Manager 中文界面（深色主题）](./docs/page-cn-dark.png)
 
 ## 下载与安装
 
