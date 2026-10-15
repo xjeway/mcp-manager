@@ -24,6 +24,7 @@ const zhTW: LocaleMessages = {
   description: '描述',
   detectInstalledAppsFailedDetail: '用戶端偵測暫時無法使用，目前已顯示所有支援的用戶端。',
   language: '語言',
+  languageSystem: '跟隨系統',
   delete: '刪除',
   deleteConfirm: '確定刪除 {{name}} 嗎？\n\n刪除後會立即儲存，並同步到已安裝的用戶端。',
   edit: '編輯',

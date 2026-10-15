@@ -24,6 +24,7 @@ const esES: LocaleMessages = {
   description: 'Descripción',
   detectInstalledAppsFailedDetail: 'La detección de clientes no está disponible temporalmente. Por ahora se muestran todos los clientes compatibles.',
   language: 'Idioma',
+  languageSystem: 'Idioma del sistema',
   delete: 'Eliminar',
   deleteConfirm: '¿Eliminar {{name}}?\n\nSe guardará de inmediato y se quitará también de los clientes instalados.',
   edit: 'Editar',

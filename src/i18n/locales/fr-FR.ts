@@ -24,6 +24,7 @@ const frFR: LocaleMessages = {
   description: 'Description',
   detectInstalledAppsFailedDetail: 'La détection des clients est temporairement indisponible. Tous les clients pris en charge sont affichés pour le moment.',
   language: 'Langue',
+  languageSystem: 'Langue du système',
   delete: 'Supprimer',
   deleteConfirm: 'Supprimer {{name}} ?\n\nLa suppression est enregistrée immédiatement et appliquée aux clients installés.',
   edit: 'Modifier',

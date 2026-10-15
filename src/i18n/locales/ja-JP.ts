@@ -24,6 +24,7 @@ const jaJP: LocaleMessages = {
   description: '説明',
   detectInstalledAppsFailedDetail: 'クライアントの検出を一時的に利用できません。現在はサポートされているすべてのクライアントを表示しています。',
   language: '言語',
+  languageSystem: 'システムに合わせる',
   delete: '削除',
   deleteConfirm: '{{name}} を削除しますか？\n\nすぐに保存され、インストール済みのクライアントからも削除されます。',
   edit: '編集',

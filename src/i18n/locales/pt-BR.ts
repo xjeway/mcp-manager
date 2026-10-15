@@ -24,6 +24,7 @@ const ptBR: LocaleMessages = {
   description: 'Descrição',
   detectInstalledAppsFailedDetail: 'A detecção de clientes está temporariamente indisponível. Todos os clientes compatíveis estão sendo exibidos por enquanto.',
   language: 'Idioma',
+  languageSystem: 'Idioma do sistema',
   delete: 'Excluir',
   deleteConfirm: 'Excluir {{name}}?\n\nIsso será salvo imediatamente e removido também dos clientes instalados.',
   edit: 'Editar',

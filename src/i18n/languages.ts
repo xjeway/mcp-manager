@@ -13,10 +13,16 @@ export const SUPPORTED_LANGUAGES = [
 
 export type AppLanguage = (typeof SUPPORTED_LANGUAGES)[number]['code']
 
+export type LanguagePreference = AppLanguage | 'system'
+
 export const DEFAULT_LANGUAGE: AppLanguage = 'en-US'
 
 export function isSupportedLanguage(value: unknown): value is AppLanguage {
   return SUPPORTED_LANGUAGES.some((language) => language.code === value)
+}
+
+export function isLanguagePreference(value: unknown): value is LanguagePreference {
+  return value === 'system' || isSupportedLanguage(value)
 }
 
 // Traditional Chinese is used in Taiwan, Hong Kong and Macau; every other

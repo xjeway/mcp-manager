@@ -24,6 +24,7 @@ const deDE: LocaleMessages = {
   description: 'Beschreibung',
   detectInstalledAppsFailedDetail: 'Die Client-Erkennung ist vorübergehend nicht verfügbar. Es werden vorerst alle unterstützten Clients angezeigt.',
   language: 'Sprache',
+  languageSystem: 'Systemsprache verwenden',
   delete: 'Löschen',
   deleteConfirm: '{{name}} löschen?\n\nDies wird sofort gespeichert und auch aus den installierten Clients entfernt.',
   edit: 'Bearbeiten',

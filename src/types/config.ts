@@ -1,4 +1,4 @@
-import type { AppLanguage } from '../i18n/languages'
+import type { LanguagePreference } from '../i18n/languages'
 
 export const SUPPORTED_APPS = [
   'vscode',
@@ -96,7 +96,7 @@ export interface ApplyRiskSummary {
 }
 
 export interface AppSettings {
-  language: AppLanguage
+  language: LanguagePreference
   autoUpdatePolicy: 'prompt_confirm'
 }
 

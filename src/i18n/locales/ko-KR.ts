@@ -24,6 +24,7 @@ const koKR: LocaleMessages = {
   description: '설명',
   detectInstalledAppsFailedDetail: '클라이언트 감지를 일시적으로 사용할 수 없습니다. 지금은 지원되는 모든 클라이언트를 표시합니다.',
   language: '언어',
+  languageSystem: '시스템 설정 따르기',
   delete: '삭제',
   deleteConfirm: '{{name}}을(를) 삭제할까요?\n\n즉시 저장되며 설치된 클라이언트에서도 제거됩니다.',
   edit: '편집',

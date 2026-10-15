@@ -4,7 +4,7 @@ import { useTranslation } from 'react-i18next'
 import { AppLogo } from './AppLogo'
 import { Segmented } from './Segmented'
 import { LanguageMenu } from './LanguageMenu'
-import type { AppLanguage } from '../i18n/languages'
+import type { LanguagePreference } from '../i18n/languages'
 import { MarketplaceSourcesEditor } from './MarketplaceSourcesEditor'
 
 interface SettingsPageProps {
@@ -12,7 +12,7 @@ interface SettingsPageProps {
   autoImportOnLaunch: boolean
   busy: boolean
   checkingUpdates: boolean
-  language: string
+  language: LanguagePreference
   marketplaceEnabled: boolean
   onMarketplaceEnabledChange: (enabled: boolean) => void
   onOpenRepository: () => void
@@ -20,7 +20,7 @@ interface SettingsPageProps {
   theme: 'light' | 'dark' | 'system'
   onBack: () => void
   onCheckUpdates: () => void
-  onLanguageChange: (language: AppLanguage) => void
+  onLanguageChange: (language: LanguagePreference) => void
   onThemeChange: (theme: 'light' | 'dark' | 'system') => void
 }
 

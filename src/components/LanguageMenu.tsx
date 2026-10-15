@@ -1,9 +1,9 @@
 import { useTranslation } from 'react-i18next'
-import { SUPPORTED_LANGUAGES, type AppLanguage } from '../i18n/languages'
+import { SUPPORTED_LANGUAGES, type LanguagePreference } from '../i18n/languages'
 
 interface LanguageMenuProps {
-  language: string
-  onChange: (language: AppLanguage) => void
+  language: LanguagePreference
+  onChange: (language: LanguagePreference) => void
   selectClassName?: string
 }
 
@@ -15,8 +15,9 @@ export function LanguageMenu({ language, onChange, selectClassName }: LanguageMe
       <select
         className={selectClassName ? `settings-select ${selectClassName}` : 'settings-select'}
         value={language}
-        onChange={(event) => onChange(event.target.value as AppLanguage)}
+        onChange={(event) => onChange(event.target.value as LanguagePreference)}
       >
+        <option value="system">{t('languageSystem')}</option>
         {SUPPORTED_LANGUAGES.map(({ code, label }) => (
           <option key={code} value={code} lang={code}>
             {label}

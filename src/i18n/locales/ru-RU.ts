@@ -26,6 +26,7 @@ const ruRU: LocaleMessages = {
   description: 'Описание',
   detectInstalledAppsFailedDetail: 'Обнаружение клиентов временно недоступно. Пока показаны все поддерживаемые клиенты.',
   language: 'Язык',
+  languageSystem: 'Как в системе',
   delete: 'Удалить',
   deleteConfirm: 'Удалить {{name}}?\n\nИзменение будет сохранено сразу и применено к установленным клиентам.',
   edit: 'Изменить',

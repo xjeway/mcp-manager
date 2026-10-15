@@ -22,6 +22,7 @@ const enUS = {
   description: 'Description',
   detectInstalledAppsFailedDetail: 'Client detection is temporarily unavailable. Showing all supported clients for now.',
   language: 'Language',
+  languageSystem: 'Follow System',
   delete: 'Delete',
   deleteConfirm: 'Delete {{name}}?\n\nThis will save immediately and sync the removal to installed clients.',
   edit: 'Edit',
