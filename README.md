@@ -34,7 +34,7 @@
 - Review risky writes before files change
 - Keep backups and rollback support during apply
 - Use light mode, dark mode, or system theme
-- Work in English or Simplified Chinese
+- Use the UI in English, Simplified Chinese, Traditional Chinese, Japanese, Korean, German, French, Spanish, Brazilian Portuguese, or Russian (follows the system language by default)
 
 ## Screenshots
 

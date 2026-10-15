@@ -10,7 +10,7 @@ import { ServerEditor } from './components/ServerEditor'
 import { ToastViewport } from './components/ToastViewport'
 import { UpdateProgressWindow } from './components/UpdateProgressWindow'
 import { applyWarningMessages, mapConfigToWorkspaceView, type FeedbackItem } from './view-models/workspace'
-import './i18n'
+import { getLanguagePreference, setLanguagePreference } from './i18n'
 import {
   EMPTY_WORKSPACE,
   SUPPORTED_APPS,
@@ -116,9 +116,10 @@ function detectPlatform(): 'macos' | 'windows' | 'linux' | 'unknown' {
 }
 
 function MainApp() {
-  const { t, i18n } = useTranslation()
+  const { t } = useTranslation()
   const [autoImportOnLaunch, setAutoImportOnLaunch] = useState(readAutoImportOnLaunchPreference)
   const [theme, setTheme] = useState<ThemeMode>(readThemePreference)
+  const [languagePreference, setLanguagePreferenceState] = useState(getLanguagePreference)
   const [systemTheme, setSystemTheme] = useState<'light' | 'dark'>(readSystemTheme)
   const [platform] = useState(detectPlatform)
   const [appVersion, setAppVersion] = useState(FALLBACK_APP_VERSION)
@@ -861,7 +862,7 @@ function MainApp() {
           autoImportOnLaunch={autoImportOnLaunch}
           busy={isBusy}
           checkingUpdates={actionState === 'checking-updates'}
-          language={i18n.language}
+          language={languagePreference}
           marketplaceEnabled={marketplaceEnabled}
           onMarketplaceEnabledChange={handleMarketplaceEnabledChange}
           onOpenRepository={() => void handleOpenRepository()}
@@ -869,7 +870,10 @@ function MainApp() {
           theme={theme}
           onBack={() => navigateToView('dashboard')}
           onCheckUpdates={() => void handleCheckUpdates()}
-          onLanguageChange={(language) => void i18n.changeLanguage(language)}
+          onLanguageChange={(language) => {
+            setLanguagePreferenceState(language)
+            setLanguagePreference(language)
+          }}
           onThemeChange={setTheme}
         />
       ) : view === 'marketplace' && marketplaceEnabled ? (

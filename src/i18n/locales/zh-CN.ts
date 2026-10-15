@@ -1,4 +1,6 @@
-const zhCN = {
+import type { LocaleMessages } from './en-US'
+
+const zhCN: LocaleMessages = {
   title: 'MCP Manager',
   add: '添加 Server',
   appScope: '客户端范围',
@@ -22,6 +24,7 @@ const zhCN = {
   description: '描述',
   detectInstalledAppsFailedDetail: '客户端检测暂时不可用，当前已显示全部支持的客户端。',
   language: '语言',
+  languageSystem: '跟随系统',
   delete: '删除',
   deleteConfirm: '确定删除 {{name}} 吗？\n\n删除后会立即保存，并同步到已安装客户端。',
   edit: '编辑',
