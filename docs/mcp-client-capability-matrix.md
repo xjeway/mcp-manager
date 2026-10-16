@@ -26,7 +26,7 @@ storage path, merge behavior, and precedence.
 | OpenCode | `~/.config/opencode/opencode.json` | `opencode.json`, `.opencode/opencode.jsonc` | None | Direct project support |
 | GitHub Copilot | `~/.copilot/mcp-config.json` | `.mcp.json`, managed through Claude Code (Copilot CLI no longer reads `.vscode/mcp.json`) | None | User only in direct app controls; project via Claude Code |
 | Gemini CLI | `~/.gemini/settings.json` | `.gemini/settings.json` | None | Direct project support |
-| Antigravity | `~/.gemini/config/mcp_config.json` (2.0, shared by IDE and CLI) or `~/.gemini/antigravity/mcp_config.json` (1.x, used while the new file does not exist) | Unsupported by current model | None | User only |
+| Antigravity | `~/.gemini/config/mcp_config.json` (2.0, shared by IDE and CLI) or `~/.gemini/antigravity/mcp_config.json` (1.x, read and written only while the new file does not exist) | Unsupported by current model | None | User only |
 | iFlow | `~/.iflow/settings.json` | `.iflow/settings.json` | None | Direct project support; the product was shut down on 2026-04-17, kept only for existing configs |
 | Qwen Code | `~/.qwen/settings.json` | `.qwen/settings.json` | None | Direct project support |
 | Cline | `cline_mcp_settings.json` | Unsupported by current model | None | User only |

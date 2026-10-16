@@ -11,20 +11,14 @@ impl AppAdapter for AntigravityAdapter {
     }
 
     fn detect_sources(&self, ctx: &PlatformContext) -> Vec<(String, u32)> {
-        // Read both generations of the file; writes go to the one
-        // `user_app_config_path` picks.
-        [
-            crate::platform::ANTIGRAVITY_SHARED_CONFIG,
-            crate::platform::ANTIGRAVITY_LEGACY_CONFIG,
-        ]
-        .into_iter()
-        .map(|relative| {
-            (
-                ctx.home_dir.join(relative).to_string_lossy().to_string(),
-                20,
-            )
-        })
-        .collect()
+        // Only the file Antigravity reads: once the 2.0 shared file exists, a
+        // leftover 1.x file would bring back servers removed from the shared one.
+        vec![(
+            ctx.user_app_config_path(self.app())
+                .to_string_lossy()
+                .to_string(),
+            20,
+        )]
     }
 
     fn parse_source(
@@ -137,5 +131,29 @@ mod tests {
                 unrelated_key: "telemetry",
             },
         );
+    }
+
+    #[test]
+    fn reads_only_the_file_antigravity_uses() {
+        let home = tempfile::tempdir().expect("tempdir");
+        let ctx = PlatformContext {
+            os: PlatformOs::MacOS,
+            home_dir: home.path().to_path_buf(),
+            workspace_root: home.path().to_path_buf(),
+        };
+        let legacy = home.path().join(crate::platform::ANTIGRAVITY_LEGACY_CONFIG);
+        let shared = home.path().join(crate::platform::ANTIGRAVITY_SHARED_CONFIG);
+        let sources = || {
+            AntigravityAdapter
+                .detect_sources(&ctx)
+                .into_iter()
+                .map(|(path, _)| PathBuf::from(path))
+                .collect::<Vec<_>>()
+        };
+        assert_eq!(sources(), [legacy]);
+
+        std::fs::create_dir_all(shared.parent().unwrap()).unwrap();
+        std::fs::write(&shared, "{}").unwrap();
+        assert_eq!(sources(), [shared]);
     }
 }
