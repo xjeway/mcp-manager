@@ -56,6 +56,7 @@ const enUS = {
   batchDisableFor: 'Disable {{client}} for {{count}} selected servers',
   batchClear: 'Clear selection',
   close: 'Close',
+  dismissNotification: 'Dismiss notification',
   marketplace: 'Marketplace',
   marketplaceTitle: 'Find MCP servers',
   marketplaceOpen: 'Browse the marketplace',
