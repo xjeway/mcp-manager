@@ -40,6 +40,7 @@ function defaultConfig(): MCPConfig {
           kiloCode: false,
           factoryDroid: false,
           kimiCli: false,
+          zed: false,
         },
       },
       {
@@ -66,6 +67,7 @@ function defaultConfig(): MCPConfig {
           kiloCode: false,
           factoryDroid: false,
           kimiCli: false,
+          zed: false,
         },
       },
       {
@@ -97,6 +99,7 @@ function defaultConfig(): MCPConfig {
           kiloCode: false,
           factoryDroid: false,
           kimiCli: false,
+          zed: false,
         },
       },
     ],

@@ -207,6 +207,7 @@ make dev
 | Kilo Code | ✅ | ✅ |
 | Factory Droid | ✅ | ✅ |
 | Kimi CLI | ✅ | ✅ |
+| Zed | ✅ | ✅ |
 | VS Code | ✅ | ✅ |
 
 ## 命令行（预览）

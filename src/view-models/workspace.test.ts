@@ -46,6 +46,7 @@ describe('workspace view-models', () => {
               kiloCode: false,
               factoryDroid: false,
               kimiCli: false,
+              zed: false,
             },
           },
         ],
@@ -86,6 +87,7 @@ describe('workspace view-models', () => {
         kiloCode: false,
         factoryDroid: false,
         kimiCli: false,
+        zed: false,
       },
     })
 
@@ -127,6 +129,7 @@ describe('workspace view-models', () => {
               kiloCode: false,
               factoryDroid: false,
               kimiCli: false,
+              zed: false,
             },
           },
         ],
@@ -169,6 +172,7 @@ describe('workspace view-models', () => {
               kiloCode: false,
               factoryDroid: false,
               kimiCli: false,
+              zed: false,
             },
             placements: [
               {
@@ -272,6 +276,7 @@ describe('workspace view-models', () => {
         kiloCode: false,
         factoryDroid: false,
         kimiCli: false,
+        zed: false,
       },
       placements: [
         { app: 'vscode', scope: 'user', path: '/user/mcp.json', enabled: true, managed: true },

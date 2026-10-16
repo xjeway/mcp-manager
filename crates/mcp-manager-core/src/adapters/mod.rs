@@ -16,6 +16,7 @@ mod qoder;
 mod qwen_code;
 mod vscode;
 mod windsurf;
+mod zed;
 
 use crate::core::{
     ApplyWarning, LocalConfigSource, MCPConfig, MCPServer, PlacementScope, SupportedApp,
@@ -43,6 +44,7 @@ pub use qoder::QoderAdapter;
 pub use qwen_code::QwenCodeAdapter;
 pub use vscode::VSCodeAdapter;
 pub use windsurf::WindsurfAdapter;
+pub use zed::ZedAdapter;
 
 pub struct ParsedSources {
     pub sources: Vec<LocalConfigSource>,
@@ -93,6 +95,7 @@ pub fn workspace_scope_path(ctx: &PlatformContext, app: SupportedApp) -> Option<
         SupportedApp::Qoder => ".qoder/settings.json",
         SupportedApp::KiloCode => "kilo.json",
         SupportedApp::FactoryDroid => ".factory/mcp.json",
+        SupportedApp::Zed => ".zed/settings.json",
         _ => return None,
     };
     Some(ctx.workspace_file(relative).to_string_lossy().to_string())
@@ -282,7 +285,8 @@ fn standard_json_app_profile(app: SupportedApp) -> StandardJsonAppProfile {
     };
     StandardJsonAppProfile {
         // Kimi CLI's documented format has no `type`; it infers the transport.
-        include_transport_type: app != SupportedApp::KimiCli,
+        // Zed tells local from remote by `command` versus `url`.
+        include_transport_type: !matches!(app, SupportedApp::KimiCli | SupportedApp::Zed),
         // Windsurf and Antigravity ignore a remote server given as plain `url`.
         url_key: match app {
             SupportedApp::Windsurf | SupportedApp::Antigravity => "serverUrl",
@@ -517,6 +521,7 @@ pub fn adapters() -> Vec<Box<dyn AppAdapter>> {
         Box::new(KiloCodeAdapter),
         Box::new(FactoryDroidAdapter),
         Box::new(KimiCliAdapter),
+        Box::new(ZedAdapter),
     ]
 }
 

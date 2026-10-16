@@ -26,6 +26,7 @@ export function useAppStats(config: MCPConfig): Record<SupportedApp, number> {
       kiloCode: 0,
       factoryDroid: 0,
       kimiCli: 0,
+      zed: 0,
     })
   }, [config.servers])
 }

@@ -134,6 +134,10 @@ impl PlatformContext {
             }
             SupportedApp::FactoryDroid => self.home_dir.join(".factory/mcp.json"),
             SupportedApp::KimiCli => self.home_dir.join(".kimi/mcp.json"),
+            SupportedApp::Zed => match self.os {
+                PlatformOs::Windows => self.home_dir.join("AppData/Roaming/Zed/settings.json"),
+                _ => self.home_dir.join(".config/zed/settings.json"),
+            },
         }
     }
 
@@ -211,6 +215,12 @@ impl PlatformContext {
             SupportedApp::KiloCode => (&["kilo", "kilocode"][..], &[][..], &[][..]),
             SupportedApp::FactoryDroid => (&["droid"][..], &[][..], &[][..]),
             SupportedApp::KimiCli => (&["kimi"][..], &[][..], &[][..]),
+            SupportedApp::Zed => (
+                // Some Linux packages install the CLI as `zeditor`.
+                &["zed", "zeditor"][..],
+                &["Zed.app"][..],
+                &["AppData/Local/Programs/Zed/Zed.exe"][..],
+            ),
         };
 
         self.command_exists(commands)
@@ -314,7 +324,8 @@ impl PlatformContext {
             | SupportedApp::Qoder
             | SupportedApp::KiloCode
             | SupportedApp::FactoryDroid
-            | SupportedApp::KimiCli => {
+            | SupportedApp::KimiCli
+            | SupportedApp::Zed => {
                 vec![self.user_app_config_path(app).to_string_lossy().to_string()]
             }
             SupportedApp::GithubCopilot => vec![

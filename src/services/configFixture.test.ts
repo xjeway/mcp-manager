@@ -32,6 +32,7 @@ const config: MCPConfig = {
         kiloCode: false,
         factoryDroid: false,
         kimiCli: false,
+        zed: false,
       },
     },
     {
@@ -60,6 +61,7 @@ const config: MCPConfig = {
         kiloCode: false,
         factoryDroid: false,
         kimiCli: false,
+        zed: false,
       },
       placements: [{ app: 'claudeCode', scope: 'workspace', enabled: true, managed: true }],
     },

@@ -121,6 +121,12 @@ export const CLIENTS: ClientMeta[] = [
     accent: 'client-cursor',
     icon: <ClientLogo src="/logos/apps/kimi.svg" alt="Kimi CLI" />,
   },
+  {
+    id: 'zed',
+    label: 'Zed',
+    accent: 'client-codex',
+    icon: <ClientLogo src="/logos/apps/zed.svg" alt="Zed" />,
+  },
 ]
 
 export const CLIENTS_BY_LABEL = [...CLIENTS].sort((left, right) =>

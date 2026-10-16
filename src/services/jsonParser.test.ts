@@ -89,6 +89,7 @@ describe('parseMcpJson', () => {
       kiloCode: false,
       factoryDroid: false,
       kimiCli: false,
+      zed: false,
     } satisfies MCPServer['apps'])
   })
 

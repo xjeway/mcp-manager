@@ -27,6 +27,7 @@ describe('clientDetectionUi', () => {
         'kiloCode',
         'factoryDroid',
         'kimiCli',
+        'zed',
       ]),
     ).toBe(false)
   })

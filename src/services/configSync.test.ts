@@ -33,6 +33,7 @@ describe('configSync', () => {
             kiloCode: false,
             factoryDroid: false,
             kimiCli: false,
+            zed: false,
           },
         },
         {
@@ -61,6 +62,7 @@ describe('configSync', () => {
             kiloCode: false,
             factoryDroid: false,
             kimiCli: false,
+            zed: false,
           },
         },
       ],
@@ -95,6 +97,7 @@ describe('configSync', () => {
             kiloCode: false,
             factoryDroid: false,
             kimiCli: false,
+            zed: false,
           },
         },
         {
@@ -124,6 +127,7 @@ describe('configSync', () => {
             kiloCode: false,
             factoryDroid: false,
             kimiCli: false,
+            zed: false,
           },
         },
       ],

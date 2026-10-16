@@ -353,6 +353,8 @@ const TRANSPORT_FIELDS: &[&str] = &[
     "headers",
     "http_headers",
     "tools",
+    // Older Zed marker for a custom server, next to a nested `command`.
+    "source",
 ];
 
 fn is_transport_field(field: &str) -> bool {

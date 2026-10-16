@@ -28,6 +28,7 @@ describe('evaluateApplyRisks', () => {
           kiloCode: false,
           factoryDroid: false,
           kimiCli: false,
+          zed: false,
         },
       },
     ])

@@ -25,6 +25,7 @@ servers:
       kiloCode: false
       factoryDroid: false
       kimiCli: false
+      zed: false
   - description: Docs lookup
     id: context7
     name: context7
@@ -57,6 +58,7 @@ servers:
       kiloCode: false
       factoryDroid: false
       kimiCli: false
+      zed: false
     placements:
       - app: claudeCode
         scope: workspace

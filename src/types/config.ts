@@ -19,6 +19,7 @@ export const SUPPORTED_APPS = [
   'kiloCode',
   'factoryDroid',
   'kimiCli',
+  'zed',
 ] as const
 
 export type SupportedApp = (typeof SUPPORTED_APPS)[number]

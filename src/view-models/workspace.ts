@@ -88,6 +88,7 @@ function emptyApps(): MCPServer['apps'] {
     kiloCode: false,
     factoryDroid: false,
     kimiCli: false,
+    zed: false,
   }
 }
 

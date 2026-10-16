@@ -25,6 +25,7 @@ describe('client capabilities', () => {
       'qoder',
       'qwenCode',
       'vscode',
+      'zed',
     ])
   })
 

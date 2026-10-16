@@ -36,6 +36,7 @@ const previousConfig = {
         kiloCode: false,
         factoryDroid: false,
         kimiCli: false,
+        zed: false,
       },
     },
   ],

@@ -88,6 +88,7 @@ describe('pendingChanges', () => {
                 kiloCode: false,
                 factoryDroid: false,
                 kimiCli: false,
+                zed: false,
               },
             },
           ],
@@ -118,6 +119,7 @@ describe('pendingChanges', () => {
             kiloCode: false,
             factoryDroid: false,
             kimiCli: false,
+            zed: false,
           },
         },
       ).servers[0].command?.args,
@@ -131,7 +133,7 @@ describe('pendingChanges', () => {
       tags: ['work'],
       transport: { type: 'http', url: 'https://old', auth: 'oauth' },
       command: { program: 'npx', args: [], env: {}, cwd: '/tmp' },
-      apps: { cursor: true, zed: true },
+      apps: { cursor: true, futureClient: true },
     }
     const edited = {
       id: 'linear',
@@ -147,7 +149,7 @@ describe('pendingChanges', () => {
       tags: ['work'],
       transport: { type: 'http', url: 'https://new', auth: 'oauth' },
       command: { program: 'npx', args: ['-y'], env: {}, cwd: '/tmp' },
-      apps: { cursor: false, zed: true },
+      apps: { cursor: false, futureClient: true },
     })
     expect(
       mergeServerIntoConfig({ version: 1, servers: [saved] }, 'linear', edited).servers[0],
@@ -164,10 +166,10 @@ describe('pendingChanges', () => {
   it('keeps clients the editor does not offer when it rebuilds apps and placements', () => {
     const saved = {
       id: 'a',
-      apps: { cursor: true, zed: true },
+      apps: { cursor: true, futureClient: true },
       placements: [
         { app: 'cursor', scope: 'user', enabled: true },
-        { app: 'zed', scope: 'user', enabled: true },
+        { app: 'futureClient', scope: 'user', enabled: true },
       ],
     }
     // As the JSON mode produces it: only known clients, and cursor turned off.
@@ -175,19 +177,19 @@ describe('pendingChanges', () => {
 
     expect(carryUnknownFields<Record<string, unknown>>(saved, edited)).toEqual({
       id: 'a',
-      apps: { cursor: false, vscode: true, zed: true },
-      placements: [{ app: 'zed', scope: 'user', enabled: true }],
+      apps: { cursor: false, vscode: true, futureClient: true },
+      placements: [{ app: 'futureClient', scope: 'user', enabled: true }],
     })
   })
 
   it('takes unknown clients from the saved server over a stale draft', () => {
-    // mcpmgr turned zed off while the editor still held zed: true.
-    const saved = { id: 'a', apps: { cursor: true, zed: false } }
-    const edited = { id: 'a', apps: { cursor: true, zed: true } }
+    // mcpmgr turned futureClient off while the editor still held futureClient: true.
+    const saved = { id: 'a', apps: { cursor: true, futureClient: false } }
+    const edited = { id: 'a', apps: { cursor: true, futureClient: true } }
 
     expect(carryUnknownFields<Record<string, unknown>>(saved, edited)).toEqual({
       id: 'a',
-      apps: { cursor: true, zed: false },
+      apps: { cursor: true, futureClient: false },
     })
   })
 })
