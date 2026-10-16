@@ -1,8 +1,6 @@
-<p align="center">
-  <img src="../../src-tauri/icons/app-icon-rounded.png" alt="Logo di MCP Manager" width="160" height="160" />
-</p>
-
-<h1 align="center">MCP Manager</h1>
+<h1 align="center">
+  <img src="../../src-tauri/icons/app-icon-rounded.png" alt="MCP Manager logo" width="64" valign="middle" /> MCP Manager
+</h1>
 
 <p align="center">
   Un'app desktop multipiattaforma per gestire le configurazioni dei server MCP in Claude Code, Codex, Cursor, VS Code, OpenCode, Gemini CLI e altri ancora.
@@ -77,21 +75,21 @@ xattr -dr com.apple.quarantine "/Applications/MCP Manager.app"
 Ogni client qui sotto supporta sia l'**importazione** (lettura dei server MCP esistenti dalla sua configurazione) sia l'**applicazione** (riscrittura della configurazione unificata).
 
 <p>
-  <a href="https://docs.anthropic.com/en/docs/claude-code"><kbd><img src="../../docs/assets/clients/claudecode.svg" alt="Logo di Claude Code" width="16" valign="middle" /> Claude Code</kbd></a> &nbsp;
-  <a href="https://claude.ai/download"><kbd><img src="../../docs/assets/clients/claude.svg" alt="Logo di Claude Desktop" width="16" valign="middle" /> Claude Desktop</kbd></a> &nbsp;
-  <a href="https://github.com/openai/codex"><kbd><img src="../../docs/assets/clients/codex.svg" alt="Logo di Codex" width="16" valign="middle" /> Codex</kbd></a> &nbsp;
-  <a href="https://cursor.com"><kbd><img src="../../docs/assets/clients/cursor.svg" alt="Logo di Cursor" width="16" valign="middle" /> Cursor</kbd></a> &nbsp;
-  <a href="https://opencode.ai"><kbd><img src="../../docs/assets/clients/opencode.svg" alt="Logo di OpenCode" width="16" valign="middle" /> OpenCode</kbd></a> &nbsp;
-  <a href="https://github.com/features/copilot"><kbd><img src="../../docs/assets/clients/githubcopilot.svg" alt="Logo di GitHub Copilot" width="16" valign="middle" /> GitHub Copilot</kbd></a> &nbsp;
-  <a href="https://github.com/google-gemini/gemini-cli"><kbd><img src="../../docs/assets/clients/gemini.svg" alt="Logo di Gemini CLI" width="16" valign="middle" /> Gemini CLI</kbd></a> &nbsp;
-  <a href="https://antigravity.google"><kbd><img src="../../docs/assets/clients/antigravity.svg" alt="Logo di Antigravity" width="16" valign="middle" /> Antigravity</kbd></a> &nbsp;
-  <a href="https://github.com/iflow-ai/iflow-cli"><kbd><img src="../../docs/assets/clients/iflow.svg" alt="Logo di iFlow" width="16" valign="middle" /> iFlow</kbd></a> &nbsp;
-  <a href="https://github.com/QwenLM/qwen-code"><kbd><img src="../../docs/assets/clients/qwen.svg" alt="Logo di Qwen Code" width="16" valign="middle" /> Qwen Code</kbd></a> &nbsp;
-  <a href="https://cline.bot"><kbd><img src="../../docs/assets/clients/cline.svg" alt="Logo di Cline" width="16" valign="middle" /> Cline</kbd></a> &nbsp;
-  <a href="https://windsurf.com"><kbd><img src="../../docs/assets/clients/windsurf.svg" alt="Logo di Windsurf" width="16" valign="middle" /> Windsurf</kbd></a> &nbsp;
-  <a href="https://kiro.dev"><kbd><img src="../../docs/assets/clients/kiro.svg" alt="Logo di Kiro" width="16" valign="middle" /> Kiro</kbd></a> &nbsp;
-  <a href="https://qoder.com"><kbd><img src="../../docs/assets/clients/qoder.svg" alt="Logo di Qoder" width="16" valign="middle" /> Qoder</kbd></a> &nbsp;
-  <a href="https://code.visualstudio.com"><kbd><img src="../../docs/assets/clients/vscode.svg" alt="Logo di VS Code" width="16" valign="middle" /> VS Code</kbd></a> &nbsp;
+  <a href="https://docs.anthropic.com/en/docs/claude-code"><kbd><img src="../../public/logos/apps/claudecode.svg" alt="Logo di Claude Code" width="16" valign="middle" /> Claude Code</kbd></a> &nbsp;
+  <a href="https://claude.ai/download"><kbd><img src="../../public/logos/apps/claude.svg" alt="Logo di Claude Desktop" width="16" valign="middle" /> Claude Desktop</kbd></a> &nbsp;
+  <a href="https://github.com/openai/codex"><kbd><img src="../../public/logos/apps/codex.svg" alt="Logo di Codex" width="16" valign="middle" /> Codex</kbd></a> &nbsp;
+  <a href="https://cursor.com"><kbd><img src="../../public/logos/apps/cursor.svg" alt="Logo di Cursor" width="16" valign="middle" /> Cursor</kbd></a> &nbsp;
+  <a href="https://opencode.ai"><kbd><img src="../../public/logos/apps/opencode.svg" alt="Logo di OpenCode" width="16" valign="middle" /> OpenCode</kbd></a> &nbsp;
+  <a href="https://github.com/features/copilot"><kbd><img src="../../public/logos/apps/githubcopilot.svg" alt="Logo di GitHub Copilot" width="16" valign="middle" /> GitHub Copilot</kbd></a> &nbsp;
+  <a href="https://github.com/google-gemini/gemini-cli"><kbd><img src="../../public/logos/apps/gemini.svg" alt="Logo di Gemini CLI" width="16" valign="middle" /> Gemini CLI</kbd></a> &nbsp;
+  <a href="https://antigravity.google"><kbd><img src="../../public/logos/apps/antigravity.svg" alt="Logo di Antigravity" width="16" valign="middle" /> Antigravity</kbd></a> &nbsp;
+  <a href="https://github.com/iflow-ai/iflow-cli"><kbd><img src="../../public/logos/apps/iflow.svg" alt="Logo di iFlow" width="16" valign="middle" /> iFlow</kbd></a> &nbsp;
+  <a href="https://github.com/QwenLM/qwen-code"><kbd><img src="../../public/logos/apps/qwen.svg" alt="Logo di Qwen Code" width="16" valign="middle" /> Qwen Code</kbd></a> &nbsp;
+  <a href="https://cline.bot"><kbd><img src="../../public/logos/apps/cline.svg" alt="Logo di Cline" width="16" valign="middle" /> Cline</kbd></a> &nbsp;
+  <a href="https://windsurf.com"><kbd><img src="../../public/logos/apps/windsurf.svg" alt="Logo di Windsurf" width="16" valign="middle" /> Windsurf</kbd></a> &nbsp;
+  <a href="https://kiro.dev"><kbd><img src="../../public/logos/apps/kiro.svg" alt="Logo di Kiro" width="16" valign="middle" /> Kiro</kbd></a> &nbsp;
+  <a href="https://qoder.com"><kbd><img src="../../public/logos/apps/qoder.svg" alt="Logo di Qoder" width="16" valign="middle" /> Qoder</kbd></a> &nbsp;
+  <a href="https://code.visualstudio.com"><kbd><img src="../../public/logos/apps/vscode.svg" alt="Logo di VS Code" width="16" valign="middle" /> VS Code</kbd></a> &nbsp;
 </p>
 
 ## Riga di comando (anteprima)
