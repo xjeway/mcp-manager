@@ -58,6 +58,7 @@ const frFR: LocaleMessages = {
   batchDisableFor: 'Désactiver {{client}} pour les {{count}} serveurs sélectionnés',
   batchClear: 'Effacer la sélection',
   close: 'Fermer',
+  dismissNotification: 'Fermer la notification',
   marketplace: 'Catalogue',
   marketplaceTitle: 'Trouver des serveurs MCP',
   marketplaceOpen: 'Parcourir le catalogue',

@@ -58,6 +58,7 @@ const koKR: LocaleMessages = {
   batchDisableFor: '선택한 서버 {{count}}개에 {{client}} 사용 안 함',
   batchClear: '선택 해제',
   close: '닫기',
+  dismissNotification: '알림 닫기',
   marketplace: '마켓플레이스',
   marketplaceTitle: 'MCP 서버 찾기',
   marketplaceOpen: '마켓플레이스 둘러보기',
