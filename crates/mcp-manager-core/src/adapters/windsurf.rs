@@ -121,7 +121,7 @@ mod tests {
 
         std::fs::create_dir_all(devin.parent().unwrap()).unwrap();
         std::fs::write(&devin, "{}").unwrap();
-        assert_eq!(sources(), [devin.clone()]);
+        assert_eq!(sources(), std::slice::from_ref(&devin));
         assert_eq!(ctx.user_app_config_path(SupportedApp::Windsurf), devin);
     }
 
