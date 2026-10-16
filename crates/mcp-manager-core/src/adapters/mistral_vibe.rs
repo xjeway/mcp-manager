@@ -72,6 +72,10 @@ fn split_command(line: &str) -> Vec<String> {
 }
 
 /// `[[mcp_servers]]` as an `mcpServers` document the shared parser reads.
+///
+/// `disabled = true` hides a server in Vibe only. It is not read as the server
+/// being off everywhere (the next apply would then delete it), and an apply
+/// keeps it in the file.
 fn normalize(content: &str) -> Result<String, String> {
     let root: toml::Table = toml::from_str(content).map_err(|e| e.to_string())?;
     let mut servers = Map::new();
@@ -130,9 +134,6 @@ fn normalize(content: &str) -> Result<String, String> {
             if let Some(headers) = headers {
                 server.insert("headers".into(), headers.clone());
             }
-        }
-        if let Some(disabled) = entry.get("disabled") {
-            server.insert("disabled".into(), disabled.clone());
         }
         servers.insert(name.to_string(), Value::Object(server));
     }
@@ -262,6 +263,7 @@ tool_timeout_sec = 120
 name = "linear"
 transport = "streamable-http"
 url = "https://mcp.linear.app/mcp"
+disabled = true
 
 [mcp_servers.auth]
 type = "oauth"
@@ -312,6 +314,7 @@ permission = "always"
             Some("https://mcp.linear.app/mcp")
         );
         assert!(server("linear").transport.headers.is_empty());
+        assert!(server("linear").enabled, "hidden in Vibe only");
         assert_eq!(
             server("docs").transport.headers["Authorization"],
             "Bearer legacy"
@@ -417,6 +420,8 @@ permission = "always"
         assert_eq!(fetch["tool_timeout_sec"].as_integer(), Some(120));
         // OAuth is not modeled, so the entry keeps its auth table.
         assert_eq!(entry("linear")["auth"]["type"].as_str(), Some("oauth"));
+        // Vibe's own switch stays.
+        assert_eq!(entry("linear")["disabled"].as_bool(), Some(true));
         // Legacy header keys move into `auth`, which Vibe requires alone, so
         // the API-key setting survives the rewrite.
         let docs = entry("docs");

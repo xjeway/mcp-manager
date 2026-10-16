@@ -54,19 +54,24 @@ fn line_key(line: &str) -> Option<String> {
     (after.is_empty() || after.starts_with(' ')).then_some(key)
 }
 
-/// `key: value` printed as block YAML at `indent`, nesting by `unit` spaces
-/// per level as the rest of the file does.
-fn render_entry(key: &str, value: &Value, indent: usize, unit: usize, newline: &str) -> String {
+/// `key: value` printed as block YAML, every line shifted right by `indent`.
+///
+/// Lines are only prefixed, never re-indented: nested levels keep the two
+/// spaces serde_yaml prints (valid in a file indented differently), and the
+/// content of a multi-line string keeps its own leading spaces.
+fn render_entry(key: &str, value: &Value, indent: usize, newline: &str) -> String {
     let mut wrapper = Map::new();
     wrapper.insert(key.to_string(), value.clone());
     let printed = serde_yaml::to_string(&Value::Object(wrapper)).expect("print YAML entry");
+    let pad = " ".repeat(indent);
     printed
         .lines()
         .map(|line| {
-            // serde_yaml nests by two spaces.
-            let depth = indent_of(line) / 2;
-            let pad = " ".repeat(indent + depth * unit);
-            format!("{pad}{}{newline}", line.trim_start_matches(' '))
+            if line.is_empty() {
+                newline.to_string()
+            } else {
+                format!("{pad}{line}{newline}")
+            }
         })
         .collect()
 }
@@ -109,13 +114,18 @@ pub fn merge_mapping_entries(
         .iter()
         .position(|line| indent_of(line) == 0 && line_key(line).as_deref() == Some(field));
 
-    let rendered = |key: &str, indent: usize, unit: usize| {
-        let mut value = new_entries[key].clone();
-        if let Some(old) = old_entries.get(key) {
-            carry_over(old, &mut value);
-        }
-        render_entry(key, &value, indent, unit, newline)
-    };
+    // What each new entry will hold once the old entry's kept fields are in.
+    let merged = new_entries
+        .iter()
+        .map(|(key, value)| {
+            let mut value = value.clone();
+            if let Some(old) = old_entries.get(key) {
+                carry_over(old, &mut value);
+            }
+            (key.clone(), value)
+        })
+        .collect::<Map<_, _>>();
+    let rendered = |key: &str, indent: usize| render_entry(key, &merged[key], indent, newline);
 
     let Some(field_line) = field_line else {
         if new_entries.is_empty() {
@@ -127,9 +137,9 @@ pub fn merge_mapping_entries(
         }
         out.push_str(&format!("{field}:{newline}"));
         for key in new_entries.keys() {
-            out.push_str(&rendered(key, 2, 2));
+            out.push_str(&rendered(key, 2));
         }
-        return check(text, &out, field, new_entries, remove_keys);
+        return check(text, &out, field, &merged, remove_keys);
     };
 
     // `field:` must open a block mapping: nothing after the colon but a
@@ -193,7 +203,7 @@ pub fn merge_mapping_entries(
     for entry in &entries {
         let text = if new_entries.contains_key(&entry.key) && !written.contains(&entry.key) {
             written.push(entry.key.clone());
-            rendered(&entry.key, indent, indent)
+            rendered(&entry.key, indent)
         } else if new_entries.contains_key(&entry.key) || remove_keys.contains(&entry.key) {
             String::new()
         } else {
@@ -204,7 +214,7 @@ pub fn merge_mapping_entries(
     let appended = new_entries
         .keys()
         .filter(|key| !written.contains(key))
-        .map(|key| rendered(key, indent, indent))
+        .map(|key| rendered(key, indent))
         .collect::<String>();
     let append_after = last_content.unwrap_or(field_line);
 
@@ -238,17 +248,17 @@ pub fn merge_mapping_entries(
         );
     }
 
-    check(text, &out, field, new_entries, remove_keys)
+    check(text, &out, field, &merged, remove_keys)
 }
 
 /// Parses `out` back and makes sure it holds exactly what was intended:
 /// everything outside `field` unchanged, untouched entries unchanged, removed
-/// entries gone and new ones present.
+/// entries gone, and every written entry equal to its `merged` value.
 fn check(
     text: &str,
     out: &str,
     field: &str,
-    new_entries: &Map<String, Value>,
+    merged: &Map<String, Value>,
     remove_keys: &[String],
 ) -> Result<String, String> {
     let before = parse(text)?;
@@ -265,16 +275,19 @@ fn check(
     let (old, new) = (entries(&before), entries(&after));
     let untouched_kept = old
         .iter()
-        .filter(|(key, _)| !new_entries.contains_key(*key) && !remove_keys.contains(*key))
+        .filter(|(key, _)| !merged.contains_key(*key) && !remove_keys.contains(*key))
         .all(|(key, value)| new.get(key) == Some(value));
     let expected_keys = old
         .keys()
         .filter(|key| !remove_keys.contains(*key))
-        .chain(new_entries.keys())
+        .chain(merged.keys())
         .collect::<std::collections::BTreeSet<_>>();
     if strip(&before) != strip(&after)
         || !untouched_kept
         || new.keys().collect::<std::collections::BTreeSet<_>>() != expected_keys
+        || merged
+            .iter()
+            .any(|(key, value)| new.get(key) != Some(value))
     {
         return Err(format!(
             "could not edit field {field} without changing other settings"
@@ -414,7 +427,7 @@ terminal:
         .expect("merge");
         assert_eq!(
             out,
-            "mcp_servers:\r\n    a:\r\n        command: new\r\n    b:\r\n        command: b\r\nz: 1\r\n"
+            "mcp_servers:\r\n    a:\r\n      command: new\r\n    b:\r\n      command: b\r\nz: 1\r\n"
         );
     }
 
@@ -501,5 +514,24 @@ terminal:
                 assert!(out.starts_with("# top\n"), "{out}");
             }
         }
+    }
+
+    #[test]
+    fn multi_line_strings_keep_their_leading_spaces() {
+        let value = "line one\n   three spaces\n  two spaces\n";
+        let text = "mcp_servers:\n    a:\n        command: old\n";
+        let out = merge_mapping_entries(
+            text,
+            "mcp_servers",
+            &entries(json!({"a": {"command": "x", "env": {"NOTE": value}}})),
+            &["a".to_string()],
+            keep_nothing,
+        )
+        .expect("merge");
+        assert_eq!(
+            yaml(&out)["mcp_servers"]["a"]["env"]["NOTE"],
+            value,
+            "{out}"
+        );
     }
 }
