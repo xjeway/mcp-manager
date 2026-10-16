@@ -21,6 +21,8 @@ export const SUPPORTED_APPS = [
   'kimiCli',
   'zed',
   'mistralVibe',
+  'hermes',
+  'goose',
 ] as const
 
 export type SupportedApp = (typeof SUPPORTED_APPS)[number]

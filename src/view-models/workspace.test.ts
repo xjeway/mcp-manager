@@ -48,6 +48,8 @@ describe('workspace view-models', () => {
               kimiCli: false,
               zed: false,
               mistralVibe: false,
+              hermes: false,
+              goose: false,
             },
           },
         ],
@@ -90,6 +92,8 @@ describe('workspace view-models', () => {
         kimiCli: false,
         zed: false,
         mistralVibe: false,
+        hermes: false,
+        goose: false,
       },
     })
 
@@ -133,6 +137,8 @@ describe('workspace view-models', () => {
               kimiCli: false,
               zed: false,
               mistralVibe: false,
+              hermes: false,
+              goose: false,
             },
           },
         ],
@@ -177,6 +183,8 @@ describe('workspace view-models', () => {
               kimiCli: false,
               zed: false,
               mistralVibe: false,
+              hermes: false,
+              goose: false,
             },
             placements: [
               {
@@ -282,6 +290,8 @@ describe('workspace view-models', () => {
         kimiCli: false,
         zed: false,
         mistralVibe: false,
+        hermes: false,
+        goose: false,
       },
       placements: [
         { app: 'vscode', scope: 'user', path: '/user/mcp.json', enabled: true, managed: true },

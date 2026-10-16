@@ -10,6 +10,7 @@ use toml::Table;
 
 mod jsonc;
 mod toml_doc;
+mod yaml_doc;
 
 fn base_dir() -> PathBuf {
     PlatformContext::current().app_data_dir()
@@ -356,6 +357,12 @@ const TRANSPORT_FIELDS: &[&str] = &[
     "tools",
     // Older Zed marker for a custom server, next to a nested `command`.
     "source",
+    // Mistral Vibe and Hermes name the transport; Goose spells the command,
+    // URL and environment `cmd`, `uri` and `envs`.
+    "transport",
+    "cmd",
+    "uri",
+    "envs",
 ];
 
 fn is_transport_field(field: &str) -> bool {
@@ -367,7 +374,7 @@ fn is_transport_field(field: &str) -> bool {
 /// entry, or a remote-only `bearer_token_env_var` on a stdio one, is rejected
 /// by some clients (Codex fails to load its config).
 fn is_local_entry<'a>(mut keys: impl Iterator<Item = &'a String>) -> bool {
-    keys.any(|key| key == "command")
+    keys.any(|key| key == "command" || key == "cmd")
 }
 
 /// Copies the fields of `old` that an apply keeps into `new`.
@@ -398,6 +405,11 @@ pub(crate) fn carry_unmanaged_fields(old: &Value, new: &mut Value) {
                 }
             }
         }
+    }
+    // Whether the client turned the entry off is the client's setting: an
+    // apply writes `enabled: true` only for a new entry.
+    if let (Some(enabled), Some(slot)) = (old.get("enabled"), new.get_mut("enabled")) {
+        *slot = enabled.clone();
     }
     let has_auth = new.contains_key("auth");
     for (field, value) in old {
@@ -466,6 +478,30 @@ fn apply_merge_toml_table_entries(
     atomic_write(path, &updated)
 }
 
+fn apply_merge_yaml_mapping_entries(
+    path: &Path,
+    field: &str,
+    content: &str,
+    remove_keys: Option<&[String]>,
+) -> Result<(), String> {
+    let new_entries = merge_content(field, content)?;
+    let existing = read_existing(path)?;
+    let updated = yaml_doc::merge_mapping_entries(
+        &existing,
+        field,
+        &new_entries,
+        remove_keys.unwrap_or_default(),
+        carry_unmanaged_fields,
+    )
+    .map_err(|error| {
+        format!(
+            "{} could not be edited as YAML: {error}",
+            path.to_string_lossy()
+        )
+    })?;
+    atomic_write(path, &updated)
+}
+
 /// Key that identifies an entry of a `merge_toml_array_entries` list.
 const TOML_ARRAY_ENTRY_KEY: &str = "name";
 
@@ -529,6 +565,12 @@ pub fn apply_operation(path: &Path, item: &WriteOperation) -> Result<(), String>
         "merge_toml_array_entries" => apply_merge_toml_array_entries(
             path,
             field("TOML")?,
+            &item.content,
+            item.remove_keys.as_deref(),
+        ),
+        "merge_yaml_mapping_entries" => apply_merge_yaml_mapping_entries(
+            path,
+            field("YAML")?,
             &item.content,
             item.remove_keys.as_deref(),
         ),

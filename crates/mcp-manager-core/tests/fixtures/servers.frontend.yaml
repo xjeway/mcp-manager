@@ -27,6 +27,8 @@ servers:
       kimiCli: false
       zed: false
       mistralVibe: false
+      hermes: false
+      goose: false
   - description: Docs lookup
     id: context7
     name: context7
@@ -61,6 +63,8 @@ servers:
       kimiCli: false
       zed: false
       mistralVibe: false
+      hermes: false
+      goose: false
     placements:
       - app: claudeCode
         scope: workspace

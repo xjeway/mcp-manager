@@ -7,6 +7,8 @@ mod cursor;
 mod factory_droid;
 mod gemini_cli;
 mod github_copilot;
+mod goose;
+mod hermes;
 mod iflow;
 mod kilo_code;
 mod kimi_cli;
@@ -36,6 +38,8 @@ pub use cursor::CursorAdapter;
 pub use factory_droid::FactoryDroidAdapter;
 pub use gemini_cli::GeminiCliAdapter;
 pub use github_copilot::GithubCopilotAdapter;
+pub use goose::GooseAdapter;
+pub use hermes::HermesAdapter;
 pub use iflow::IFlowAdapter;
 pub use kilo_code::KiloCodeAdapter;
 pub use kimi_cli::KimiCliAdapter;
@@ -343,6 +347,134 @@ pub fn vibe_mcp_servers_at(
     Value::Object(servers)
 }
 
+/// Writes for a client that keeps its servers in a YAML mapping under `field`.
+pub fn managed_yaml_mapping_writes(
+    ctx: &PlatformContext,
+    field: &str,
+    app: SupportedApp,
+    config: &MCPConfig,
+    previous_config: Option<&MCPConfig>,
+    content_for_path: fn(&MCPConfig, SupportedApp, &str, &PlatformContext) -> Value,
+) -> Vec<WriteOperation> {
+    target_paths(ctx, config, previous_config, app)
+        .into_iter()
+        .map(|path| WriteOperation {
+            content: serde_json::to_string(&content_for_path(config, app, &path, ctx))
+                .expect("serialize managed yaml mapping"),
+            path: path.clone(),
+            mode: "merge_yaml_mapping_entries".to_string(),
+            field: Some(field.to_string()),
+            remove_keys: Some(managed_server_ids(ctx, config, previous_config, app, &path)),
+        })
+        .collect()
+}
+
+/// Servers enabled for `app` at `path`, without the SSE servers `app` cannot
+/// reach.
+fn servers_for_path<'a>(
+    config: &'a MCPConfig,
+    app: SupportedApp,
+    path: &'a str,
+    ctx: &'a PlatformContext,
+) -> impl Iterator<Item = &'a MCPServer> {
+    config.servers.iter().filter(move |server| {
+        server.enabled
+            && server_enabled_for_path(ctx, server, app, path)
+            && (server.transport.kind != "sse" || sse_supported(app))
+    })
+}
+
+/// Hermes Agent's `mcp_servers`: `command`/`args`/`env`, or `url`/`headers`
+/// with `transport: sse` for SSE (streamable HTTP is its default).
+pub fn hermes_mcp_servers_at(
+    config: &MCPConfig,
+    app: SupportedApp,
+    path: &str,
+    ctx: &PlatformContext,
+) -> Value {
+    let mut servers = Map::new();
+    for server in servers_for_path(config, app, path, ctx) {
+        let value = if server.transport.kind == "stdio" {
+            let command = server.command.as_ref();
+            serde_json::json!({
+                "command": command.map(|c| c.program.clone()).unwrap_or_default(),
+                "args": command.map(|c| c.args.clone()).unwrap_or_default(),
+                "env": command.map(|c| c.env.clone()).unwrap_or_default(),
+            })
+        } else {
+            let mut remote = serde_json::json!({
+                "url": server.transport.url.clone().unwrap_or_default(),
+            });
+            if server.transport.kind == "sse" {
+                remote["transport"] = Value::String("sse".to_string());
+            }
+            if let Some(headers) = headers_value(server) {
+                remote["headers"] = headers;
+            }
+            remote
+        };
+        servers.insert(server.id.clone(), value);
+    }
+    Value::Object(servers)
+}
+
+/// Goose's key for an extension named `name` (`name_to_key` in Goose).
+pub fn goose_key(name: &str) -> String {
+    name.chars()
+        .filter(|ch| !ch.is_whitespace())
+        .map(|ch| {
+            if ch.is_ascii_alphanumeric() || ch == '_' || ch == '-' {
+                ch
+            } else {
+                '_'
+            }
+        })
+        .collect::<String>()
+        .to_lowercase()
+}
+
+/// Goose's `extensions`, keyed by server id. Goose looks an extension up by
+/// the key of its `name`, so the display name is used only when it maps back
+/// to the id. Goose has no SSE client; SSE servers are left out and reported
+/// by `apply_warnings`.
+pub fn goose_extensions_at(
+    config: &MCPConfig,
+    app: SupportedApp,
+    path: &str,
+    ctx: &PlatformContext,
+) -> Value {
+    let mut extensions = Map::new();
+    for server in servers_for_path(config, app, path, ctx) {
+        let name = if goose_key(&server.name) == server.id {
+            server.name.clone()
+        } else {
+            server.id.clone()
+        };
+        let mut value = if server.transport.kind == "stdio" {
+            let command = server.command.as_ref();
+            serde_json::json!({
+                "type": "stdio",
+                "cmd": command.map(|c| c.program.clone()).unwrap_or_default(),
+                "args": command.map(|c| c.args.clone()).unwrap_or_default(),
+                "envs": command.map(|c| c.env.clone()).unwrap_or_default(),
+            })
+        } else {
+            let mut remote = serde_json::json!({
+                "type": "streamable_http",
+                "uri": server.transport.url.clone().unwrap_or_default(),
+            });
+            if let Some(headers) = headers_value(server) {
+                remote["headers"] = headers;
+            }
+            remote
+        };
+        value["name"] = Value::String(name);
+        value["enabled"] = Value::Bool(true);
+        extensions.insert(server.id.clone(), value);
+    }
+    Value::Object(extensions)
+}
+
 #[derive(Clone, Copy)]
 struct StandardJsonAppProfile {
     include_transport_type: bool,
@@ -386,7 +518,7 @@ pub fn http_headers_supported(app: SupportedApp) -> bool {
 /// Clients that can only reach a remote server over streamable HTTP. An SSE
 /// server is not written to them.
 fn sse_supported(app: SupportedApp) -> bool {
-    app != SupportedApp::MistralVibe
+    !matches!(app, SupportedApp::MistralVibe | SupportedApp::Goose)
 }
 
 /// Clients `server` is enabled for, at any scope.
@@ -613,6 +745,8 @@ pub fn adapters() -> Vec<Box<dyn AppAdapter>> {
         Box::new(KimiCliAdapter),
         Box::new(ZedAdapter),
         Box::new(MistralVibeAdapter),
+        Box::new(HermesAdapter),
+        Box::new(GooseAdapter),
     ]
 }
 

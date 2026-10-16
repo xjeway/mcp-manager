@@ -24,6 +24,8 @@ function defaultApps(): MCPServer['apps'] {
     kimiCli: false,
     zed: false,
     mistralVibe: false,
+    hermes: false,
+    goose: false,
   }
 }
 

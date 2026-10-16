@@ -24,10 +24,12 @@ pub enum SupportedApp {
     KimiCli,
     Zed,
     MistralVibe,
+    Hermes,
+    Goose,
 }
 
 impl SupportedApp {
-    pub const ALL: [SupportedApp; 20] = [
+    pub const ALL: [SupportedApp; 22] = [
         SupportedApp::Vscode,
         SupportedApp::Cursor,
         SupportedApp::ClaudeCode,
@@ -48,6 +50,8 @@ impl SupportedApp {
         SupportedApp::KimiCli,
         SupportedApp::Zed,
         SupportedApp::MistralVibe,
+        SupportedApp::Hermes,
+        SupportedApp::Goose,
     ];
 
     pub fn as_str(self) -> &'static str {
@@ -72,6 +76,8 @@ impl SupportedApp {
             SupportedApp::KimiCli => "kimiCli",
             SupportedApp::Zed => "zed",
             SupportedApp::MistralVibe => "mistralVibe",
+            SupportedApp::Hermes => "hermes",
+            SupportedApp::Goose => "goose",
         }
     }
 
@@ -98,6 +104,8 @@ impl SupportedApp {
             SupportedApp::KimiCli => "Kimi CLI",
             SupportedApp::Zed => "Zed",
             SupportedApp::MistralVibe => "Mistral Vibe",
+            SupportedApp::Hermes => "Hermes Agent",
+            SupportedApp::Goose => "Goose",
         }
     }
 
@@ -124,6 +132,8 @@ impl SupportedApp {
             SupportedApp::KimiCli => "kimi-cli",
             SupportedApp::Zed => "zed",
             SupportedApp::MistralVibe => "mistral-vibe",
+            SupportedApp::Hermes => "hermes",
+            SupportedApp::Goose => "goose",
         }
     }
 
@@ -382,6 +392,8 @@ pub fn empty_apps() -> HashMap<SupportedApp, bool> {
         (SupportedApp::KimiCli, false),
         (SupportedApp::Zed, false),
         (SupportedApp::MistralVibe, false),
+        (SupportedApp::Hermes, false),
+        (SupportedApp::Goose, false),
     ])
 }
 

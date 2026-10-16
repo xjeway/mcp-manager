@@ -211,6 +211,8 @@ make dev
 | Kimi CLI | ✅ | ✅ |
 | Zed | ✅ | ✅ |
 | Mistral Vibe | ✅ | ✅ |
+| Hermes Agent | ✅ | ✅ |
+| Goose | ✅ | ✅ |
 | VS Code | ✅ | ✅ |
 
 ## Command Line (Preview)

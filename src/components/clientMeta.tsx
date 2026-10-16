@@ -133,6 +133,18 @@ export const CLIENTS: ClientMeta[] = [
     accent: 'client-cursor',
     icon: <ClientLogo src="/logos/apps/mistral.svg" alt="Mistral Vibe" />,
   },
+  {
+    id: 'hermes',
+    label: 'Hermes Agent',
+    accent: 'client-claude',
+    icon: <ClientLogo src="/logos/apps/hermes.svg" alt="Hermes Agent" />,
+  },
+  {
+    id: 'goose',
+    label: 'Goose',
+    accent: 'client-vscode',
+    icon: <ClientLogo src="/logos/apps/goose.svg" alt="Goose" />,
+  },
 ]
 
 export const CLIENTS_BY_LABEL = [...CLIENTS].sort((left, right) =>

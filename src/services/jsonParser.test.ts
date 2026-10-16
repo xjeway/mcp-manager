@@ -91,6 +91,8 @@ describe('parseMcpJson', () => {
       kimiCli: false,
       zed: false,
       mistralVibe: false,
+      hermes: false,
+      goose: false,
     } satisfies MCPServer['apps'])
   })
 

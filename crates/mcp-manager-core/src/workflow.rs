@@ -262,7 +262,10 @@ fn with_kept_fields(current: &Value, desired: &Value) -> Value {
 fn is_entry_merge(mode: &str) -> bool {
     matches!(
         mode,
-        "merge_json_object_entries" | "merge_toml_table_entries" | "merge_toml_array_entries"
+        "merge_json_object_entries"
+            | "merge_toml_table_entries"
+            | "merge_toml_array_entries"
+            | "merge_yaml_mapping_entries"
     )
 }
 
@@ -286,6 +289,8 @@ fn existing_entries(
         toml::from_str::<toml::Table>(&content)
             .ok()
             .and_then(|table| serde_json::to_value(table).ok())
+    } else if operation.mode == "merge_yaml_mapping_entries" {
+        serde_yaml::from_str::<Value>(&content).ok()
     } else {
         crate::parser::parse_jsonc(&content).ok()
     };

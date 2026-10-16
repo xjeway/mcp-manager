@@ -34,6 +34,8 @@ const config: MCPConfig = {
         kimiCli: false,
         zed: false,
         mistralVibe: false,
+        hermes: false,
+        goose: false,
       },
     },
     {
@@ -64,6 +66,8 @@ const config: MCPConfig = {
         kimiCli: false,
         zed: false,
         mistralVibe: false,
+        hermes: false,
+        goose: false,
       },
       placements: [{ app: 'claudeCode', scope: 'workspace', enabled: true, managed: true }],
     },

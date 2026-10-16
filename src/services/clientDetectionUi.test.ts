@@ -29,6 +29,8 @@ describe('clientDetectionUi', () => {
         'kimiCli',
         'zed',
         'mistralVibe',
+        'hermes',
+        'goose',
       ]),
     ).toBe(false)
   })

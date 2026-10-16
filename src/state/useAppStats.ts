@@ -28,6 +28,8 @@ export function useAppStats(config: MCPConfig): Record<SupportedApp, number> {
       kimiCli: 0,
       zed: 0,
       mistralVibe: 0,
+      hermes: 0,
+      goose: 0,
     })
   }, [config.servers])
 }

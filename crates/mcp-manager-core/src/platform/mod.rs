@@ -139,6 +139,13 @@ impl PlatformContext {
                 _ => self.home_dir.join(".config/zed/settings.json"),
             },
             SupportedApp::MistralVibe => self.home_dir.join(".vibe/config.toml"),
+            SupportedApp::Hermes => self.home_dir.join(".hermes/config.yaml"),
+            SupportedApp::Goose => match self.os {
+                PlatformOs::Windows => self
+                    .home_dir
+                    .join("AppData/Roaming/Block/goose/config/config.yaml"),
+                _ => self.home_dir.join(".config/goose/config.yaml"),
+            },
         }
     }
 
@@ -223,6 +230,12 @@ impl PlatformContext {
                 &["AppData/Local/Programs/Zed/Zed.exe"][..],
             ),
             SupportedApp::MistralVibe => (&["vibe"][..], &[][..], &[][..]),
+            SupportedApp::Hermes => (&["hermes"][..], &[][..], &[][..]),
+            SupportedApp::Goose => (
+                &["goose"][..],
+                &["Goose.app"][..],
+                &["AppData/Local/Programs/Goose/Goose.exe"][..],
+            ),
         };
 
         self.command_exists(commands)
@@ -328,7 +341,9 @@ impl PlatformContext {
             | SupportedApp::FactoryDroid
             | SupportedApp::KimiCli
             | SupportedApp::Zed
-            | SupportedApp::MistralVibe => {
+            | SupportedApp::MistralVibe
+            | SupportedApp::Hermes
+            | SupportedApp::Goose => {
                 vec![self.user_app_config_path(app).to_string_lossy().to_string()]
             }
             SupportedApp::GithubCopilot => vec![
