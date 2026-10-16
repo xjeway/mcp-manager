@@ -869,6 +869,72 @@ pub(crate) mod header_fixture {
     }
 }
 
+/// Shared check for clients whose entries carry their own on/off switch
+/// (`disabled: true` or `enabled: false`).
+#[cfg(test)]
+pub(crate) mod client_switch_fixture {
+    use super::AppAdapter;
+    use crate::core::MCPConfig;
+    use crate::platform::{PlatformContext, PlatformOs};
+    use crate::storage::apply_operation;
+    use serde_json::Value;
+    use std::fs;
+    use std::path::PathBuf;
+
+    /// Imports `fixture`, whose `off` server is switched off in the client
+    /// with `switch: value` under `field`, and applies the import twice. The
+    /// server must import as enabled, and both applies must keep the entry
+    /// and the client's switch.
+    pub fn assert_switch_kept(
+        adapter: &dyn AppAdapter,
+        fixture: &str,
+        field: &str,
+        switch: &str,
+        value: bool,
+    ) {
+        let home = tempfile::tempdir().expect("tempdir");
+        let ctx = PlatformContext {
+            os: PlatformOs::MacOS,
+            home_dir: home.path().to_path_buf(),
+            workspace_root: home.path().to_path_buf(),
+        };
+        let path = ctx.user_app_config_path(adapter.app());
+        fs::create_dir_all(path.parent().unwrap()).unwrap();
+        fs::write(&path, fixture).unwrap();
+
+        let parsed = adapter.parse_source(&ctx, &path.to_string_lossy(), 20, fixture);
+        assert!(parsed.errors.is_empty(), "{:?}", parsed.errors);
+        let servers = parsed
+            .servers
+            .into_iter()
+            .map(|(server, _)| server)
+            .collect::<Vec<_>>();
+        let off = servers
+            .iter()
+            .find(|server| server.id == "off")
+            .expect("off server imported");
+        assert!(off.enabled, "switched off in {:?} only", adapter.app());
+        assert!(off.apps[&adapter.app()]);
+
+        let config = MCPConfig {
+            version: 1,
+            servers,
+        };
+        // A first apply, then a later one that knows the server from the
+        // previous config (and so lists it among the entries it manages).
+        for previous in [None, Some(&config)] {
+            for operation in adapter.plan_apply(&ctx, &config, previous) {
+                apply_operation(&PathBuf::from(&operation.path), &operation).expect("apply");
+            }
+            let content = fs::read_to_string(&path).unwrap();
+            let host: Value = crate::parser::parse_jsonc(&content).expect("valid JSONC");
+            let entry = &host[field]["off"];
+            assert!(entry.is_object(), "entry kept: {content}");
+            assert_eq!(entry[switch], Value::Bool(value), "{content}");
+        }
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::apply_warnings;

@@ -231,18 +231,12 @@ fn parse_server(id: &str, input: &Map<String, Value>) -> Result<MCPServer, Strin
             .filter(|value| !value.trim().is_empty())
             .unwrap_or(id)
             .to_string(),
-        enabled: if input
-            .get("disabled")
-            .and_then(Value::as_bool)
-            .unwrap_or(false)
-        {
-            false
-        } else {
-            input
-                .get("enabled")
-                .and_then(Value::as_bool)
-                .unwrap_or(true)
-        },
+        // A client's `disabled: true` / `enabled: false` turns the server off
+        // in that client only (Kiro, Cline, Windsurf, OpenCode, ...). It stays
+        // in the client's file, where a rewrite keeps it; reading it as the
+        // server being off everywhere would make the next apply delete the
+        // entry from every client.
+        enabled: true,
         transport,
         command,
         apps: empty_apps(),
@@ -651,7 +645,7 @@ args = ["@playwright/mcp@latest"]
     }
 
     #[test]
-    fn parses_server_url_alias_and_disabled() {
+    fn parses_server_url_alias_and_keeps_client_switch_out_of_enabled() {
         let parsed = parse_mcp_json(
             r#"{"mcpServers":{"linear":{"serverUrl":"https://mcp.linear.app/sse","type":"sse","disabled":true}}}"#,
         );
@@ -660,7 +654,15 @@ args = ["@playwright/mcp@latest"]
             parsed.servers[0].transport.url.as_deref(),
             Some("https://mcp.linear.app/sse")
         );
-        assert!(!parsed.servers[0].enabled);
+        assert!(parsed.servers[0].enabled, "turned off in that client only");
+    }
+
+    #[test]
+    fn ignores_client_enabled_false() {
+        let parsed =
+            parse_mcp_json(r#"{"mcpServers":{"linear":{"command":"npx","enabled":false}}}"#);
+        assert!(parsed.errors.is_empty());
+        assert!(parsed.servers[0].enabled);
     }
 
     #[test]

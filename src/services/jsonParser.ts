@@ -57,7 +57,6 @@ function normalizeServer(id: string, input: Record<string, unknown>): MCPServer 
         : typeof input.serverUrl === 'string'
           ? input.serverUrl
           : undefined
-  const disabled = input.disabled === true
   const transport: MCPServer['transport'] =
     type === 'http' || type === 'sse' || type === 'streamable-http' || url
       ? { type: 'http', url, ...(Object.keys(headers).length > 0 ? { headers } : {}) }
@@ -68,7 +67,9 @@ function normalizeServer(id: string, input: Record<string, unknown>): MCPServer 
     homepage: typeof input.homepage === 'string' && input.homepage.trim() ? input.homepage : undefined,
     id,
     name: typeof input.name === 'string' && input.name.trim() ? input.name : id,
-    enabled: disabled ? false : input.enabled === undefined ? true : Boolean(input.enabled),
+    // A client's `disabled: true` / `enabled: false` turns the server off in that
+    // client only; it is not MCP Manager's switch (same as the import in Rust).
+    enabled: true,
     transport,
     apps,
   }
