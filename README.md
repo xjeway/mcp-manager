@@ -1,5 +1,3 @@
-
-
 <p align="center">
   <img src="./src-tauri/icons/app-icon-rounded.png" alt="MCP Manager logo" width="160" height="160" />
 </p>
@@ -11,6 +9,7 @@
 </p>
 
 <p align="center">
+  <a href="https://github.com/xjeway/mcp-manager/stargazers"><img src="https://img.shields.io/github/stars/xjeway/mcp-manager?style=flat&label=%E2%98%85&color=f59e0b" alt="GitHub stars" /></a>
   <a href="./LICENSE"><img src="https://img.shields.io/badge/license-MIT-0f172a.svg" alt="MIT License" /></a>
   <img src="https://img.shields.io/badge/Tauri-2-24c8db.svg" alt="Tauri 2" />
   <img src="https://img.shields.io/badge/React-19-61dafb.svg" alt="React 19" />
@@ -19,8 +18,29 @@
 </p>
 
 <p align="center">
-  English | <a href="./README.zh-CN.md">简体中文</a> | <a href="https://github.com/xjeway/mcp-manager/releases/latest">Latest Release</a> | <a href="./docs/releasing.md">Release Guide</a>
+  <sub><b>English</b> · <a href="./README.zh-CN.md">简体中文</a> · <a href="./docs/readme/README.zh-TW.md">繁體中文</a> · <a href="./docs/readme/README.ja.md">日本語</a> · <a href="./docs/readme/README.ko.md">한국어</a> · <a href="./docs/readme/README.de.md">Deutsch</a> · <a href="./docs/readme/README.fr.md">Français</a> · <a href="./docs/readme/README.es.md">Español</a> · <a href="./docs/readme/README.it.md">Italiano</a> · <a href="./docs/readme/README.pt-BR.md">Português</a> · <a href="./docs/readme/README.ru.md">Русский</a></sub>
 </p>
+
+<h3 align="center"><a href="https://github.com/xjeway/mcp-manager/releases/latest"><ins>Download MCP Manager</ins></a></h3>
+
+## Table of Contents
+
+- [Why MCP Manager](#why-mcp-manager)
+- [Screenshots](#screenshots)
+- [Download & Installation](#download--installation)
+  - [macOS](#macos) · [Windows](#windows) · [Linux](#linux-users) · [Build From Source](#build-from-source)
+- [Quick Start](#quick-start)
+- [Supported Clients](#supported-clients)
+- [Command Line (Preview)](#command-line-preview)
+- [How It Works](#how-it-works)
+- [Scope](#scope)
+- [Project Structure](#project-structure)
+- [Development](#development)
+- [Release Automation](#release-automation)
+- [Contributing](#contributing)
+- [Star History](#star-history)
+- [Disclaimer](#disclaimer)
+- [License](#license)
 
 ## Why MCP Manager
 
@@ -34,7 +54,7 @@
 - Review risky writes before files change
 - Keep backups and rollback support during apply
 - Use light mode, dark mode, or system theme
-- Use the UI in English, Simplified Chinese, Traditional Chinese, Japanese, Korean, German, French, Spanish, Brazilian Portuguese, or Russian (follows the system language by default)
+- Use the UI in English, Simplified Chinese, Traditional Chinese, Japanese, Korean, German, French, Spanish, Italian, Brazilian Portuguese, or Russian (follows the system language by default)
 
 ## Screenshots
 
@@ -188,25 +208,25 @@ make dev
 
 ## Supported Clients
 
-### Available Now
+Every client below supports both **import** (read existing MCP servers from its config) and **apply** (write the unified config back).
 
-| Client | Import | Apply |
-| --- | --- | --- |
-| Claude Code | ✅ | ✅ |
-| Claude Desktop | ✅ | ✅ |
-| Codex | ✅ | ✅ |
-| Cursor | ✅ | ✅ |
-| OpenCode | ✅ | ✅ |
-| GitHub Copilot | ✅ | ✅ |
-| Gemini CLI | ✅ | ✅ |
-| Antigravity | ✅ | ✅ |
-| iFlow | ✅ | ✅ |
-| Qwen Code | ✅ | ✅ |
-| Cline | ✅ | ✅ |
-| Windsurf | ✅ | ✅ |
-| Kiro | ✅ | ✅ |
-| Qoder | ✅ | ✅ |
-| VS Code | ✅ | ✅ |
+<p>
+  <a href="https://docs.anthropic.com/en/docs/claude-code"><kbd><img src="./docs/assets/clients/claudecode.svg" alt="Claude Code logo" width="16" valign="middle" /> Claude Code</kbd></a> &nbsp;
+  <a href="https://claude.ai/download"><kbd><img src="./docs/assets/clients/claude.svg" alt="Claude Desktop logo" width="16" valign="middle" /> Claude Desktop</kbd></a> &nbsp;
+  <a href="https://github.com/openai/codex"><kbd><img src="./docs/assets/clients/codex.svg" alt="Codex logo" width="16" valign="middle" /> Codex</kbd></a> &nbsp;
+  <a href="https://cursor.com"><kbd><img src="./docs/assets/clients/cursor.svg" alt="Cursor logo" width="16" valign="middle" /> Cursor</kbd></a> &nbsp;
+  <a href="https://opencode.ai"><kbd><img src="./docs/assets/clients/opencode.svg" alt="OpenCode logo" width="16" valign="middle" /> OpenCode</kbd></a> &nbsp;
+  <a href="https://github.com/features/copilot"><kbd><img src="./docs/assets/clients/githubcopilot.svg" alt="GitHub Copilot logo" width="16" valign="middle" /> GitHub Copilot</kbd></a> &nbsp;
+  <a href="https://github.com/google-gemini/gemini-cli"><kbd><img src="./docs/assets/clients/gemini.svg" alt="Gemini CLI logo" width="16" valign="middle" /> Gemini CLI</kbd></a> &nbsp;
+  <a href="https://antigravity.google"><kbd><img src="./docs/assets/clients/antigravity.svg" alt="Antigravity logo" width="16" valign="middle" /> Antigravity</kbd></a> &nbsp;
+  <a href="https://github.com/iflow-ai/iflow-cli"><kbd><img src="./docs/assets/clients/iflow.svg" alt="iFlow logo" width="16" valign="middle" /> iFlow</kbd></a> &nbsp;
+  <a href="https://github.com/QwenLM/qwen-code"><kbd><img src="./docs/assets/clients/qwen.svg" alt="Qwen Code logo" width="16" valign="middle" /> Qwen Code</kbd></a> &nbsp;
+  <a href="https://cline.bot"><kbd><img src="./docs/assets/clients/cline.svg" alt="Cline logo" width="16" valign="middle" /> Cline</kbd></a> &nbsp;
+  <a href="https://windsurf.com"><kbd><img src="./docs/assets/clients/windsurf.svg" alt="Windsurf logo" width="16" valign="middle" /> Windsurf</kbd></a> &nbsp;
+  <a href="https://kiro.dev"><kbd><img src="./docs/assets/clients/kiro.svg" alt="Kiro logo" width="16" valign="middle" /> Kiro</kbd></a> &nbsp;
+  <a href="https://qoder.com"><kbd><img src="./docs/assets/clients/qoder.svg" alt="Qoder logo" width="16" valign="middle" /> Qoder</kbd></a> &nbsp;
+  <a href="https://code.visualstudio.com"><kbd><img src="./docs/assets/clients/vscode.svg" alt="VS Code logo" width="16" valign="middle" /> VS Code</kbd></a> &nbsp;
+</p>
 
 ## Command Line (Preview)
 
@@ -314,7 +334,17 @@ make test
 make check
 ```
 
-Keep [`README.md`](./README.md) and [`README.zh-CN.md`](./README.zh-CN.md) in sync when changing user-facing project documentation.
+Keep [`README.md`](./README.md), [`README.zh-CN.md`](./README.zh-CN.md), and the translations in [`docs/readme/`](./docs/readme/) in sync when changing user-facing project documentation.
+
+## Star History
+
+<a href="https://star-history.com/#xjeway/mcp-manager&Date">
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="https://api.star-history.com/svg?repos=xjeway/mcp-manager&type=Date&theme=dark" />
+    <source media="(prefers-color-scheme: light)" srcset="https://api.star-history.com/svg?repos=xjeway/mcp-manager&type=Date" />
+    <img alt="Star History Chart" src="https://api.star-history.com/svg?repos=xjeway/mcp-manager&type=Date" />
+  </picture>
+</a>
 
 ## Disclaimer
 

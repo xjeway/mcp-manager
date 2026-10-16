@@ -9,6 +9,7 @@
 </p>
 
 <p align="center">
+  <a href="https://github.com/xjeway/mcp-manager/stargazers"><img src="https://img.shields.io/github/stars/xjeway/mcp-manager?style=flat&label=%E2%98%85&color=f59e0b" alt="GitHub stars" /></a>
   <a href="./LICENSE"><img src="https://img.shields.io/badge/license-MIT-0f172a.svg" alt="MIT License" /></a>
   <img src="https://img.shields.io/badge/Tauri-2-24c8db.svg" alt="Tauri 2" />
   <img src="https://img.shields.io/badge/React-19-61dafb.svg" alt="React 19" />
@@ -17,8 +18,29 @@
 </p>
 
 <p align="center">
-  <a href="./README.md">English</a> | 简体中文 | <a href="https://github.com/xjeway/mcp-manager/releases/latest">Latest Release</a> | <a href="./docs/releasing.md">发布说明</a>
+  <sub><a href="./README.md">English</a> · <b>简体中文</b> · <a href="./docs/readme/README.zh-TW.md">繁體中文</a> · <a href="./docs/readme/README.ja.md">日本語</a> · <a href="./docs/readme/README.ko.md">한국어</a> · <a href="./docs/readme/README.de.md">Deutsch</a> · <a href="./docs/readme/README.fr.md">Français</a> · <a href="./docs/readme/README.es.md">Español</a> · <a href="./docs/readme/README.it.md">Italiano</a> · <a href="./docs/readme/README.pt-BR.md">Português</a> · <a href="./docs/readme/README.ru.md">Русский</a></sub>
 </p>
+
+<h3 align="center"><a href="https://github.com/xjeway/mcp-manager/releases/latest"><ins>下载 MCP Manager</ins></a></h3>
+
+## 目录
+
+- [为什么选择 MCP Manager](#为什么选择-mcp-manager)
+- [界面截图](#界面截图)
+- [下载与安装](#下载与安装)
+  - [macOS](#macos) · [Windows](#windows) · [Linux](#linux-用户) · [从源码构建](#从源码构建)
+- [快速开始](#快速开始)
+- [支持的客户端](#支持的客户端)
+- [命令行（预览）](#命令行预览)
+- [工作方式](#工作方式)
+- [当前范围](#当前范围)
+- [项目结构](#项目结构)
+- [开发命令](#开发命令)
+- [自动发版](#自动发版)
+- [参与贡献](#参与贡献)
+- [Star History](#star-history)
+- [免责声明](#免责声明)
+- [License](#license)
 
 ## 为什么选择 MCP Manager
 
@@ -32,7 +54,7 @@
 - 文件写入前展示风险提示
 - apply 过程支持备份与回滚
 - 支持浅色、深色、跟随系统主题
-- 界面支持英文、简体中文、繁体中文、日语、韩语、德语、法语、西班牙语、巴西葡萄牙语和俄语（默认跟随系统语言）
+- 界面支持英文、简体中文、繁体中文、日语、韩语、德语、法语、西班牙语、意大利语、巴西葡萄牙语和俄语（默认跟随系统语言）
 
 ## 界面截图
 
@@ -186,25 +208,25 @@ make dev
 
 ## 支持的客户端
 
-### 已支持
+以下所有客户端均支持**导入**（读取其配置中已有的 MCP Server）和**应用**（将统一配置写回）。
 
-| 客户端 | 导入 | 应用 |
-| --- | --- | --- |
-| Claude Code | ✅ | ✅ |
-| Claude Desktop | ✅ | ✅ |
-| Codex | ✅ | ✅ |
-| Cursor | ✅ | ✅ |
-| OpenCode | ✅ | ✅ |
-| GitHub Copilot | ✅ | ✅ |
-| Gemini CLI | ✅ | ✅ |
-| Antigravity | ✅ | ✅ |
-| iFlow | ✅ | ✅ |
-| Qwen Code | ✅ | ✅ |
-| Cline | ✅ | ✅ |
-| Windsurf | ✅ | ✅ |
-| Kiro | ✅ | ✅ |
-| Qoder | ✅ | ✅ |
-| VS Code | ✅ | ✅ |
+<p>
+  <a href="https://docs.anthropic.com/en/docs/claude-code"><kbd><img src="./docs/assets/clients/claudecode.svg" alt="Claude Code logo" width="16" valign="middle" /> Claude Code</kbd></a> &nbsp;
+  <a href="https://claude.ai/download"><kbd><img src="./docs/assets/clients/claude.svg" alt="Claude Desktop logo" width="16" valign="middle" /> Claude Desktop</kbd></a> &nbsp;
+  <a href="https://github.com/openai/codex"><kbd><img src="./docs/assets/clients/codex.svg" alt="Codex logo" width="16" valign="middle" /> Codex</kbd></a> &nbsp;
+  <a href="https://cursor.com"><kbd><img src="./docs/assets/clients/cursor.svg" alt="Cursor logo" width="16" valign="middle" /> Cursor</kbd></a> &nbsp;
+  <a href="https://opencode.ai"><kbd><img src="./docs/assets/clients/opencode.svg" alt="OpenCode logo" width="16" valign="middle" /> OpenCode</kbd></a> &nbsp;
+  <a href="https://github.com/features/copilot"><kbd><img src="./docs/assets/clients/githubcopilot.svg" alt="GitHub Copilot logo" width="16" valign="middle" /> GitHub Copilot</kbd></a> &nbsp;
+  <a href="https://github.com/google-gemini/gemini-cli"><kbd><img src="./docs/assets/clients/gemini.svg" alt="Gemini CLI logo" width="16" valign="middle" /> Gemini CLI</kbd></a> &nbsp;
+  <a href="https://antigravity.google"><kbd><img src="./docs/assets/clients/antigravity.svg" alt="Antigravity logo" width="16" valign="middle" /> Antigravity</kbd></a> &nbsp;
+  <a href="https://github.com/iflow-ai/iflow-cli"><kbd><img src="./docs/assets/clients/iflow.svg" alt="iFlow logo" width="16" valign="middle" /> iFlow</kbd></a> &nbsp;
+  <a href="https://github.com/QwenLM/qwen-code"><kbd><img src="./docs/assets/clients/qwen.svg" alt="Qwen Code logo" width="16" valign="middle" /> Qwen Code</kbd></a> &nbsp;
+  <a href="https://cline.bot"><kbd><img src="./docs/assets/clients/cline.svg" alt="Cline logo" width="16" valign="middle" /> Cline</kbd></a> &nbsp;
+  <a href="https://windsurf.com"><kbd><img src="./docs/assets/clients/windsurf.svg" alt="Windsurf logo" width="16" valign="middle" /> Windsurf</kbd></a> &nbsp;
+  <a href="https://kiro.dev"><kbd><img src="./docs/assets/clients/kiro.svg" alt="Kiro logo" width="16" valign="middle" /> Kiro</kbd></a> &nbsp;
+  <a href="https://qoder.com"><kbd><img src="./docs/assets/clients/qoder.svg" alt="Qoder logo" width="16" valign="middle" /> Qoder</kbd></a> &nbsp;
+  <a href="https://code.visualstudio.com"><kbd><img src="./docs/assets/clients/vscode.svg" alt="VS Code logo" width="16" valign="middle" /> VS Code</kbd></a> &nbsp;
+</p>
 
 ## 命令行（预览）
 
@@ -312,7 +334,17 @@ make test
 make check
 ```
 
-修改面向用户的项目文档时，请同步维护 [`README.md`](./README.md) 和 [`README.zh-CN.md`](./README.zh-CN.md)。
+修改面向用户的项目文档时，请同步维护 [`README.md`](./README.md)、[`README.zh-CN.md`](./README.zh-CN.md) 以及 [`docs/readme/`](./docs/readme/) 中的其他语言版本。
+
+## Star History
+
+<a href="https://star-history.com/#xjeway/mcp-manager&Date">
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="https://api.star-history.com/svg?repos=xjeway/mcp-manager&type=Date&theme=dark" />
+    <source media="(prefers-color-scheme: light)" srcset="https://api.star-history.com/svg?repos=xjeway/mcp-manager&type=Date" />
+    <img alt="Star History Chart" src="https://api.star-history.com/svg?repos=xjeway/mcp-manager&type=Date" />
+  </picture>
+</a>
 
 ## 免责声明
 
