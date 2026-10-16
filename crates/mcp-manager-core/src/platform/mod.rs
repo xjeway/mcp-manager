@@ -9,6 +9,9 @@ pub enum PlatformOs {
     Unknown,
 }
 
+pub const ANTIGRAVITY_SHARED_CONFIG: &str = ".gemini/config/mcp_config.json";
+pub const ANTIGRAVITY_LEGACY_CONFIG: &str = ".gemini/antigravity/mcp_config.json";
+
 #[derive(Debug, Clone)]
 pub struct PlatformContext {
     pub os: PlatformOs,
@@ -102,7 +105,16 @@ impl PlatformContext {
             SupportedApp::OpenCode => self.home_dir.join(".config/opencode/opencode.json"),
             SupportedApp::GithubCopilot => self.home_dir.join(".copilot/mcp-config.json"),
             SupportedApp::GeminiCli => self.home_dir.join(".gemini/settings.json"),
-            SupportedApp::Antigravity => self.home_dir.join(".gemini/antigravity/mcp_config.json"),
+            SupportedApp::Antigravity => {
+                // Antigravity 2.0 moved the IDE and CLI to one shared file. Keep
+                // using the 1.x location until the new one exists.
+                let shared = self.home_dir.join(ANTIGRAVITY_SHARED_CONFIG);
+                if shared.exists() {
+                    shared
+                } else {
+                    self.home_dir.join(ANTIGRAVITY_LEGACY_CONFIG)
+                }
+            }
             SupportedApp::IFlow => self.home_dir.join(".iflow/settings.json"),
             SupportedApp::QwenCode => self.home_dir.join(".qwen/settings.json"),
             SupportedApp::Cline => self

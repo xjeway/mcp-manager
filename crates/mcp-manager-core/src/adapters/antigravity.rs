@@ -11,12 +11,15 @@ impl AppAdapter for AntigravityAdapter {
     }
 
     fn detect_sources(&self, ctx: &PlatformContext) -> Vec<(String, u32)> {
-        vec![(
-            ctx.user_app_config_path(self.app())
-                .to_string_lossy()
-                .to_string(),
-            20,
-        )]
+        // Read both generations of the file; writes go to the one
+        // `user_app_config_path` picks.
+        [
+            crate::platform::ANTIGRAVITY_SHARED_CONFIG,
+            crate::platform::ANTIGRAVITY_LEGACY_CONFIG,
+        ]
+        .into_iter()
+        .map(|relative| (ctx.home_dir.join(relative).to_string_lossy().to_string(), 20))
+        .collect()
     }
 
     fn parse_source(

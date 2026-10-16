@@ -13,7 +13,7 @@ impl AppAdapter for GithubCopilotAdapter {
     fn detect_sources(&self, ctx: &PlatformContext) -> Vec<(String, u32)> {
         vec![
             (
-                ctx.workspace_file(".vscode/mcp.json")
+                ctx.workspace_file(".mcp.json")
                     .to_string_lossy()
                     .to_string(),
                 10,
@@ -40,7 +40,7 @@ impl AppAdapter for GithubCopilotAdapter {
         priority: u32,
         content: &str,
     ) -> ParsedSources {
-        let normalized = if path.ends_with("mcp-config.json") {
+        let normalized = if path.ends_with("mcp-config.json") || path.ends_with(".mcp.json") {
             content.to_string()
         } else {
             match extract_json_field_mcp_json(content, "servers") {
@@ -118,7 +118,7 @@ mod tests {
     fn detects_cli_and_vscode_sources() {
         let sources = GithubCopilotAdapter.detect_sources(&ctx());
         assert_eq!(sources.len(), 3);
-        assert!(sources[0].0.ends_with(".vscode/mcp.json"));
+        assert!(sources[0].0.ends_with("/.mcp.json"));
         assert!(sources[2].0.ends_with(".copilot/mcp-config.json"));
     }
 

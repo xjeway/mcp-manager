@@ -11,14 +11,22 @@ impl AppAdapter for QoderAdapter {
     }
 
     fn detect_sources(&self, ctx: &PlatformContext) -> Vec<(String, u32)> {
-        // Qoder's project-level `.mcp.json` is shared with Claude Code, so only the
-        // user-level settings file is managed here.
-        vec![(
-            ctx.user_app_config_path(self.app())
-                .to_string_lossy()
-                .to_string(),
-            20,
-        )]
+        // Qoder also reads a project-root `.mcp.json`, but that file is shared with
+        // Claude Code, so only its own settings files are managed here.
+        vec![
+            (
+                ctx.workspace_file(".qoder/settings.json")
+                    .to_string_lossy()
+                    .to_string(),
+                10,
+            ),
+            (
+                ctx.user_app_config_path(self.app())
+                    .to_string_lossy()
+                    .to_string(),
+                20,
+            ),
+        ]
     }
 
     fn parse_source(

@@ -83,6 +83,10 @@ pub fn workspace_scope_path(ctx: &PlatformContext, app: SupportedApp) -> Option<
         SupportedApp::IFlow => ".iflow/settings.json",
         SupportedApp::QwenCode => ".qwen/settings.json",
         SupportedApp::Kiro => ".kiro/settings/mcp.json",
+        // Copilot CLI reads the same `.mcp.json` as Claude Code.
+        SupportedApp::GithubCopilot => ".mcp.json",
+        SupportedApp::Codex => ".codex/config.toml",
+        SupportedApp::Qoder => ".qoder/settings.json",
         _ => return None,
     };
     Some(ctx.workspace_file(relative).to_string_lossy().to_string())
@@ -255,6 +259,8 @@ pub fn managed_toml_field_writes(
 #[derive(Clone, Copy)]
 struct StandardJsonAppProfile {
     include_transport_type: bool,
+    /// Key for a remote server's URL.
+    url_key: &'static str,
     tools: Option<&'static [&'static str]>,
     /// Key for remote request headers; `None` when the client cannot take them.
     headers_key: Option<&'static str>,
@@ -268,8 +274,19 @@ fn standard_json_app_profile(app: SupportedApp) -> StandardJsonAppProfile {
         SupportedApp::ClaudeDesktop => None,
         _ => Some("headers"),
     };
+    // Windsurf and Antigravity take a remote server's URL as `serverUrl` and
+    // have no `type` field; a plain `url` entry is ignored by them.
+    let google_style_remote = matches!(app, SupportedApp::Windsurf | SupportedApp::Antigravity);
+    // The Gemini CLI family takes streamable HTTP as `httpUrl` and SSE as `url`.
+    // `url` + `type: "http"` only works on newer Gemini CLI builds, `httpUrl`
+    // works on all of them.
+    let gemini_family = matches!(
+        app,
+        SupportedApp::GeminiCli | SupportedApp::QwenCode | SupportedApp::IFlow
+    );
     StandardJsonAppProfile {
-        include_transport_type: true,
+        include_transport_type: !google_style_remote && !gemini_family,
+        url_key: if google_style_remote { "serverUrl" } else { "url" },
         tools: match app {
             SupportedApp::GithubCopilot => Some(&["*"]),
             _ => None,
@@ -316,6 +333,13 @@ fn headers_value(server: &MCPServer) -> Option<Value> {
         && !transport.headers.is_empty()
         && !transport.sends_headers_insecurely())
     .then(|| serde_json::to_value(&server.transport.headers).expect("serialize transport headers"))
+}
+
+fn gemini_family_streamable(app: SupportedApp, kind: &str) -> bool {
+    matches!(
+        app,
+        SupportedApp::GeminiCli | SupportedApp::QwenCode | SupportedApp::IFlow
+    ) && kind != "sse"
 }
 
 fn standard_json_transport_type(kind: &str) -> &'static str {
@@ -379,8 +403,13 @@ pub fn standard_mcp_servers_at(
                     ),
                 ])
             } else {
+                let url_key = if gemini_family_streamable(app, &server.transport.kind) {
+                    "httpUrl"
+                } else {
+                    profile.url_key
+                };
                 Map::from_iter([(
-                    "url".to_string(),
+                    url_key.to_string(),
                     Value::String(server.transport.url.clone().unwrap_or_default()),
                 )])
             };
@@ -530,6 +559,8 @@ pub(crate) mod header_fixture {
         let path = ctx.user_app_config_path(adapter.app());
         fs::create_dir_all(path.parent().unwrap()).unwrap();
         fs::write(&path, fixture).unwrap();
+        let original_host = read_host(&path);
+        let original_remote = original_host[expect.field]["remote"].clone();
 
         let parsed = adapter.parse_source(&ctx, &path.to_string_lossy(), 20, fixture);
         assert!(parsed.errors.is_empty(), "{:?}", parsed.errors);
@@ -575,6 +606,14 @@ pub(crate) mod header_fixture {
         let entries = &host[expect.field];
         assert!(entries.get("other").is_some(), "unmanaged server preserved");
         let written = &entries["remote"];
+        let original_url_key = ["url", "serverUrl", "httpUrl"]
+            .into_iter()
+            .find(|key| original_remote.get(*key).is_some())
+            .expect("fixture remote has a URL");
+        assert!(
+            written.get(original_url_key).is_some(),
+            "remote URL written as `{original_url_key}` like the client's own file: {written}"
+        );
         match expect.headers_key {
             Some(key) => {
                 assert_eq!(written[key]["Authorization"], "Bearer rotated", "{written}");

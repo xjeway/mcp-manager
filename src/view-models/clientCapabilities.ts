@@ -89,7 +89,13 @@ export const CLIENT_CAPABILITIES: Record<SupportedApp, ClientCapability> = {
     scopes: [localProjectScope(30), projectScope(20), userScope(10)],
   },
   claudeDesktop: userOnly('claudeDesktop', 'json', 'mergeJsonField'),
-  codex: userOnly('codex', 'toml', 'mergeTomlTable'),
+  codex: {
+    app: 'codex',
+    configFormat: 'toml',
+    mergePolicy: 'mergeTomlTable',
+    projectManagement: 'direct',
+    scopes: [projectScope(20), userScope(10)],
+  },
   openCode: {
     app: 'openCode',
     configFormat: 'jsonc',
@@ -101,9 +107,8 @@ export const CLIENT_CAPABILITIES: Record<SupportedApp, ClientCapability> = {
     app: 'githubCopilot',
     configFormat: 'json',
     mergePolicy: 'mergeJsonField',
-    projectManagement: 'viaOtherClient',
-    projectViaApp: 'vscode',
-    scopes: [userScope()],
+    projectManagement: 'direct',
+    scopes: [projectScope(20), userScope(10)],
   },
   geminiCli: {
     app: 'geminiCli',
@@ -129,7 +134,13 @@ export const CLIENT_CAPABILITIES: Record<SupportedApp, ClientCapability> = {
   },
   cline: userOnly('cline', 'json', 'mergeJsonField'),
   windsurf: userOnly('windsurf', 'json', 'mergeJsonField'),
-  qoder: userOnly('qoder', 'json', 'mergeJsonField'),
+  qoder: {
+    app: 'qoder',
+    configFormat: 'json',
+    mergePolicy: 'mergeJsonField',
+    projectManagement: 'direct',
+    scopes: [projectScope(20), userScope(10)],
+  },
   kiro: {
     app: 'kiro',
     configFormat: 'json',

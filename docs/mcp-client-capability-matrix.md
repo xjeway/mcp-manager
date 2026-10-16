@@ -22,15 +22,16 @@ storage path, merge behavior, and precedence.
 | Cursor | `~/.cursor/mcp.json` | `.cursor/mcp.json` | None | Direct project support |
 | Claude Code | `~/.claude.json` | `.mcp.json` | `localProject` in `~/.claude.json.projects[path]` | Direct project support, local project read-only for now |
 | Claude Desktop | `claude_desktop_config.json` | Unsupported | None | User only |
-| Codex | `~/.codex/config.toml` | Unsupported by current model | None | User only |
+| Codex | `~/.codex/config.toml` | `.codex/config.toml` (trusted projects only) | None | Direct project support |
 | OpenCode | `~/.config/opencode/opencode.json` | `opencode.json`, `.opencode/opencode.jsonc` | None | Direct project support |
-| GitHub Copilot | `~/.copilot/mcp-config.json` | Managed through VS Code workspace config | None | User only in direct app controls; project via VS Code |
+| GitHub Copilot | `~/.copilot/mcp-config.json` | `.mcp.json` (shared with Claude Code; Copilot CLI no longer reads `.vscode/mcp.json`) | None | Direct project support |
 | Gemini CLI | `~/.gemini/settings.json` | `.gemini/settings.json` | None | Direct project support |
-| Antigravity | `~/.gemini/antigravity/mcp_config.json` | Unsupported by current model | None | User only |
-| iFlow | `~/.iflow/settings.json` | `.iflow/settings.json` | None | Direct project support |
+| Antigravity | `~/.gemini/config/mcp_config.json` (2.0, shared by IDE and CLI) or `~/.gemini/antigravity/mcp_config.json` (1.x, used while the new file does not exist) | Unsupported by current model | None | User only |
+| iFlow | `~/.iflow/settings.json` | `.iflow/settings.json` | None | Direct project support; the product was shut down on 2026-04-17, kept only for existing configs |
 | Qwen Code | `~/.qwen/settings.json` | `.qwen/settings.json` | None | Direct project support |
 | Cline | `cline_mcp_settings.json` | Unsupported by current model | None | User only |
-| Windsurf | `~/.codeium/windsurf/mcp_config.json` | Unsupported by current model | None | User only |
+| Windsurf (now Devin Desktop) | `~/.codeium/windsurf/mcp_config.json` | Unsupported by current model | None | User only; remote servers use `serverUrl` |
+| Qoder | `~/.qoder/settings.json` | `.qoder/settings.json` (`.mcp.json` is also read but shared with Claude Code) | None | Direct project support |
 | Kiro | `~/.kiro/settings/mcp.json` | `.kiro/settings/mcp.json` | Agent-level scope | Direct project support, agent scope read-only for now |
 
 ## Implementation Rules
@@ -50,6 +51,14 @@ storage path, merge behavior, and precedence.
   Kiro `agent`, can be shown later as status rows, but should not be writable
   until the adapter can round-trip them safely.
 
+## Writes keep fields MCP Manager does not model
+
+When MCP Manager rewrites a server it manages, fields it does not own
+(`oauth`, `timeout`, `autoApprove`, `disabledTools`, `trust`, ...) are carried
+over from the existing entry. Only the transport fields (`command`, `args`,
+`env`, `url`, `serverUrl`, `httpUrl`, `type`, `headers`, `http_headers`) are
+replaced.
+
 ## Open Verification Items
 
 - VS Code and Cursor same-server ID conflict behavior between user and
@@ -57,5 +66,10 @@ storage path, merge behavior, and precedence.
   test before showing conflict resolution text.
 - OpenCode merge precedence across `opencode.json`, `.opencode/opencode.jsonc`,
   and user config should be verified before exposing priority badges.
-- Codex project-level MCP support should remain disabled until there is
-  authoritative documentation and adapter support.
+- Codex only loads `.codex/config.toml` for trusted projects; MCP Manager
+  cannot tell whether a project is trusted, so a project write may have no
+  effect until the user trusts it in Codex.
+- Copilot CLI and Claude Code both read `.mcp.json`. A server enabled for only
+  one of them at the project level is still visible to the other.
+- Antigravity 2.0's shared config path and Windsurf's `serverUrl` key come from
+  third-party sources; confirm them on a real install.

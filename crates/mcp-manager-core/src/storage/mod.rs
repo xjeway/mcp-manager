@@ -331,6 +331,35 @@ fn apply_merge_json_field(path: &Path, field: &str, content: &str) -> Result<(),
     atomic_write(path, &pretty)
 }
 
+/// Fields MCP Manager models and rewrites on every apply. Anything else on an
+/// existing entry (`oauth`, `timeout`, `autoApprove`, `disabledTools`, ...) was
+/// set by the user or the client and is carried over to the rewritten entry.
+const TRANSPORT_FIELDS: &[&str] = &[
+    "command",
+    "args",
+    "env",
+    "environment",
+    "url",
+    "serverUrl",
+    "httpUrl",
+    "type",
+    "headers",
+    "http_headers",
+    "tools",
+];
+
+fn is_transport_field(field: &str) -> bool {
+    TRANSPORT_FIELDS.contains(&field)
+}
+
+fn carry_unmanaged_json_fields(old: &Map<String, Value>, new: &mut Map<String, Value>) {
+    for (field, value) in old {
+        if !is_transport_field(field) && !new.contains_key(field) {
+            new.insert(field.clone(), value.clone());
+        }
+    }
+}
+
 fn apply_merge_json_object_entries(
     path: &Path,
     field: &str,
@@ -367,14 +396,24 @@ fn apply_merge_json_object_entries(
         ));
     };
 
+    let mut replaced = Map::new();
     if let Some(keys) = remove_keys {
         for key in keys {
-            target_map.remove(key);
+            if let Some(old) = target_map.remove(key) {
+                replaced.insert(key.clone(), old);
+            }
         }
     }
 
     for (key, value) in new_entries {
-        target_map.insert(key.clone(), value.clone());
+        let mut value = value.clone();
+        if let (Some(new_entry), Some(old_entry)) = (
+            value.as_object_mut(),
+            replaced.get(key).and_then(Value::as_object),
+        ) {
+            carry_unmanaged_json_fields(old_entry, new_entry);
+        }
+        target_map.insert(key.clone(), value);
     }
 
     let pretty = serde_json::to_string_pretty(&host).map_err(|e| e.to_string())?;
@@ -431,14 +470,28 @@ fn apply_merge_toml_table_entries(
         ));
     };
 
+    let mut replaced = Table::new();
     if let Some(keys) = remove_keys {
         for key in keys {
-            target_table.remove(key);
+            if let Some(old) = target_table.remove(key) {
+                replaced.insert(key.clone(), old);
+            }
         }
     }
 
     for (key, value) in new_entries {
-        target_table.insert(key.clone(), json_value_to_toml(value)?);
+        let mut value = json_value_to_toml(value)?;
+        if let (Some(new_entry), Some(old_entry)) = (
+            value.as_table_mut(),
+            replaced.get(key).and_then(toml::Value::as_table),
+        ) {
+            for (field, old_value) in old_entry {
+                if !is_transport_field(field) && !new_entry.contains_key(field) {
+                    new_entry.insert(field.clone(), old_value.clone());
+                }
+            }
+        }
+        target_table.insert(key.clone(), value);
     }
 
     let rendered = toml::to_string_pretty(&host).map_err(|e| e.to_string())?;
@@ -545,7 +598,7 @@ pub fn rollback(backups: Vec<String>) -> Result<(), String> {
 
 #[cfg(test)]
 mod tests {
-    use super::{apply_operations, backup_file, resolve_relative_path, rollback};
+    use super::{apply_operation, apply_operations, backup_file, resolve_relative_path, rollback};
     use crate::core::WriteOperation;
     use std::ffi::OsString;
     use std::fs;
@@ -587,6 +640,61 @@ mod tests {
             Some(value) => std::env::set_var(HOME_ENV_VAR, value),
             None => std::env::remove_var(HOME_ENV_VAR),
         }
+    }
+
+    #[test]
+    fn rewriting_a_json_entry_keeps_fields_it_does_not_model() {
+        let dir = tempfile::tempdir().expect("tmpdir");
+        let path = dir.path().join("mcp.json");
+        fs::write(
+            &path,
+            r#"{"mcpServers":{"linear":{"type":"http","url":"https://old/mcp","headers":{"A":"1"},"timeout":9000,"oauth":{"clientId":"abc"}},"gone":{"command":"x"}}}"#,
+        )
+        .expect("seed");
+        let operation = WriteOperation {
+            path: path.to_string_lossy().to_string(),
+            mode: "merge_json_object_entries".to_string(),
+            field: Some("mcpServers".to_string()),
+            remove_keys: Some(vec!["linear".to_string(), "gone".to_string()]),
+            content: r#"{"linear":{"type":"http","url":"https://new/mcp"}}"#.to_string(),
+        };
+        apply_operation(&path, &operation).expect("apply");
+
+        let written: serde_json::Value =
+            serde_json::from_str(&fs::read_to_string(&path).expect("read")).expect("json");
+        let linear = &written["mcpServers"]["linear"];
+        assert_eq!(linear["url"], "https://new/mcp");
+        assert_eq!(linear["timeout"], 9000);
+        assert_eq!(linear["oauth"]["clientId"], "abc");
+        // Transport fields the manager owns are not resurrected.
+        assert!(linear.get("headers").is_none());
+        assert!(written["mcpServers"].get("gone").is_none());
+    }
+
+    #[test]
+    fn rewriting_a_toml_entry_keeps_fields_it_does_not_model() {
+        let dir = tempfile::tempdir().expect("tmpdir");
+        let path = dir.path().join("config.toml");
+        fs::write(
+            &path,
+            "[mcp_servers.docs]\nurl = \"https://old/mcp\"\nstartup_timeout_sec = 30\nenabled_tools = [\"search\"]\n",
+        )
+        .expect("seed");
+        let operation = WriteOperation {
+            path: path.to_string_lossy().to_string(),
+            mode: "merge_toml_table_entries".to_string(),
+            field: Some("mcp_servers".to_string()),
+            remove_keys: Some(vec!["docs".to_string()]),
+            content: r#"{"docs":{"url":"https://new/mcp"}}"#.to_string(),
+        };
+        apply_operation(&path, &operation).expect("apply");
+
+        let written: toml::Table = toml::from_str(&fs::read_to_string(&path).expect("read"))
+            .expect("toml");
+        let docs = &written["mcp_servers"]["docs"];
+        assert_eq!(docs["url"].as_str(), Some("https://new/mcp"));
+        assert_eq!(docs["startup_timeout_sec"].as_integer(), Some(30));
+        assert!(docs.get("enabled_tools").is_some());
     }
 
     #[test]

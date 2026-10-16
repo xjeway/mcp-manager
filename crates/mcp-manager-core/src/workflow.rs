@@ -343,7 +343,17 @@ mod tests {
                 .as_deref(),
             Some("/workspace/project/.vscode/mcp.json")
         );
-        assert!(!info.placement_paths.contains_key(&SupportedApp::Codex));
+        assert_eq!(
+            info.placement_paths
+                .get(&SupportedApp::Codex)
+                .map(UnixPath::unix)
+                .as_deref(),
+            Some("/workspace/project/.codex/config.toml")
+        );
+        // Claude Desktop has no project scope.
+        assert!(!info
+            .placement_paths
+            .contains_key(&SupportedApp::ClaudeDesktop));
     }
 
     #[test]
