@@ -107,8 +107,10 @@ export const CLIENT_CAPABILITIES: Record<SupportedApp, ClientCapability> = {
     app: 'githubCopilot',
     configFormat: 'json',
     mergePolicy: 'mergeJsonField',
-    projectManagement: 'direct',
-    scopes: [projectScope(20), userScope(10)],
+    // Copilot CLI reads the project `.mcp.json` that Claude Code owns.
+    projectManagement: 'viaOtherClient',
+    projectViaApp: 'claudeCode',
+    scopes: [userScope()],
   },
   geminiCli: {
     app: 'geminiCli',

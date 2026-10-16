@@ -352,7 +352,18 @@ fn is_transport_field(field: &str) -> bool {
     TRANSPORT_FIELDS.contains(&field)
 }
 
+/// Whether an entry runs a local command, as opposed to a remote URL. Fields are
+/// only carried over within the same kind: a stdio-only `cwd` on a remote
+/// entry, or a remote-only `bearer_token_env_var` on a stdio one, is rejected
+/// by some clients (Codex fails to load its config).
+fn is_local_entry<'a>(mut keys: impl Iterator<Item = &'a String>) -> bool {
+    keys.any(|key| key == "command")
+}
+
 fn carry_unmanaged_json_fields(old: &Map<String, Value>, new: &mut Map<String, Value>) {
+    if is_local_entry(old.keys()) != is_local_entry(new.keys()) {
+        return;
+    }
     for (field, value) in old {
         if !is_transport_field(field) && !new.contains_key(field) {
             new.insert(field.clone(), value.clone());
@@ -485,6 +496,10 @@ fn apply_merge_toml_table_entries(
             value.as_table_mut(),
             replaced.get(key).and_then(toml::Value::as_table),
         ) {
+            if is_local_entry(old_entry.keys()) != is_local_entry(new_entry.keys()) {
+                target_table.insert(key.clone(), value);
+                continue;
+            }
             for (field, old_value) in old_entry {
                 if !is_transport_field(field) && !new_entry.contains_key(field) {
                     new_entry.insert(field.clone(), old_value.clone());
@@ -669,6 +684,31 @@ mod tests {
         // Transport fields the manager owns are not resurrected.
         assert!(linear.get("headers").is_none());
         assert!(written["mcpServers"].get("gone").is_none());
+    }
+
+    #[test]
+    fn switching_between_local_and_remote_drops_the_old_entry_fields() {
+        let dir = tempfile::tempdir().expect("tmpdir");
+        let path = dir.path().join("config.toml");
+        fs::write(
+            &path,
+            "[mcp_servers.docs]\nurl = \"https://old/mcp\"\nbearer_token_env_var = \"TOKEN\"\n",
+        )
+        .expect("seed");
+        let operation = WriteOperation {
+            path: path.to_string_lossy().to_string(),
+            mode: "merge_toml_table_entries".to_string(),
+            field: Some("mcp_servers".to_string()),
+            remove_keys: Some(vec!["docs".to_string()]),
+            content: r#"{"docs":{"command":"npx","args":["docs-mcp"]}}"#.to_string(),
+        };
+        apply_operation(&path, &operation).expect("apply");
+
+        let written: toml::Table =
+            toml::from_str(&fs::read_to_string(&path).expect("read")).expect("toml");
+        let docs = &written["mcp_servers"]["docs"];
+        assert_eq!(docs["command"].as_str(), Some("npx"));
+        assert!(docs.get("bearer_token_env_var").is_none());
     }
 
     #[test]

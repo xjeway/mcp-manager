@@ -18,7 +18,6 @@ describe('client capabilities', () => {
       'cursor',
       'factoryDroid',
       'geminiCli',
-      'githubCopilot',
       'iFlow',
       'kiloCode',
       'kiro',
@@ -37,10 +36,10 @@ describe('client capabilities', () => {
     ])
   })
 
-  it('manages GitHub Copilot CLI project config directly, since it reads .mcp.json', () => {
+  it('leaves GitHub Copilot project config to Claude Code, whose .mcp.json Copilot CLI reads', () => {
     const capability = getClientCapability('githubCopilot')
 
-    expect(capability.projectManagement).toBe('direct')
-    expect(capability.projectViaApp).toBeUndefined()
+    expect(capability.projectManagement).toBe('viaOtherClient')
+    expect(capability.projectViaApp).toBe('claudeCode')
   })
 })

@@ -39,8 +39,11 @@ impl AppAdapter for KiloCodeAdapter {
                     .to_string(),
                 13,
             ),
+            // Both user files are read; writes go to the one
+            // `user_app_config_path` picks.
             (
-                ctx.user_app_config_path(self.app())
+                ctx.home_dir
+                    .join(".config/kilo/kilo.json")
                     .to_string_lossy()
                     .to_string(),
                 20,

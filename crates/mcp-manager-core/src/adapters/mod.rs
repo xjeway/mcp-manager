@@ -89,8 +89,6 @@ pub fn workspace_scope_path(ctx: &PlatformContext, app: SupportedApp) -> Option<
         SupportedApp::IFlow => ".iflow/settings.json",
         SupportedApp::QwenCode => ".qwen/settings.json",
         SupportedApp::Kiro => ".kiro/settings/mcp.json",
-        // Copilot CLI reads the same `.mcp.json` as Claude Code.
-        SupportedApp::GithubCopilot => ".mcp.json",
         SupportedApp::Codex => ".codex/config.toml",
         SupportedApp::Qoder => ".qoder/settings.json",
         SupportedApp::KiloCode => "kilo.json",
@@ -282,24 +280,13 @@ fn standard_json_app_profile(app: SupportedApp) -> StandardJsonAppProfile {
         SupportedApp::ClaudeDesktop => None,
         _ => Some("headers"),
     };
-    // Windsurf and Antigravity take a remote server's URL as `serverUrl` and
-    // have no `type` field; a plain `url` entry is ignored by them.
-    let google_style_remote = matches!(app, SupportedApp::Windsurf | SupportedApp::Antigravity);
-    // The Gemini CLI family takes streamable HTTP as `httpUrl` and SSE as `url`.
-    // `url` + `type: "http"` only works on newer Gemini CLI builds, `httpUrl`
-    // works on all of them.
-    let gemini_family = matches!(
-        app,
-        SupportedApp::GeminiCli | SupportedApp::QwenCode | SupportedApp::IFlow
-    );
     StandardJsonAppProfile {
-        include_transport_type: !google_style_remote
-            && !gemini_family
-            && app != SupportedApp::KimiCli,
-        url_key: if google_style_remote {
-            "serverUrl"
-        } else {
-            "url"
+        // Kimi CLI's documented format has no `type`; it infers the transport.
+        include_transport_type: app != SupportedApp::KimiCli,
+        // Windsurf and Antigravity ignore a remote server given as plain `url`.
+        url_key: match app {
+            SupportedApp::Windsurf | SupportedApp::Antigravity => "serverUrl",
+            _ => "url",
         },
         tools: match app {
             SupportedApp::GithubCopilot => Some(&["*"]),
@@ -349,11 +336,11 @@ fn headers_value(server: &MCPServer) -> Option<Value> {
     .then(|| serde_json::to_value(&server.transport.headers).expect("serialize transport headers"))
 }
 
-fn gemini_family_streamable(app: SupportedApp, kind: &str) -> bool {
-    matches!(
-        app,
-        SupportedApp::GeminiCli | SupportedApp::QwenCode | SupportedApp::IFlow
-    ) && kind != "sse"
+/// Qwen Code and iFlow, forks of an older Gemini CLI, ignore `type` and read
+/// `url` as SSE; streamable HTTP has to be `httpUrl`. Gemini CLI itself reads
+/// `url` + `type` (and `url` alone as HTTP), so it keeps the standard shape.
+fn needs_http_url_key(app: SupportedApp, kind: &str) -> bool {
+    matches!(app, SupportedApp::QwenCode | SupportedApp::IFlow) && kind != "sse"
 }
 
 fn standard_json_transport_type(kind: &str) -> &'static str {
@@ -417,7 +404,7 @@ pub fn standard_mcp_servers_at(
                     ),
                 ])
             } else {
-                let url_key = if gemini_family_streamable(app, &server.transport.kind) {
+                let url_key = if needs_http_url_key(app, &server.transport.kind) {
                     "httpUrl"
                 } else {
                     profile.url_key

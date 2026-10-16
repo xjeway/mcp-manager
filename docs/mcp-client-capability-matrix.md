@@ -24,7 +24,7 @@ storage path, merge behavior, and precedence.
 | Claude Desktop | `claude_desktop_config.json` | Unsupported | None | User only |
 | Codex | `~/.codex/config.toml` | `.codex/config.toml` (trusted projects only) | None | Direct project support |
 | OpenCode | `~/.config/opencode/opencode.json` | `opencode.json`, `.opencode/opencode.jsonc` | None | Direct project support |
-| GitHub Copilot | `~/.copilot/mcp-config.json` | `.mcp.json` (shared with Claude Code; Copilot CLI no longer reads `.vscode/mcp.json`) | None | Direct project support |
+| GitHub Copilot | `~/.copilot/mcp-config.json` | `.mcp.json`, managed through Claude Code (Copilot CLI no longer reads `.vscode/mcp.json`) | None | User only in direct app controls; project via Claude Code |
 | Gemini CLI | `~/.gemini/settings.json` | `.gemini/settings.json` | None | Direct project support |
 | Antigravity | `~/.gemini/config/mcp_config.json` (2.0, shared by IDE and CLI) or `~/.gemini/antigravity/mcp_config.json` (1.x, used while the new file does not exist) | Unsupported by current model | None | User only |
 | iFlow | `~/.iflow/settings.json` | `.iflow/settings.json` | None | Direct project support; the product was shut down on 2026-04-17, kept only for existing configs |
@@ -48,8 +48,8 @@ storage path, merge behavior, and precedence.
 - Clients with `projectManagement: "unsupported"` must not render current
   project toggles.
 - Clients with `projectManagement: "viaOtherClient"` must not render direct
-  project toggles. GitHub Copilot project config should be represented through
-  VS Code workspace config until a separate authoritative model is added.
+  project toggles. GitHub Copilot project config is the Claude Code `.mcp.json`
+  and is only written through Claude Code.
 - Read-only higher-precedence scopes, such as Claude Code `localProject` and
   Kiro `agent`, can be shown later as status rows, but should not be writable
   until the adapter can round-trip them safely.
@@ -72,7 +72,8 @@ replaced.
 - Codex only loads `.codex/config.toml` for trusted projects; MCP Manager
   cannot tell whether a project is trusted, so a project write may have no
   effect until the user trusts it in Codex.
-- Copilot CLI and Claude Code both read `.mcp.json`. A server enabled for only
-  one of them at the project level is still visible to the other.
+- Copilot CLI and Claude Code both read `.mcp.json`, so it is managed only
+  through Claude Code. Writing it from two adapters would let one delete the
+  other's entries.
 - Antigravity 2.0's shared config path and Windsurf's `serverUrl` key come from
   third-party sources; confirm them on a real install.
