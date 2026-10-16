@@ -143,4 +143,20 @@ mod tests {
             },
         );
     }
+
+    #[test]
+    fn keeps_cline_only_switch() {
+        crate::adapters::client_switch_fixture::assert_switch_kept(
+            &ClineAdapter,
+            r#"{
+  "mcpServers": {
+    "off": { "command": "npx", "args": ["-y", "off-mcp"], "disabled": true },
+    "on": { "command": "npx", "args": ["-y", "on-mcp"] }
+  }
+}"#,
+            "mcpServers",
+            "disabled",
+            true,
+        );
+    }
 }

@@ -199,4 +199,20 @@ mod tests {
             },
         );
     }
+
+    #[test]
+    fn keeps_kilo_code_only_switch() {
+        crate::adapters::client_switch_fixture::assert_switch_kept(
+            &KiloCodeAdapter,
+            r#"{
+  "mcp": {
+    "off": { "type": "local", "command": ["npx", "-y", "off-mcp"], "enabled": false },
+    "on": { "type": "local", "command": ["npx", "-y", "on-mcp"] }
+  }
+}"#,
+            "mcp",
+            "enabled",
+            false,
+        );
+    }
 }

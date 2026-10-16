@@ -177,4 +177,20 @@ mod tests {
             },
         );
     }
+
+    #[test]
+    fn keeps_opencode_only_switch() {
+        crate::adapters::client_switch_fixture::assert_switch_kept(
+            &OpenCodeAdapter,
+            r#"{
+  "mcp": {
+    "off": { "type": "local", "command": ["npx", "-y", "off-mcp"], "enabled": false },
+    "on": { "type": "local", "command": ["npx", "-y", "on-mcp"] }
+  }
+}"#,
+            "mcp",
+            "enabled",
+            false,
+        );
+    }
 }
