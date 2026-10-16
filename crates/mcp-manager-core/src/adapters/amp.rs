@@ -133,8 +133,13 @@ mod tests {
             ..ctx(home)
         };
         let sources = AmpAdapter.detect_sources(&ctx);
-        assert_eq!(sources[0].0, "/work/project/.amp/settings.json");
-        assert_eq!(sources[1].0, "/home/test/.config/amp/settings.json");
+        // Compared by component: Windows joins with `\\`.
+        let workspace = PathBuf::from(&sources[0].0);
+        assert!(
+            workspace.starts_with("/work/project") && workspace.ends_with(".amp/settings.json")
+        );
+        let user = PathBuf::from(&sources[1].0);
+        assert!(user.starts_with("/home/test") && user.ends_with(".config/amp/settings.json"));
 
         let parsed = AmpAdapter.parse_source(&ctx, &sources[1].0, 20, SETTINGS);
         assert!(parsed.errors.is_empty(), "{:?}", parsed.errors);
