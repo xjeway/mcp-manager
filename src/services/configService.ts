@@ -41,6 +41,7 @@ function defaultConfig(): MCPConfig {
           factoryDroid: false,
           kimiCli: false,
           zed: false,
+          mistralVibe: false,
         },
       },
       {
@@ -68,6 +69,7 @@ function defaultConfig(): MCPConfig {
           factoryDroid: false,
           kimiCli: false,
           zed: false,
+          mistralVibe: false,
         },
       },
       {
@@ -100,6 +102,7 @@ function defaultConfig(): MCPConfig {
           factoryDroid: false,
           kimiCli: false,
           zed: false,
+          mistralVibe: false,
         },
       },
     ],

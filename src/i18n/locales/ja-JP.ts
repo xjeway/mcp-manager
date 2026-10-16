@@ -246,6 +246,7 @@ const jaJP: LocaleMessages = {
   hideHeaderValue: 'ヘッダーの値を隠す',
   applyWarningUndoNotRecorded: '変更は適用されましたが、記録できなかったため元に戻せません: {{error}}',
   applyWarningHttpHeadersUnsupported: '{{client}} はリクエストヘッダーを保存できないため、{{server}} のヘッダーは書き込まれませんでした。{{client}} で手動で追加してください。',
+  applyWarningSseUnsupported: '{{client}} は SSE に対応していないため、SSE サーバー {{server}} は書き込まれませんでした。サーバーに Streamable HTTP のエンドポイントがあれば、そちらを使用してください。',
   addArg: '引数を追加',
   checkForUpdates: 'アップデートを確認',
   checkingUpdates: '確認中...',

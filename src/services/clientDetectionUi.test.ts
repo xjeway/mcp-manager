@@ -28,6 +28,7 @@ describe('clientDetectionUi', () => {
         'factoryDroid',
         'kimiCli',
         'zed',
+        'mistralVibe',
       ]),
     ).toBe(false)
   })

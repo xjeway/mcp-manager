@@ -246,6 +246,7 @@ const koKR: LocaleMessages = {
   hideHeaderValue: '헤더 값 숨기기',
   applyWarningUndoNotRecorded: '변경은 적용되었지만 기록하지 못해 되돌릴 수 없습니다: {{error}}',
   applyWarningHttpHeadersUnsupported: '{{client}}은(는) 요청 헤더를 저장할 수 없어 {{server}}의 헤더를 기록하지 않았습니다. {{client}}에서 직접 추가하세요.',
+  applyWarningSseUnsupported: '{{client}}은(는) SSE를 지원하지 않아 SSE 서버 {{server}}을(를) 기록하지 않았습니다. 서버에 Streamable HTTP 엔드포인트가 있다면 그 주소를 사용하세요.',
   addArg: '인수 추가',
   checkForUpdates: '업데이트 확인',
   checkingUpdates: '확인 중...',

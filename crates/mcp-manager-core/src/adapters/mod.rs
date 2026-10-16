@@ -11,6 +11,7 @@ mod iflow;
 mod kilo_code;
 mod kimi_cli;
 mod kiro;
+mod mistral_vibe;
 mod opencode;
 mod qoder;
 mod qwen_code;
@@ -39,6 +40,7 @@ pub use iflow::IFlowAdapter;
 pub use kilo_code::KiloCodeAdapter;
 pub use kimi_cli::KimiCliAdapter;
 pub use kiro::KiroAdapter;
+pub use mistral_vibe::MistralVibeAdapter;
 pub use opencode::OpenCodeAdapter;
 pub use qoder::QoderAdapter;
 pub use qwen_code::QwenCodeAdapter;
@@ -96,6 +98,7 @@ pub fn workspace_scope_path(ctx: &PlatformContext, app: SupportedApp) -> Option<
         SupportedApp::KiloCode => "kilo.json",
         SupportedApp::FactoryDroid => ".factory/mcp.json",
         SupportedApp::Zed => ".zed/settings.json",
+        SupportedApp::MistralVibe => ".vibe/config.toml",
         _ => return None,
     };
     Some(ctx.workspace_file(relative).to_string_lossy().to_string())
@@ -265,6 +268,81 @@ pub fn managed_toml_field_writes(
         .collect()
 }
 
+/// Writes for a client that keeps its servers as a `[[field]]` list of tables
+/// identified by `name`. `content_for_path` returns the entries keyed by name.
+pub fn managed_toml_array_writes(
+    ctx: &PlatformContext,
+    field: &str,
+    app: SupportedApp,
+    config: &MCPConfig,
+    previous_config: Option<&MCPConfig>,
+    content_for_path: fn(&MCPConfig, SupportedApp, &str, &PlatformContext) -> Value,
+) -> Vec<WriteOperation> {
+    target_paths(ctx, config, previous_config, app)
+        .into_iter()
+        .map(|path| WriteOperation {
+            content: serde_json::to_string(&content_for_path(config, app, &path, ctx))
+                .expect("serialize managed toml list"),
+            path: path.clone(),
+            mode: "merge_toml_array_entries".to_string(),
+            field: Some(field.to_string()),
+            remove_keys: Some(managed_server_ids(ctx, config, previous_config, app, &path)),
+        })
+        .collect()
+}
+
+/// Mistral Vibe's `[[mcp_servers]]` entries, keyed by `name`.
+///
+/// Vibe rejects unknown fields, so only its own keys are written. Remote
+/// servers use `streamable-http` (Vibe has no SSE client, so SSE servers are
+/// left out and reported by `apply_warnings`), and their headers go in a
+/// static `auth` table. A command with whitespace in it is written as a list,
+/// because Vibe splits a string command like a shell would.
+pub fn vibe_mcp_servers_at(
+    config: &MCPConfig,
+    app: SupportedApp,
+    path: &str,
+    ctx: &PlatformContext,
+) -> Value {
+    let mut servers = Map::new();
+    for server in &config.servers {
+        if !server.enabled || !server_enabled_for_path(ctx, server, app, path) {
+            continue;
+        }
+        let value = if server.transport.kind == "stdio" {
+            let command = server.command.as_ref();
+            let program = command.map(|c| c.program.clone()).unwrap_or_default();
+            let needs_list = program
+                .chars()
+                .any(|ch| ch.is_whitespace() || matches!(ch, '"' | '\'' | '\\'));
+            let program = if needs_list {
+                serde_json::json!([program])
+            } else {
+                Value::String(program)
+            };
+            serde_json::json!({
+                "transport": "stdio",
+                "command": program,
+                "args": command.map(|c| c.args.clone()).unwrap_or_default(),
+                "env": command.map(|c| c.env.clone()).unwrap_or_default(),
+            })
+        } else if server.transport.kind != "sse" || sse_supported(app) {
+            let mut remote = serde_json::json!({
+                "transport": "streamable-http",
+                "url": server.transport.url.clone().unwrap_or_default(),
+            });
+            if let Some(headers) = headers_value(server) {
+                remote["auth"] = serde_json::json!({"type": "static", "headers": headers});
+            }
+            remote
+        } else {
+            continue;
+        };
+        servers.insert(server.id.clone(), value);
+    }
+    Value::Object(servers)
+}
+
 #[derive(Clone, Copy)]
 struct StandardJsonAppProfile {
     include_transport_type: bool,
@@ -305,31 +383,43 @@ pub fn http_headers_supported(app: SupportedApp) -> bool {
     standard_json_app_profile(app).headers_key.is_some()
 }
 
-/// Servers whose headers will be dropped because a client they are enabled for
-/// cannot store them.
-pub fn unsupported_header_warnings(config: &MCPConfig) -> Vec<ApplyWarning> {
-    config
-        .servers
-        .iter()
-        .filter(|server| server.enabled && headers_value(server).is_some())
-        .flat_map(|server| {
-            SupportedApp::ALL
-                .into_iter()
-                .filter(|app| !http_headers_supported(*app))
-                .filter(move |app| {
-                    server.apps.get(app).copied().unwrap_or(false)
-                        || server
-                            .placements
-                            .iter()
-                            .any(|placement| placement.app == *app && placement.enabled)
-                })
-                .map(move |app| ApplyWarning {
-                    kind: "httpHeadersUnsupported".to_string(),
-                    app,
-                    server_id: server.id.clone(),
-                })
-        })
-        .collect()
+/// Clients that can only reach a remote server over streamable HTTP. An SSE
+/// server is not written to them.
+fn sse_supported(app: SupportedApp) -> bool {
+    app != SupportedApp::MistralVibe
+}
+
+/// Clients `server` is enabled for, at any scope.
+fn enabled_apps(server: &MCPServer) -> impl Iterator<Item = SupportedApp> + '_ {
+    SupportedApp::ALL.into_iter().filter(move |app| {
+        server.apps.get(app).copied().unwrap_or(false)
+            || server
+                .placements
+                .iter()
+                .any(|placement| placement.app == *app && placement.enabled)
+    })
+}
+
+/// Settings an apply will leave out of a client because the client cannot
+/// store them: request headers (`httpHeadersUnsupported`), or a whole SSE
+/// server (`sseUnsupported`).
+pub fn apply_warnings(config: &MCPConfig) -> Vec<ApplyWarning> {
+    let warning = |kind: &str, app, server: &MCPServer| ApplyWarning {
+        kind: kind.to_string(),
+        app,
+        server_id: server.id.clone(),
+    };
+    let mut warnings = Vec::new();
+    for server in config.servers.iter().filter(|server| server.enabled) {
+        for app in enabled_apps(server) {
+            if server.transport.kind == "sse" && !sse_supported(app) {
+                warnings.push(warning("sseUnsupported", app, server));
+            } else if headers_value(server).is_some() && !http_headers_supported(app) {
+                warnings.push(warning("httpHeadersUnsupported", app, server));
+            }
+        }
+    }
+    warnings
 }
 
 fn headers_value(server: &MCPServer) -> Option<Value> {
@@ -522,6 +612,7 @@ pub fn adapters() -> Vec<Box<dyn AppAdapter>> {
         Box::new(FactoryDroidAdapter),
         Box::new(KimiCliAdapter),
         Box::new(ZedAdapter),
+        Box::new(MistralVibeAdapter),
     ]
 }
 
@@ -638,7 +729,7 @@ pub(crate) mod header_fixture {
 
 #[cfg(test)]
 mod tests {
-    use super::unsupported_header_warnings;
+    use super::apply_warnings;
     use crate::core::{
         empty_apps, ApplyWarning, MCPConfig, MCPServer, PlacementScope, ServerPlacement,
         SupportedApp, TransportSpec,
@@ -690,7 +781,7 @@ mod tests {
 
     #[test]
     fn warns_when_headers_target_a_client_without_header_support() {
-        let warnings = unsupported_header_warnings(&config(vec![remote(
+        let warnings = apply_warnings(&config(vec![remote(
             "linear",
             true,
             &[SupportedApp::ClaudeDesktop, SupportedApp::Vscode],
@@ -712,7 +803,7 @@ mod tests {
     fn no_warning_without_headers_or_when_disabled() {
         let mut disabled = remote("off", true, &[SupportedApp::ClaudeDesktop]);
         disabled.enabled = false;
-        assert!(unsupported_header_warnings(&config(vec![
+        assert!(apply_warnings(&config(vec![
             remote("plain", false, &[SupportedApp::ClaudeDesktop]),
             disabled,
             remote("vscode-only", true, &[SupportedApp::Vscode]),
@@ -730,6 +821,6 @@ mod tests {
             enabled: true,
             managed: true,
         });
-        assert_eq!(unsupported_header_warnings(&config(vec![server])).len(), 1);
+        assert_eq!(apply_warnings(&config(vec![server])).len(), 1);
     }
 }

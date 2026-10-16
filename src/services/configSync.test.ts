@@ -34,6 +34,7 @@ describe('configSync', () => {
             factoryDroid: false,
             kimiCli: false,
             zed: false,
+            mistralVibe: false,
           },
         },
         {
@@ -63,6 +64,7 @@ describe('configSync', () => {
             factoryDroid: false,
             kimiCli: false,
             zed: false,
+            mistralVibe: false,
           },
         },
       ],
@@ -98,6 +100,7 @@ describe('configSync', () => {
             factoryDroid: false,
             kimiCli: false,
             zed: false,
+            mistralVibe: false,
           },
         },
         {
@@ -128,6 +131,7 @@ describe('configSync', () => {
             factoryDroid: false,
             kimiCli: false,
             zed: false,
+            mistralVibe: false,
           },
         },
       ],

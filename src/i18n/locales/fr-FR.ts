@@ -246,6 +246,7 @@ const frFR: LocaleMessages = {
   hideHeaderValue: 'Masquer la valeur de l’en-tête',
   applyWarningUndoNotRecorded: 'La modification a été appliquée, mais n’a pas pu être enregistrée dans l’historique et ne peut donc pas être annulée : {{error}}',
   applyWarningHttpHeadersUnsupported: '{{client}} ne peut pas stocker d’en-têtes de requête : les en-têtes de {{server}} n’y ont pas été écrits. Ajoutez-les manuellement dans {{client}}.',
+  applyWarningSseUnsupported: '{{client}} ne prend pas en charge SSE : le serveur SSE {{server}} n’y a donc pas été écrit. Utilisez plutôt le point de terminaison Streamable HTTP du serveur, s’il en a un.',
   addArg: 'Ajouter un argument',
   checkForUpdates: 'Rechercher des mises à jour',
   checkingUpdates: 'Vérification...',

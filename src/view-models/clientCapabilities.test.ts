@@ -21,6 +21,7 @@ describe('client capabilities', () => {
       'iFlow',
       'kiloCode',
       'kiro',
+      'mistralVibe',
       'openCode',
       'qoder',
       'qwenCode',

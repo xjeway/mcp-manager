@@ -9,6 +9,7 @@ use std::time::Duration;
 use toml::Table;
 
 mod jsonc;
+mod toml_doc;
 
 fn base_dir() -> PathBuf {
     PlatformContext::current().app_data_dir()
@@ -377,8 +378,31 @@ pub(crate) fn carry_unmanaged_fields(old: &Value, new: &mut Value) {
     if is_local_entry(old.keys()) != is_local_entry(new.keys()) {
         return;
     }
+    // Mistral Vibe keeps API-key settings next to static headers, in `auth`
+    // (or, in older files, at the top of the entry; it rejects both at once).
+    // When the new entry brings its own static `auth`, those settings move
+    // into it instead of being lost.
+    const API_KEY_FIELDS: [&str; 3] = ["api_key_env", "api_key_header", "api_key_format"];
+    if let Some(Value::Object(auth)) = new.get_mut("auth") {
+        if auth.get("type").and_then(Value::as_str) == Some("static") {
+            let old_auth = old
+                .get("auth")
+                .and_then(Value::as_object)
+                .filter(|auth| auth.get("type").and_then(Value::as_str) == Some("static"));
+            for field in API_KEY_FIELDS {
+                let kept = old_auth
+                    .and_then(|auth| auth.get(field))
+                    .or_else(|| old.get(field));
+                if let (Some(value), false) = (kept, auth.contains_key(field)) {
+                    auth.insert(field.to_string(), value.clone());
+                }
+            }
+        }
+    }
+    let has_auth = new.contains_key("auth");
     for (field, value) in old {
-        if !is_transport_field(field) && !new.contains_key(field) {
+        let moved_into_auth = has_auth && API_KEY_FIELDS.contains(&field.as_str());
+        if !is_transport_field(field) && !moved_into_auth && !new.contains_key(field) {
             new.insert(field.clone(), value.clone());
         }
     }
@@ -429,63 +453,54 @@ fn apply_merge_toml_table_entries(
     content: &str,
     remove_keys: Option<&[String]>,
 ) -> Result<(), String> {
-    let field_value: Value = serde_json::from_str(content).map_err(|e| e.to_string())?;
-    let Some(new_entries) = field_value.as_object() else {
-        return Err(format!("{field} merge content must be a JSON object"));
-    };
+    let new_entries = merge_content(field, content)?;
+    let existing = read_existing(path)?;
+    let updated = toml_doc::merge_table_entries(
+        &existing,
+        field,
+        &new_entries,
+        remove_keys.unwrap_or_default(),
+        carry_unmanaged_fields,
+    )
+    .map_err(|error| unreadable_toml(path, error))?;
+    atomic_write(path, &updated)
+}
 
-    let existing = if path.exists() {
-        fs::read_to_string(path).map_err(|e| e.to_string())?
-    } else {
-        String::new()
-    };
-    let mut host: Table = if existing.trim().is_empty() {
-        Table::new()
-    } else {
-        toml::from_str(&existing).map_err(|e| e.to_string())?
-    };
+/// Key that identifies an entry of a `merge_toml_array_entries` list.
+const TOML_ARRAY_ENTRY_KEY: &str = "name";
 
-    let field_entry = host
-        .entry(field.to_string())
-        .or_insert_with(|| toml::Value::Table(Table::new()));
-    let Some(target_table) = field_entry.as_table_mut() else {
-        return Err(format!(
-            "{} field {} does not contain a TOML table",
-            path.to_string_lossy(),
-            field
-        ));
-    };
+fn apply_merge_toml_array_entries(
+    path: &Path,
+    field: &str,
+    content: &str,
+    remove_keys: Option<&[String]>,
+) -> Result<(), String> {
+    let new_entries = merge_content(field, content)?;
+    let existing = read_existing(path)?;
+    let updated = toml_doc::merge_array_entries(
+        &existing,
+        field,
+        TOML_ARRAY_ENTRY_KEY,
+        &new_entries,
+        remove_keys.unwrap_or_default(),
+        carry_unmanaged_fields,
+    )
+    .map_err(|error| unreadable_toml(path, error))?;
+    atomic_write(path, &updated)
+}
 
-    let mut replaced = Table::new();
-    if let Some(keys) = remove_keys {
-        for key in keys {
-            if let Some(old) = target_table.remove(key) {
-                replaced.insert(key.clone(), old);
-            }
-        }
+fn merge_content(field: &str, content: &str) -> Result<serde_json::Map<String, Value>, String> {
+    match serde_json::from_str(content).map_err(|e| e.to_string())? {
+        Value::Object(entries) => Ok(entries),
+        _ => Err(format!("{field} merge content must be a JSON object")),
     }
+}
 
-    for (key, value) in new_entries {
-        let mut value = json_value_to_toml(value)?;
-        if let (Some(new_entry), Some(old_entry)) = (
-            value.as_table_mut(),
-            replaced.get(key).and_then(toml::Value::as_table),
-        ) {
-            if is_local_entry(old_entry.keys()) != is_local_entry(new_entry.keys()) {
-                target_table.insert(key.clone(), value);
-                continue;
-            }
-            for (field, old_value) in old_entry {
-                if !is_transport_field(field) && !new_entry.contains_key(field) {
-                    new_entry.insert(field.clone(), old_value.clone());
-                }
-            }
-        }
-        target_table.insert(key.clone(), value);
-    }
-
-    let rendered = toml::to_string_pretty(&host).map_err(|e| e.to_string())?;
-    atomic_write(path, &rendered)
+fn unreadable_toml(path: &Path, error: String) -> String {
+    format!(
+        "{} could not be read as TOML: {error}",
+        path.to_string_lossy()
+    )
 }
 
 /// Applies one write to `path` without taking a backup.
@@ -506,6 +521,12 @@ pub fn apply_operation(path: &Path, item: &WriteOperation) -> Result<(), String>
         ),
         "merge_toml_field" => apply_merge_toml_field(path, field("TOML")?, &item.content),
         "merge_toml_table_entries" => apply_merge_toml_table_entries(
+            path,
+            field("TOML")?,
+            &item.content,
+            item.remove_keys.as_deref(),
+        ),
+        "merge_toml_array_entries" => apply_merge_toml_array_entries(
             path,
             field("TOML")?,
             &item.content,

@@ -246,6 +246,7 @@ const esES: LocaleMessages = {
   hideHeaderValue: 'Ocultar valor del encabezado',
   applyWarningUndoNotRecorded: 'El cambio se aplicó, pero no se pudo registrar, así que no se puede deshacer: {{error}}',
   applyWarningHttpHeadersUnsupported: '{{client}} no puede guardar encabezados de solicitud, así que los encabezados de {{server}} no se escribieron allí. Añádelos manualmente en {{client}}.',
+  applyWarningSseUnsupported: '{{client}} no admite SSE, así que el servidor SSE {{server}} no se escribió allí. Usa en su lugar el endpoint Streamable HTTP del servidor, si tiene uno.',
   addArg: 'Añadir argumento',
   checkForUpdates: 'Buscar actualizaciones',
   checkingUpdates: 'Comprobando...',

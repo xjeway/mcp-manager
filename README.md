@@ -210,6 +210,7 @@ make dev
 | Factory Droid | ✅ | ✅ |
 | Kimi CLI | ✅ | ✅ |
 | Zed | ✅ | ✅ |
+| Mistral Vibe | ✅ | ✅ |
 | VS Code | ✅ | ✅ |
 
 ## Command Line (Preview)

@@ -246,6 +246,7 @@ const deDE: LocaleMessages = {
   hideHeaderValue: 'Header-Wert ausblenden',
   applyWarningUndoNotRecorded: 'Die Änderung wurde angewendet, konnte aber nicht protokolliert werden und lässt sich daher nicht rückgängig machen: {{error}}',
   applyWarningHttpHeadersUnsupported: '{{client}} kann keine Anfrage-Header speichern, daher wurden die Header von {{server}} dort nicht geschrieben. Fügen Sie sie in {{client}} manuell hinzu.',
+  applyWarningSseUnsupported: '{{client}} unterstützt kein SSE, daher wurde der SSE-Server {{server}} dort nicht eingetragen. Verwenden Sie stattdessen den Streamable-HTTP-Endpunkt des Servers, falls vorhanden.',
   addArg: 'Argument hinzufügen',
   checkForUpdates: 'Nach Updates suchen',
   checkingUpdates: 'Wird geprüft...',

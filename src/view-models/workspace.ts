@@ -89,6 +89,7 @@ function emptyApps(): MCPServer['apps'] {
     factoryDroid: false,
     kimiCli: false,
     zed: false,
+    mistralVibe: false,
   }
 }
 
@@ -386,7 +387,7 @@ export function applyWarningMessages(
   t: TFunction,
 ): string[] {
   const messages = (result.warnings ?? []).map((warning) =>
-    t('applyWarningHttpHeadersUnsupported', {
+    t(warning.kind === 'sseUnsupported' ? 'applyWarningSseUnsupported' : 'applyWarningHttpHeadersUnsupported', {
       client: CLIENTS.find((client) => client.id === warning.app)?.label ?? warning.app,
       server: servers.find((server) => server.id === warning.serverId)?.name ?? warning.serverId,
     }),

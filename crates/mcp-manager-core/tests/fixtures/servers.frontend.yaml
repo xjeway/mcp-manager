@@ -26,6 +26,7 @@ servers:
       factoryDroid: false
       kimiCli: false
       zed: false
+      mistralVibe: false
   - description: Docs lookup
     id: context7
     name: context7
@@ -59,6 +60,7 @@ servers:
       factoryDroid: false
       kimiCli: false
       zed: false
+      mistralVibe: false
     placements:
       - app: claudeCode
         scope: workspace

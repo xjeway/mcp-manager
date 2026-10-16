@@ -248,6 +248,7 @@ const ruRU: LocaleMessages = {
   hideHeaderValue: 'Скрыть значение заголовка',
   applyWarningUndoNotRecorded: 'Изменение применено, но его не удалось записать, поэтому откатить его нельзя: {{error}}',
   applyWarningHttpHeadersUnsupported: '{{client}} не поддерживает хранение заголовков запроса, поэтому заголовки {{server}} туда не записаны. Добавьте их в {{client}} вручную.',
+  applyWarningSseUnsupported: '{{client}} не поддерживает SSE, поэтому SSE-сервер {{server}} туда не записан. Используйте вместо него эндпоинт Streamable HTTP этого сервера, если он есть.',
   addArg: 'Добавить аргумент',
   checkForUpdates: 'Проверить обновления',
   checkingUpdates: 'Проверка...',

@@ -138,6 +138,7 @@ impl PlatformContext {
                 PlatformOs::Windows => self.home_dir.join("AppData/Roaming/Zed/settings.json"),
                 _ => self.home_dir.join(".config/zed/settings.json"),
             },
+            SupportedApp::MistralVibe => self.home_dir.join(".vibe/config.toml"),
         }
     }
 
@@ -221,6 +222,7 @@ impl PlatformContext {
                 &["Zed.app"][..],
                 &["AppData/Local/Programs/Zed/Zed.exe"][..],
             ),
+            SupportedApp::MistralVibe => (&["vibe"][..], &[][..], &[][..]),
         };
 
         self.command_exists(commands)
@@ -325,7 +327,8 @@ impl PlatformContext {
             | SupportedApp::KiloCode
             | SupportedApp::FactoryDroid
             | SupportedApp::KimiCli
-            | SupportedApp::Zed => {
+            | SupportedApp::Zed
+            | SupportedApp::MistralVibe => {
                 vec![self.user_app_config_path(app).to_string_lossy().to_string()]
             }
             SupportedApp::GithubCopilot => vec![

@@ -158,6 +158,13 @@ export const CLIENT_CAPABILITIES: Record<SupportedApp, ClientCapability> = {
     scopes: [projectScope(20), userScope(10)],
   },
   kimiCli: userOnly('kimiCli', 'json', 'mergeJsonField'),
+  mistralVibe: {
+    app: 'mistralVibe',
+    configFormat: 'toml',
+    mergePolicy: 'mergeTomlTable',
+    projectManagement: 'direct',
+    scopes: [projectScope(20), userScope(10)],
+  },
   zed: {
     app: 'zed',
     configFormat: 'jsonc',

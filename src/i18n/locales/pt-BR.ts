@@ -246,6 +246,7 @@ const ptBR: LocaleMessages = {
   hideHeaderValue: 'Ocultar valor do cabeçalho',
   applyWarningUndoNotRecorded: 'A alteração foi aplicada, mas não pôde ser registrada, portanto não pode ser desfeita: {{error}}',
   applyWarningHttpHeadersUnsupported: '{{client}} não consegue armazenar cabeçalhos de requisição, então os cabeçalhos de {{server}} não foram gravados lá. Adicione-os manualmente no {{client}}.',
+  applyWarningSseUnsupported: '{{client}} não oferece suporte a SSE, então o servidor SSE {{server}} não foi gravado nele. Use o endpoint Streamable HTTP do servidor, se houver.',
   addArg: 'Adicionar argumento',
   checkForUpdates: 'Verificar atualizações',
   checkingUpdates: 'Verificando...',

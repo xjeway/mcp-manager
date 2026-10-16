@@ -37,6 +37,7 @@ const previousConfig = {
         factoryDroid: false,
         kimiCli: false,
         zed: false,
+        mistralVibe: false,
       },
     },
   ],

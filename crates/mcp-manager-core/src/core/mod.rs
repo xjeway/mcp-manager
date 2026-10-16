@@ -23,10 +23,11 @@ pub enum SupportedApp {
     FactoryDroid,
     KimiCli,
     Zed,
+    MistralVibe,
 }
 
 impl SupportedApp {
-    pub const ALL: [SupportedApp; 19] = [
+    pub const ALL: [SupportedApp; 20] = [
         SupportedApp::Vscode,
         SupportedApp::Cursor,
         SupportedApp::ClaudeCode,
@@ -46,6 +47,7 @@ impl SupportedApp {
         SupportedApp::FactoryDroid,
         SupportedApp::KimiCli,
         SupportedApp::Zed,
+        SupportedApp::MistralVibe,
     ];
 
     pub fn as_str(self) -> &'static str {
@@ -69,6 +71,7 @@ impl SupportedApp {
             SupportedApp::FactoryDroid => "factoryDroid",
             SupportedApp::KimiCli => "kimiCli",
             SupportedApp::Zed => "zed",
+            SupportedApp::MistralVibe => "mistralVibe",
         }
     }
 
@@ -94,6 +97,7 @@ impl SupportedApp {
             SupportedApp::FactoryDroid => "Factory Droid",
             SupportedApp::KimiCli => "Kimi CLI",
             SupportedApp::Zed => "Zed",
+            SupportedApp::MistralVibe => "Mistral Vibe",
         }
     }
 
@@ -119,6 +123,7 @@ impl SupportedApp {
             SupportedApp::FactoryDroid => "factory-droid",
             SupportedApp::KimiCli => "kimi-cli",
             SupportedApp::Zed => "zed",
+            SupportedApp::MistralVibe => "mistral-vibe",
         }
     }
 
@@ -376,6 +381,7 @@ pub fn empty_apps() -> HashMap<SupportedApp, bool> {
         (SupportedApp::FactoryDroid, false),
         (SupportedApp::KimiCli, false),
         (SupportedApp::Zed, false),
+        (SupportedApp::MistralVibe, false),
     ])
 }
 

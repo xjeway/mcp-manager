@@ -36,6 +36,7 @@ storage path, merge behavior, and precedence.
 | Factory Droid | `~/.factory/mcp.json` | `.factory/mcp.json` | Ancestor-folder `.factory/mcp.json` (not read) | Direct project support. Project files are committed, so keep tokens out of them |
 | Kimi CLI | `~/.kimi/mcp.json` | Unsupported | None | User only; remote servers are written without `type` |
 | Zed | `~/.config/zed/settings.json` (Windows: `%APPDATA%\\Zed\\settings.json`) | `.zed/settings.json` | None | Direct project support. Servers live under `context_servers` in the editor settings file, which is edited in place. No `type` field; older nested `command: {path, args, env}` entries are read and rewritten flat. Extension-provided servers (only `settings`) are left alone |
+| Mistral Vibe | `~/.vibe/config.toml` | `.vibe/config.toml` (trusted folders only) | None | Direct project support. Servers are a `[[mcp_servers]]` list keyed by `name`, edited in place. Remote servers are written as `streamable-http` with headers in a static `auth` table; SSE servers are not written (Vibe has no SSE client) and the apply reports it. Vibe rejects unknown fields, so no `type` is written |
 | Kiro | `~/.kiro/settings/mcp.json` | `.kiro/settings/mcp.json` | Agent-level scope | Direct project support, agent scope read-only for now |
 
 ## Implementation Rules

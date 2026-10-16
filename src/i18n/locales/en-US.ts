@@ -244,6 +244,7 @@ const enUS = {
   hideHeaderValue: 'Hide header value',
   applyWarningUndoNotRecorded: 'The change was applied, but it could not be recorded, so it cannot be rolled back: {{error}}',
   applyWarningHttpHeadersUnsupported: '{{client}} cannot store request headers, so the headers of {{server}} were not written there. Add them in {{client}} manually.',
+  applyWarningSseUnsupported: '{{client}} has no SSE support, so the SSE server {{server}} was not written there. Use the server’s streamable HTTP endpoint instead, if it has one.',
   addArg: 'Add Arg',
   checkForUpdates: 'Check for Updates',
   checkingUpdates: 'Checking...',
