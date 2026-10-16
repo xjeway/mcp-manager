@@ -9,6 +9,9 @@ pub enum PlatformOs {
     Unknown,
 }
 
+pub const ANTIGRAVITY_SHARED_CONFIG: &str = ".gemini/config/mcp_config.json";
+pub const ANTIGRAVITY_LEGACY_CONFIG: &str = ".gemini/antigravity/mcp_config.json";
+
 #[derive(Debug, Clone)]
 pub struct PlatformContext {
     pub os: PlatformOs,
@@ -102,7 +105,16 @@ impl PlatformContext {
             SupportedApp::OpenCode => self.home_dir.join(".config/opencode/opencode.json"),
             SupportedApp::GithubCopilot => self.home_dir.join(".copilot/mcp-config.json"),
             SupportedApp::GeminiCli => self.home_dir.join(".gemini/settings.json"),
-            SupportedApp::Antigravity => self.home_dir.join(".gemini/antigravity/mcp_config.json"),
+            SupportedApp::Antigravity => {
+                // Antigravity 2.0 moved the IDE and CLI to one shared file. Keep
+                // using the 1.x location until the new one exists.
+                let shared = self.home_dir.join(ANTIGRAVITY_SHARED_CONFIG);
+                if shared.exists() {
+                    shared
+                } else {
+                    self.home_dir.join(ANTIGRAVITY_LEGACY_CONFIG)
+                }
+            }
             SupportedApp::IFlow => self.home_dir.join(".iflow/settings.json"),
             SupportedApp::QwenCode => self.home_dir.join(".qwen/settings.json"),
             SupportedApp::Cline => self
@@ -111,6 +123,33 @@ impl PlatformContext {
             SupportedApp::Windsurf => self.home_dir.join(".codeium/windsurf/mcp_config.json"),
             SupportedApp::Kiro => self.home_dir.join(".kiro/settings/mcp.json"),
             SupportedApp::Qoder => self.home_dir.join(".qoder/settings.json"),
+            SupportedApp::KiloCode => {
+                // `kilo.json` is the recommended name; use `kilo.jsonc` when that is what exists.
+                let jsonc = self.home_dir.join(".config/kilo/kilo.jsonc");
+                if jsonc.exists() && !self.home_dir.join(".config/kilo/kilo.json").exists() {
+                    jsonc
+                } else {
+                    self.home_dir.join(".config/kilo/kilo.json")
+                }
+            }
+            SupportedApp::FactoryDroid => self.home_dir.join(".factory/mcp.json"),
+            SupportedApp::KimiCli => self.home_dir.join(".kimi/mcp.json"),
+            SupportedApp::Zed => match self.os {
+                PlatformOs::Windows => self.home_dir.join("AppData/Roaming/Zed/settings.json"),
+                _ => self.home_dir.join(".config/zed/settings.json"),
+            },
+            SupportedApp::MistralVibe => self.home_dir.join(".vibe/config.toml"),
+            SupportedApp::Hermes => self.home_dir.join(".hermes/config.yaml"),
+            SupportedApp::Goose => match self.os {
+                PlatformOs::Windows => self
+                    .home_dir
+                    .join("AppData/Roaming/Block/goose/config/config.yaml"),
+                _ => self.home_dir.join(".config/goose/config.yaml"),
+            },
+            SupportedApp::Amp => match self.os {
+                PlatformOs::Windows => self.home_dir.join("AppData/Roaming/amp/settings.json"),
+                _ => self.home_dir.join(".config/amp/settings.json"),
+            },
         }
     }
 
@@ -172,8 +211,14 @@ impl PlatformContext {
             SupportedApp::Cline => (&["cline"][..], &[][..], &[][..]),
             SupportedApp::Windsurf => (
                 &["windsurf"][..],
-                &["Windsurf.app"][..],
-                &["AppData/Local/Programs/Windsurf/Windsurf.exe"][..],
+                // Renamed Devin Desktop in 2026. An in-place update keeps the old
+                // install; a fresh one may use the new name.
+                &["Windsurf.app", "Devin Desktop.app", "Devin.app"][..],
+                &[
+                    "AppData/Local/Programs/Windsurf/Windsurf.exe",
+                    "AppData/Local/Programs/Devin Desktop/Devin Desktop.exe",
+                    "AppData/Local/Programs/Devin/Devin.exe",
+                ][..],
             ),
             SupportedApp::Kiro => (
                 &["kiro"][..],
@@ -185,6 +230,23 @@ impl PlatformContext {
                 &["Qoder.app"][..],
                 &["AppData/Local/Programs/Qoder/Qoder.exe"][..],
             ),
+            SupportedApp::KiloCode => (&["kilo", "kilocode"][..], &[][..], &[][..]),
+            SupportedApp::FactoryDroid => (&["droid"][..], &[][..], &[][..]),
+            SupportedApp::KimiCli => (&["kimi"][..], &[][..], &[][..]),
+            SupportedApp::Zed => (
+                // Some Linux packages install the CLI as `zeditor`.
+                &["zed", "zeditor"][..],
+                &["Zed.app"][..],
+                &["AppData/Local/Programs/Zed/Zed.exe"][..],
+            ),
+            SupportedApp::MistralVibe => (&["vibe"][..], &[][..], &[][..]),
+            SupportedApp::Hermes => (&["hermes"][..], &[][..], &[][..]),
+            SupportedApp::Goose => (
+                &["goose"][..],
+                &["Goose.app"][..],
+                &["AppData/Local/Programs/Goose/Goose.exe"][..],
+            ),
+            SupportedApp::Amp => (&["amp"][..], &[][..], &[][..]),
         };
 
         self.command_exists(commands)
@@ -285,7 +347,15 @@ impl PlatformContext {
             | SupportedApp::Antigravity
             | SupportedApp::QwenCode
             | SupportedApp::Cline
-            | SupportedApp::Qoder => {
+            | SupportedApp::Qoder
+            | SupportedApp::KiloCode
+            | SupportedApp::FactoryDroid
+            | SupportedApp::KimiCli
+            | SupportedApp::Zed
+            | SupportedApp::MistralVibe
+            | SupportedApp::Hermes
+            | SupportedApp::Goose
+            | SupportedApp::Amp => {
                 vec![self.user_app_config_path(app).to_string_lossy().to_string()]
             }
             SupportedApp::GithubCopilot => vec![

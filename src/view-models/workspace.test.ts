@@ -43,6 +43,14 @@ describe('workspace view-models', () => {
               windsurf: false,
               kiro: false,
               qoder: false,
+              kiloCode: false,
+              factoryDroid: false,
+              kimiCli: false,
+              zed: false,
+              mistralVibe: false,
+              hermes: false,
+              goose: false,
+              amp: false,
             },
           },
         ],
@@ -80,6 +88,14 @@ describe('workspace view-models', () => {
         windsurf: false,
         kiro: true,
         qoder: false,
+        kiloCode: false,
+        factoryDroid: false,
+        kimiCli: false,
+        zed: false,
+        mistralVibe: false,
+        hermes: false,
+        goose: false,
+        amp: false,
       },
     })
 
@@ -118,6 +134,14 @@ describe('workspace view-models', () => {
               windsurf: false,
               kiro: true,
               qoder: false,
+              kiloCode: false,
+              factoryDroid: false,
+              kimiCli: false,
+              zed: false,
+              mistralVibe: false,
+              hermes: false,
+              goose: false,
+              amp: false,
             },
           },
         ],
@@ -157,6 +181,14 @@ describe('workspace view-models', () => {
               windsurf: false,
               kiro: false,
               qoder: false,
+              kiloCode: false,
+              factoryDroid: false,
+              kimiCli: false,
+              zed: false,
+              mistralVibe: false,
+              hermes: false,
+              goose: false,
+              amp: false,
             },
             placements: [
               {
@@ -257,6 +289,14 @@ describe('workspace view-models', () => {
         windsurf: false,
         kiro: false,
         qoder: false,
+        kiloCode: false,
+        factoryDroid: false,
+        kimiCli: false,
+        zed: false,
+        mistralVibe: false,
+        hermes: false,
+        goose: false,
+        amp: false,
       },
       placements: [
         { app: 'vscode', scope: 'user', path: '/user/mcp.json', enabled: true, managed: true },
@@ -326,11 +366,19 @@ describe('workspace view-models', () => {
       const t = ((key: string, options: Record<string, string>) => `${key}:${options.client}:${options.server}`) as never
       expect(
         applyWarningMessages(
-          { warnings: [{ kind: 'httpHeadersUnsupported', app: 'claudeDesktop', serverId: 'linear' }] },
+          {
+            warnings: [
+              { kind: 'httpHeadersUnsupported', app: 'claudeDesktop', serverId: 'linear' },
+              { kind: 'sseUnsupported', app: 'mistralVibe', serverId: 'linear' },
+            ],
+          },
           [remote({ Authorization: 'x' })],
           t,
         ),
-      ).toEqual(['applyWarningHttpHeadersUnsupported:Claude Desktop:Linear'])
+      ).toEqual([
+        'applyWarningHttpHeadersUnsupported:Claude Desktop:Linear',
+        'applyWarningSseUnsupported:Mistral Vibe:Linear',
+      ])
     })
 
     it('warns when an applied change could not be recorded for undo', () => {

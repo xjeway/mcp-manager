@@ -2,7 +2,8 @@
   "theme": "GitHub",
   "mcpServers": {
     "remote": {
-      "httpUrl": "https://mcp.example.com/mcp",
+      "type": "http",
+      "url": "https://mcp.example.com/mcp",
       "headers": {
         "Authorization": "Bearer fixture-token",
         "X-Api-Key": "fixture-key"

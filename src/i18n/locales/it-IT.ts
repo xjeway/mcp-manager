@@ -246,6 +246,7 @@ const itIT: LocaleMessages = {
   hideHeaderValue: 'Nascondi valore intestazione',
   applyWarningUndoNotRecorded: 'La modifica è stata applicata, ma non è stato possibile registrarla nella cronologia e quindi non può essere annullata: {{error}}',
   applyWarningHttpHeadersUnsupported: '{{client}} non può memorizzare intestazioni di richiesta: le intestazioni di {{server}} non vi sono state scritte. Aggiungile manualmente in {{client}}.',
+  applyWarningSseUnsupported: '{{client}} non supporta SSE, quindi il server SSE {{server}} non è stato scritto lì. Usa invece l’endpoint Streamable HTTP del server, se disponibile.',
   addArg: 'Aggiungi argomento',
   checkForUpdates: 'Controlla aggiornamenti',
   checkingUpdates: 'Controllo in corso...',

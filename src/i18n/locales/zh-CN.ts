@@ -242,6 +242,7 @@ const zhCN: LocaleMessages = {
   hideHeaderValue: '隐藏请求头值',
   applyWarningUndoNotRecorded: '更改已应用，但未能记录下来，因此无法回滚：{{error}}',
   applyWarningHttpHeadersUnsupported: '{{client}} 不支持保存请求头，{{server}} 的请求头未写入该客户端，请在 {{client}} 中手动配置。',
+  applyWarningSseUnsupported: '{{client}} 不支持 SSE，SSE 服务器 {{server}} 未写入该客户端。如果该服务器提供 Streamable HTTP 地址，请改用该地址。',
   addArg: '添加参数',
   checkForUpdates: '检查更新',
   checkingUpdates: '检查中...',

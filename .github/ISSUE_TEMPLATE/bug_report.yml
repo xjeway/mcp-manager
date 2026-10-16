@@ -26,21 +26,29 @@ body:
       label: 涉及的客户端 / Affected clients
       multiple: true
       options:
+        - Amp
         - Antigravity
         - Claude Code
         - Claude Desktop
         - Cline
         - Codex
         - Cursor
+        - Factory Droid
         - Gemini CLI
         - GitHub Copilot
+        - Goose
+        - Hermes Agent
         - iFlow
+        - Kilo Code
+        - Kimi CLI
         - Kiro
+        - Mistral Vibe
         - OpenCode
         - Qoder
         - Qwen Code
         - VS Code
-        - Windsurf
+        - Devin Desktop (Windsurf)
+        - Zed
         - 其他 / Other
   - type: textarea
     id: description

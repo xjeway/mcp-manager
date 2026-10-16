@@ -16,6 +16,14 @@ export const SUPPORTED_APPS = [
   'windsurf',
   'kiro',
   'qoder',
+  'kiloCode',
+  'factoryDroid',
+  'kimiCli',
+  'zed',
+  'mistralVibe',
+  'hermes',
+  'goose',
+  'amp',
 ] as const
 
 export type SupportedApp = (typeof SUPPORTED_APPS)[number]
@@ -85,7 +93,7 @@ export interface ParseResult {
 
 /** A non-blocking problem reported by the backend after applying. */
 export interface ApplyWarning {
-  kind: 'httpHeadersUnsupported'
+  kind: 'httpHeadersUnsupported' | 'sseUnsupported'
   app: SupportedApp
   serverId: string
 }

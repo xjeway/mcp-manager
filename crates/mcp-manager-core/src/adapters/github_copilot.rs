@@ -11,13 +11,11 @@ impl AppAdapter for GithubCopilotAdapter {
     }
 
     fn detect_sources(&self, ctx: &PlatformContext) -> Vec<(String, u32)> {
+        // Copilot CLI's project config is the `.mcp.json` Claude Code manages
+        // (it stopped reading `.vscode/mcp.json`), so it is not imported or
+        // written here: two clients rewriting one file would delete each
+        // other's entries.
         vec![
-            (
-                ctx.workspace_file(".vscode/mcp.json")
-                    .to_string_lossy()
-                    .to_string(),
-                10,
-            ),
             (
                 ctx.user_app_config_path(SupportedApp::Vscode)
                     .to_string_lossy()
@@ -115,11 +113,11 @@ mod tests {
     }
 
     #[test]
-    fn detects_cli_and_vscode_sources() {
+    fn detects_cli_and_vscode_user_sources() {
         let sources = GithubCopilotAdapter.detect_sources(&ctx());
-        assert_eq!(sources.len(), 3);
-        assert!(sources[0].0.ends_with(".vscode/mcp.json"));
-        assert!(sources[2].0.ends_with(".copilot/mcp-config.json"));
+        assert_eq!(sources.len(), 2);
+        assert!(sources[0].0.ends_with("Code/User/mcp.json"));
+        assert!(sources[1].0.ends_with(".copilot/mcp-config.json"));
     }
 
     #[test]

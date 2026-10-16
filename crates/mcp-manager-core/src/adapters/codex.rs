@@ -12,6 +12,13 @@ impl AppAdapter for CodexAdapter {
 
     fn detect_sources(&self, ctx: &PlatformContext) -> Vec<(String, u32)> {
         vec![
+            // Project config; Codex only loads it for trusted projects.
+            (
+                ctx.workspace_file(".codex/config.toml")
+                    .to_string_lossy()
+                    .to_string(),
+                10,
+            ),
             (
                 ctx.home_dir
                     .join(".codex/mcp.json")

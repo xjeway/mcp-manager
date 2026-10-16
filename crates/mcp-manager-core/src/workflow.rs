@@ -157,7 +157,7 @@ pub fn apply(
     let backups = apply_operations(operations)?;
     Ok(ApplyResult {
         backups,
-        warnings: crate::adapters::unsupported_header_warnings(config),
+        warnings: crate::adapters::apply_warnings(config),
         history_error: None,
     })
 }
@@ -233,7 +233,9 @@ pub fn preview(
         for (id, value) in &desired {
             let action = match existing.get(id) {
                 None => ChangeAction::Add,
-                Some(current) if current == value => ChangeAction::Unchanged,
+                Some(current) if current == &with_kept_fields(current, value) => {
+                    ChangeAction::Unchanged
+                }
                 Some(_) if managed_before.contains(id) => ChangeAction::Update,
                 Some(_) => ChangeAction::OverwriteUnmanaged,
             };
@@ -249,10 +251,21 @@ pub fn preview(
     changes
 }
 
+/// `desired` as the apply will write it over `current`, which keeps the
+/// fields MCP Manager does not model.
+fn with_kept_fields(current: &Value, desired: &Value) -> Value {
+    let mut written = desired.clone();
+    crate::storage::carry_unmanaged_fields(current, &mut written);
+    written
+}
+
 fn is_entry_merge(mode: &str) -> bool {
     matches!(
         mode,
-        "merge_json_object_entries" | "merge_toml_table_entries"
+        "merge_json_object_entries"
+            | "merge_toml_table_entries"
+            | "merge_toml_array_entries"
+            | "merge_yaml_mapping_entries"
     )
 }
 
@@ -272,15 +285,28 @@ fn existing_entries(
     let Ok(content) = fs::read_to_string(ctx.resolve_path(&operation.path)) else {
         return Map::new();
     };
-    let host = if operation.mode == "merge_toml_table_entries" {
+    let host = if operation.mode.starts_with("merge_toml") {
         toml::from_str::<toml::Table>(&content)
             .ok()
             .and_then(|table| serde_json::to_value(table).ok())
+    } else if operation.mode == "merge_yaml_mapping_entries" {
+        serde_yaml::from_str::<Value>(&content).ok()
     } else {
-        serde_json::from_str::<Value>(&crate::parser::strip_json_comments(&content)).ok()
+        crate::parser::parse_jsonc(&content).ok()
     };
     match host.as_ref().and_then(|host| host.get(field)) {
         Some(Value::Object(entries)) => entries.clone(),
+        // `[[field]]` entries, keyed by the `name` the operation uses.
+        Some(Value::Array(entries)) => entries
+            .iter()
+            .filter_map(|entry| {
+                let mut entry = entry.as_object()?.clone();
+                let Value::String(name) = entry.remove("name")? else {
+                    return None;
+                };
+                Some((name, Value::Object(entry)))
+            })
+            .collect(),
         _ => Map::new(),
     }
 }
@@ -343,7 +369,17 @@ mod tests {
                 .as_deref(),
             Some("/workspace/project/.vscode/mcp.json")
         );
-        assert!(!info.placement_paths.contains_key(&SupportedApp::Codex));
+        assert_eq!(
+            info.placement_paths
+                .get(&SupportedApp::Codex)
+                .map(UnixPath::unix)
+                .as_deref(),
+            Some("/workspace/project/.codex/config.toml")
+        );
+        // Claude Desktop has no project scope.
+        assert!(!info
+            .placement_paths
+            .contains_key(&SupportedApp::ClaudeDesktop));
     }
 
     #[test]
@@ -458,6 +494,66 @@ mod tests {
         assert!(changes
             .iter()
             .all(|change| change.scope == PlacementScope::User));
+    }
+
+    #[test]
+    fn fields_an_apply_keeps_do_not_count_as_a_change() {
+        let home = tempdir().expect("tempdir");
+        let ctx = PlatformContext {
+            os: PlatformOs::Linux,
+            home_dir: home.path().to_path_buf(),
+            workspace_root: home.path().to_path_buf(),
+        };
+        let cursor = SupportedApp::Cursor;
+        fs::create_dir_all(home.path().join(".cursor")).unwrap();
+        // A hand-added timeout, a comment and a trailing comma.
+        fs::write(
+            home.path().join(".cursor/mcp.json"),
+            r#"{ "mcpServers": {
+                // tuned by hand
+                "same": { "command": "a", "args": [], "env": {}, "type": "stdio", "timeout": 9000 },
+            } }"#,
+        )
+        .unwrap();
+        let servers = config(vec![stdio_server("same", "a", &[cursor])]);
+
+        let changes = preview(&ctx, &servers, Some(&servers));
+
+        assert_eq!(
+            action_for(&changes, "same", cursor),
+            Some(ChangeAction::Unchanged)
+        );
+    }
+
+    #[test]
+    fn previews_toml_list_clients() {
+        let home = tempdir().expect("tempdir");
+        let ctx = PlatformContext {
+            os: PlatformOs::Linux,
+            home_dir: home.path().to_path_buf(),
+            workspace_root: home.path().to_path_buf(),
+        };
+        let vibe = SupportedApp::MistralVibe;
+        let next = config(vec![stdio_server("ctx", "npx", &[vibe])]);
+        assert_eq!(
+            action_for(&preview(&ctx, &next, None), "ctx", vibe),
+            Some(ChangeAction::Add)
+        );
+
+        for operation in super::plan(&ctx, &next, None) {
+            let path = ctx.resolve_path(&operation.path);
+            fs::create_dir_all(path.parent().unwrap()).unwrap();
+            crate::storage::apply_operation(&path, &operation).expect("apply");
+        }
+        // A hand-tuned field an apply keeps is not a change.
+        let path = ctx.user_app_config_path(vibe);
+        let tuned = fs::read_to_string(&path).unwrap() + "tool_timeout_sec = 120\n";
+        fs::write(&path, tuned).unwrap();
+
+        assert_eq!(
+            action_for(&preview(&ctx, &next, Some(&next)), "ctx", vibe),
+            Some(ChangeAction::Unchanged)
+        );
     }
 
     #[test]

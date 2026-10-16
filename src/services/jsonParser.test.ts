@@ -86,10 +86,18 @@ describe('parseMcpJson', () => {
       windsurf: false,
       kiro: false,
       qoder: false,
+      kiloCode: false,
+      factoryDroid: false,
+      kimiCli: false,
+      zed: false,
+      mistralVibe: false,
+      hermes: false,
+      goose: false,
+      amp: false,
     } satisfies MCPServer['apps'])
   })
 
-  it('parses http aliases and disabled flags', () => {
+  it('parses http aliases and leaves a client-only disabled flag out', () => {
     const result = parseMcpJson(
       JSON.stringify({
         mcpServers: {
@@ -105,7 +113,7 @@ describe('parseMcpJson', () => {
     expect(result.errors).toHaveLength(0)
     expect(result.servers[0].transport.type).toBe('http')
     expect(result.servers[0].transport.url).toBe('https://mcp.linear.app/sse')
-    expect(result.servers[0].enabled).toBe(false)
+    expect(result.servers[0].enabled).toBe(true)
   })
 
   it('parses remote headers, including Codex http_headers', () => {

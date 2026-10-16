@@ -13,14 +13,21 @@ describe('client capabilities', () => {
 
   it('lists the clients whose project config can be managed directly', () => {
     expect(getProjectConfigurableApps()).toEqual([
+      'amp',
       'claudeCode',
+      'codex',
       'cursor',
+      'factoryDroid',
       'geminiCli',
       'iFlow',
+      'kiloCode',
       'kiro',
+      'mistralVibe',
       'openCode',
+      'qoder',
       'qwenCode',
       'vscode',
+      'zed',
     ])
   })
 
@@ -32,10 +39,10 @@ describe('client capabilities', () => {
     ])
   })
 
-  it('keeps GitHub Copilot out of direct project toggles because workspace MCP is owned by VS Code', () => {
+  it('leaves GitHub Copilot project config to Claude Code, whose .mcp.json Copilot CLI reads', () => {
     const capability = getClientCapability('githubCopilot')
 
     expect(capability.projectManagement).toBe('viaOtherClient')
-    expect(capability.projectViaApp).toBe('vscode')
+    expect(capability.projectViaApp).toBe('claudeCode')
   })
 })

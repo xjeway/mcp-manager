@@ -2,7 +2,8 @@
 //! on each client file, show a summary, confirm, then save and apply.
 
 use crate::session::{Failure, Outcome, Session};
-use mcp_manager_core::core::{MCPConfig, PlacementScope};
+use mcp_manager_core::adapters::apply_warnings;
+use mcp_manager_core::core::{ApplyWarning, MCPConfig, PlacementScope};
 use mcp_manager_core::history::{self, ChangeRecord};
 use mcp_manager_core::ops::{validate, Issue};
 use mcp_manager_core::store;
@@ -24,6 +25,8 @@ struct Report<'a> {
     changes: &'a [PlannedChange],
     applied: bool,
     backups: Vec<String>,
+    /// Servers a client cannot take as they are, e.g. SSE for Goose.
+    warnings: &'a [ApplyWarning],
 }
 
 /// Returns whether anything was written.
@@ -39,8 +42,17 @@ pub fn commit(session: &Session, change: Change, dry_run: bool) -> Outcome<bool>
         .filter(|c| change.focus.contains(&c.server_id) || c.action != ChangeAction::Unchanged)
         .collect::<Vec<_>>();
     let has_writes = changes.iter().any(|c| c.action != ChangeAction::Unchanged);
+    // Reported even when nothing is written: a server a client cannot take
+    // may be the reason its file does not change.
+    let warnings = apply_warnings(&change.after)
+        .into_iter()
+        .filter(|w| change.focus.contains(&w.server_id))
+        .collect::<Vec<_>>();
 
     if !session.json {
+        for warning in &warnings {
+            session.warn(describe_warning(warning))?;
+        }
         if changes.is_empty() {
             session.info("No client config needs to change.")?;
         } else {
@@ -54,6 +66,7 @@ pub fn commit(session: &Session, change: Change, dry_run: bool) -> Outcome<bool>
                 changes: &changes,
                 applied: false,
                 backups: vec![],
+                warnings: &warnings,
             })?;
         } else if dry_run {
             session.outro("Dry run: nothing was written.")?;
@@ -145,6 +158,7 @@ pub fn commit(session: &Session, change: Change, dry_run: bool) -> Outcome<bool>
             changes: &changes,
             applied: true,
             backups,
+            warnings: &warnings,
         })?;
     } else {
         let written = changes
@@ -164,6 +178,22 @@ pub fn print_json(value: &impl Serialize) -> Outcome<()> {
     let text = serde_json::to_string_pretty(value).map_err(|e| e.to_string())?;
     println!("{text}");
     Ok(())
+}
+
+fn describe_warning(warning: &ApplyWarning) -> String {
+    let client = warning.app.display_name();
+    let server = &warning.server_id;
+    match warning.kind.as_str() {
+        "sseUnsupported" => format!(
+            "{client} has no SSE support, so the SSE server {server} was not written there. \
+             Use the server's streamable HTTP endpoint instead, if it has one."
+        ),
+        "httpHeadersUnsupported" => format!(
+            "{client} cannot store request headers, so the headers of {server} were not \
+             written there. Add them in {client} manually."
+        ),
+        other => format!("{client}: {server}: {other}"),
+    }
 }
 
 fn describe_issue(issue: &Issue) -> String {

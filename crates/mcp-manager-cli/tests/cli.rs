@@ -239,7 +239,7 @@ fn project_scope_writes_the_project_file_only() {
         "--url",
         "https://mcp.linear.app/mcp",
         "-a",
-        "claude-code,codex",
+        "claude-code,codex,windsurf",
         "--project",
         "-y",
     ]);
@@ -251,8 +251,14 @@ fn project_scope_writes_the_project_file_only() {
     );
     let user = fs::read_to_string(sandbox.home.join(".claude.json")).unwrap_or_default();
     assert!(!user.contains("linear"));
-    // Codex has no project-level config, so it falls back to user level.
-    assert!(sandbox.codex_config().contains("[mcp_servers.linear]"));
+    // Codex loads `.codex/config.toml` for trusted projects.
+    let codex_project = fs::read_to_string(sandbox.project.join(".codex/config.toml")).unwrap();
+    assert!(codex_project.contains("[mcp_servers.linear]"));
+    assert!(!sandbox.codex_config().contains("linear"));
+    // Windsurf has no project-level config, so it falls back to user level.
+    let windsurf =
+        fs::read_to_string(sandbox.home.join(".codeium/windsurf/mcp_config.json")).unwrap();
+    assert!(windsurf.contains("linear"));
 
     let clients = sandbox.json(&["list", "--json"])[0]["clients"].clone();
     assert_eq!(clients[0]["scope"], "project");
@@ -512,4 +518,29 @@ fn keeps_what_a_newer_version_saved_and_will_not_write_a_newer_format() {
     assert_eq!(fs::read_to_string(&yaml).unwrap(), newer);
     assert!(sandbox.cursor_servers().get("ctx").is_some());
     assert!(sandbox.listed_ids().contains(&"ctx".to_string()));
+}
+
+#[test]
+fn reports_a_server_a_client_cannot_take() {
+    let sandbox = Sandbox::new();
+
+    let report = sandbox.json(&[
+        "add",
+        "events",
+        "-a",
+        "goose",
+        "--url",
+        "https://example.com/sse",
+        "--transport",
+        "sse",
+        "-y",
+        "--json",
+    ]);
+
+    // Goose's file has nothing to write, but the server is still reported.
+    assert_eq!(report["applied"], false);
+    assert!(!sandbox.home.join(".config/goose/config.yaml").exists());
+    assert_eq!(report["warnings"][0]["kind"], "sseUnsupported");
+    assert_eq!(report["warnings"][0]["app"], "goose");
+    assert_eq!(report["warnings"][0]["serverId"], "events");
 }

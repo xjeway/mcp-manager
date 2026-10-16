@@ -1,12 +1,16 @@
 use crate::core::WriteOperation;
 use crate::platform::PlatformContext;
 use chrono::Utc;
-use serde_json::{Map, Value};
+use serde_json::Value;
 use std::fs;
 use std::path::{Component, Path, PathBuf, Prefix};
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::time::Duration;
 use toml::Table;
+
+mod jsonc;
+mod toml_doc;
+mod yaml_doc;
 
 fn base_dir() -> PathBuf {
     PlatformContext::current().app_data_dir()
@@ -311,24 +315,109 @@ fn apply_replace_json(path: &Path, content: &str) -> Result<(), String> {
     atomic_write(path, &pretty)
 }
 
+fn read_existing(path: &Path) -> Result<String, String> {
+    if path.exists() {
+        fs::read_to_string(path).map_err(|e| e.to_string())
+    } else {
+        Ok(String::new())
+    }
+}
+
+/// A client file that cannot be parsed is reported instead of replaced: it is
+/// usually hand-edited, and writing over it would lose everything in it.
+fn unreadable(path: &Path, error: String) -> String {
+    format!(
+        "{} could not be read as JSON: {error}",
+        path.to_string_lossy()
+    )
+}
+
 fn apply_merge_json_field(path: &Path, field: &str, content: &str) -> Result<(), String> {
     let field_value: Value = serde_json::from_str(content).map_err(|e| e.to_string())?;
-    let existing = if path.exists() {
-        fs::read_to_string(path).map_err(|e| e.to_string())?
-    } else {
-        "{}".to_string()
+    let existing = read_existing(path)?;
+    let updated = jsonc::set_root_member(&existing, field, &field_value)
+        .map_err(|error| unreadable(path, error))?;
+    atomic_write(path, &updated)
+}
+
+/// Fields MCP Manager models and rewrites on every apply. Anything else on an
+/// existing entry (`oauth`, `timeout`, `autoApprove`, `disabledTools`, ...) was
+/// set by the user or the client and is carried over to the rewritten entry.
+const TRANSPORT_FIELDS: &[&str] = &[
+    "command",
+    "args",
+    "env",
+    "environment",
+    "url",
+    "serverUrl",
+    "httpUrl",
+    "type",
+    "headers",
+    "http_headers",
+    "tools",
+    // Older Zed marker for a custom server, next to a nested `command`.
+    "source",
+    // Mistral Vibe and Hermes name the transport; Goose spells the command,
+    // URL and environment `cmd`, `uri` and `envs`.
+    "transport",
+    "cmd",
+    "uri",
+    "envs",
+];
+
+fn is_transport_field(field: &str) -> bool {
+    TRANSPORT_FIELDS.contains(&field)
+}
+
+/// Whether an entry runs a local command, as opposed to a remote URL. Fields are
+/// only carried over within the same kind: a stdio-only `cwd` on a remote
+/// entry, or a remote-only `bearer_token_env_var` on a stdio one, is rejected
+/// by some clients (Codex fails to load its config).
+fn is_local_entry<'a>(mut keys: impl Iterator<Item = &'a String>) -> bool {
+    keys.any(|key| key == "command" || key == "cmd")
+}
+
+/// Copies the fields of `old` that an apply keeps into `new`.
+pub(crate) fn carry_unmanaged_fields(old: &Value, new: &mut Value) {
+    let (Some(old), Some(new)) = (old.as_object(), new.as_object_mut()) else {
+        return;
     };
-    let mut host =
-        serde_json::from_str::<Value>(&existing).unwrap_or_else(|_| Value::Object(Map::new()));
-    let Some(host_map) = host.as_object_mut() else {
-        return Err(format!(
-            "{} does not contain a JSON object",
-            path.to_string_lossy()
-        ));
-    };
-    host_map.insert(field.to_string(), field_value);
-    let pretty = serde_json::to_string_pretty(&host).map_err(|e| e.to_string())?;
-    atomic_write(path, &pretty)
+    if is_local_entry(old.keys()) != is_local_entry(new.keys()) {
+        return;
+    }
+    // Mistral Vibe keeps API-key settings next to static headers, in `auth`
+    // (or, in older files, at the top of the entry; it rejects both at once).
+    // When the new entry brings its own static `auth`, those settings move
+    // into it instead of being lost.
+    const API_KEY_FIELDS: [&str; 3] = ["api_key_env", "api_key_header", "api_key_format"];
+    if let Some(Value::Object(auth)) = new.get_mut("auth") {
+        if auth.get("type").and_then(Value::as_str) == Some("static") {
+            let old_auth = old
+                .get("auth")
+                .and_then(Value::as_object)
+                .filter(|auth| auth.get("type").and_then(Value::as_str) == Some("static"));
+            for field in API_KEY_FIELDS {
+                let kept = old_auth
+                    .and_then(|auth| auth.get(field))
+                    .or_else(|| old.get(field));
+                if let (Some(value), false) = (kept, auth.contains_key(field)) {
+                    auth.insert(field.to_string(), value.clone());
+                }
+            }
+        }
+    }
+    // Whether the client turned the entry off is the client's setting: an
+    // apply writes `enabled: true` only for a new entry.
+    if let (Some(enabled), Some(slot)) = (old.get("enabled"), new.get_mut("enabled")) {
+        *slot = enabled.clone();
+    }
+    let has_auth = new.contains_key("auth");
+    for (field, value) in old {
+        let moved_into_auth = has_auth && API_KEY_FIELDS.contains(&field.as_str());
+        if !is_transport_field(field) && !moved_into_auth && !new.contains_key(field) {
+            new.insert(field.clone(), value.clone());
+        }
+    }
 }
 
 fn apply_merge_json_object_entries(
@@ -341,44 +430,16 @@ fn apply_merge_json_object_entries(
     let Some(new_entries) = field_value.as_object() else {
         return Err(format!("{field} merge content must be a JSON object"));
     };
-
-    let existing = if path.exists() {
-        fs::read_to_string(path).map_err(|e| e.to_string())?
-    } else {
-        "{}".to_string()
-    };
-    let mut host =
-        serde_json::from_str::<Value>(&existing).unwrap_or_else(|_| Value::Object(Map::new()));
-    let Some(host_map) = host.as_object_mut() else {
-        return Err(format!(
-            "{} does not contain a JSON object",
-            path.to_string_lossy()
-        ));
-    };
-
-    let field_entry = host_map
-        .entry(field.to_string())
-        .or_insert_with(|| Value::Object(Map::new()));
-    let Some(target_map) = field_entry.as_object_mut() else {
-        return Err(format!(
-            "{} field {} does not contain a JSON object",
-            path.to_string_lossy(),
-            field
-        ));
-    };
-
-    if let Some(keys) = remove_keys {
-        for key in keys {
-            target_map.remove(key);
-        }
-    }
-
-    for (key, value) in new_entries {
-        target_map.insert(key.clone(), value.clone());
-    }
-
-    let pretty = serde_json::to_string_pretty(&host).map_err(|e| e.to_string())?;
-    atomic_write(path, &pretty)
+    let existing = read_existing(path)?;
+    let updated = jsonc::merge_object_entries(
+        &existing,
+        field,
+        new_entries,
+        remove_keys.unwrap_or_default(),
+        carry_unmanaged_fields,
+    )
+    .map_err(|error| unreadable(path, error))?;
+    atomic_write(path, &updated)
 }
 
 fn apply_merge_toml_field(path: &Path, field: &str, content: &str) -> Result<(), String> {
@@ -404,45 +465,78 @@ fn apply_merge_toml_table_entries(
     content: &str,
     remove_keys: Option<&[String]>,
 ) -> Result<(), String> {
-    let field_value: Value = serde_json::from_str(content).map_err(|e| e.to_string())?;
-    let Some(new_entries) = field_value.as_object() else {
-        return Err(format!("{field} merge content must be a JSON object"));
-    };
+    let new_entries = merge_content(field, content)?;
+    let existing = read_existing(path)?;
+    let updated = toml_doc::merge_table_entries(
+        &existing,
+        field,
+        &new_entries,
+        remove_keys.unwrap_or_default(),
+        carry_unmanaged_fields,
+    )
+    .map_err(|error| unreadable_toml(path, error))?;
+    atomic_write(path, &updated)
+}
 
-    let existing = if path.exists() {
-        fs::read_to_string(path).map_err(|e| e.to_string())?
-    } else {
-        String::new()
-    };
-    let mut host: Table = if existing.trim().is_empty() {
-        Table::new()
-    } else {
-        toml::from_str(&existing).map_err(|e| e.to_string())?
-    };
+fn apply_merge_yaml_mapping_entries(
+    path: &Path,
+    field: &str,
+    content: &str,
+    remove_keys: Option<&[String]>,
+) -> Result<(), String> {
+    let new_entries = merge_content(field, content)?;
+    let existing = read_existing(path)?;
+    let updated = yaml_doc::merge_mapping_entries(
+        &existing,
+        field,
+        &new_entries,
+        remove_keys.unwrap_or_default(),
+        carry_unmanaged_fields,
+    )
+    .map_err(|error| {
+        format!(
+            "{} could not be edited as YAML: {error}",
+            path.to_string_lossy()
+        )
+    })?;
+    atomic_write(path, &updated)
+}
 
-    let field_entry = host
-        .entry(field.to_string())
-        .or_insert_with(|| toml::Value::Table(Table::new()));
-    let Some(target_table) = field_entry.as_table_mut() else {
-        return Err(format!(
-            "{} field {} does not contain a TOML table",
-            path.to_string_lossy(),
-            field
-        ));
-    };
+/// Key that identifies an entry of a `merge_toml_array_entries` list.
+const TOML_ARRAY_ENTRY_KEY: &str = "name";
 
-    if let Some(keys) = remove_keys {
-        for key in keys {
-            target_table.remove(key);
-        }
+fn apply_merge_toml_array_entries(
+    path: &Path,
+    field: &str,
+    content: &str,
+    remove_keys: Option<&[String]>,
+) -> Result<(), String> {
+    let new_entries = merge_content(field, content)?;
+    let existing = read_existing(path)?;
+    let updated = toml_doc::merge_array_entries(
+        &existing,
+        field,
+        TOML_ARRAY_ENTRY_KEY,
+        &new_entries,
+        remove_keys.unwrap_or_default(),
+        carry_unmanaged_fields,
+    )
+    .map_err(|error| unreadable_toml(path, error))?;
+    atomic_write(path, &updated)
+}
+
+fn merge_content(field: &str, content: &str) -> Result<serde_json::Map<String, Value>, String> {
+    match serde_json::from_str(content).map_err(|e| e.to_string())? {
+        Value::Object(entries) => Ok(entries),
+        _ => Err(format!("{field} merge content must be a JSON object")),
     }
+}
 
-    for (key, value) in new_entries {
-        target_table.insert(key.clone(), json_value_to_toml(value)?);
-    }
-
-    let rendered = toml::to_string_pretty(&host).map_err(|e| e.to_string())?;
-    atomic_write(path, &rendered)
+fn unreadable_toml(path: &Path, error: String) -> String {
+    format!(
+        "{} could not be read as TOML: {error}",
+        path.to_string_lossy()
+    )
 }
 
 /// Applies one write to `path` without taking a backup.
@@ -465,6 +559,18 @@ pub fn apply_operation(path: &Path, item: &WriteOperation) -> Result<(), String>
         "merge_toml_table_entries" => apply_merge_toml_table_entries(
             path,
             field("TOML")?,
+            &item.content,
+            item.remove_keys.as_deref(),
+        ),
+        "merge_toml_array_entries" => apply_merge_toml_array_entries(
+            path,
+            field("TOML")?,
+            &item.content,
+            item.remove_keys.as_deref(),
+        ),
+        "merge_yaml_mapping_entries" => apply_merge_yaml_mapping_entries(
+            path,
+            field("YAML")?,
             &item.content,
             item.remove_keys.as_deref(),
         ),
@@ -545,7 +651,7 @@ pub fn rollback(backups: Vec<String>) -> Result<(), String> {
 
 #[cfg(test)]
 mod tests {
-    use super::{apply_operations, backup_file, resolve_relative_path, rollback};
+    use super::{apply_operation, apply_operations, backup_file, resolve_relative_path, rollback};
     use crate::core::WriteOperation;
     use std::ffi::OsString;
     use std::fs;
@@ -587,6 +693,86 @@ mod tests {
             Some(value) => std::env::set_var(HOME_ENV_VAR, value),
             None => std::env::remove_var(HOME_ENV_VAR),
         }
+    }
+
+    #[test]
+    fn rewriting_a_json_entry_keeps_fields_it_does_not_model() {
+        let dir = tempfile::tempdir().expect("tmpdir");
+        let path = dir.path().join("mcp.json");
+        fs::write(
+            &path,
+            r#"{"mcpServers":{"linear":{"type":"http","url":"https://old/mcp","headers":{"A":"1"},"timeout":9000,"oauth":{"clientId":"abc"}},"gone":{"command":"x"}}}"#,
+        )
+        .expect("seed");
+        let operation = WriteOperation {
+            path: path.to_string_lossy().to_string(),
+            mode: "merge_json_object_entries".to_string(),
+            field: Some("mcpServers".to_string()),
+            remove_keys: Some(vec!["linear".to_string(), "gone".to_string()]),
+            content: r#"{"linear":{"type":"http","url":"https://new/mcp"}}"#.to_string(),
+        };
+        apply_operation(&path, &operation).expect("apply");
+
+        let written: serde_json::Value =
+            serde_json::from_str(&fs::read_to_string(&path).expect("read")).expect("json");
+        let linear = &written["mcpServers"]["linear"];
+        assert_eq!(linear["url"], "https://new/mcp");
+        assert_eq!(linear["timeout"], 9000);
+        assert_eq!(linear["oauth"]["clientId"], "abc");
+        // Transport fields the manager owns are not resurrected.
+        assert!(linear.get("headers").is_none());
+        assert!(written["mcpServers"].get("gone").is_none());
+    }
+
+    #[test]
+    fn switching_between_local_and_remote_drops_the_old_entry_fields() {
+        let dir = tempfile::tempdir().expect("tmpdir");
+        let path = dir.path().join("config.toml");
+        fs::write(
+            &path,
+            "[mcp_servers.docs]\nurl = \"https://old/mcp\"\nbearer_token_env_var = \"TOKEN\"\n",
+        )
+        .expect("seed");
+        let operation = WriteOperation {
+            path: path.to_string_lossy().to_string(),
+            mode: "merge_toml_table_entries".to_string(),
+            field: Some("mcp_servers".to_string()),
+            remove_keys: Some(vec!["docs".to_string()]),
+            content: r#"{"docs":{"command":"npx","args":["docs-mcp"]}}"#.to_string(),
+        };
+        apply_operation(&path, &operation).expect("apply");
+
+        let written: toml::Table =
+            toml::from_str(&fs::read_to_string(&path).expect("read")).expect("toml");
+        let docs = &written["mcp_servers"]["docs"];
+        assert_eq!(docs["command"].as_str(), Some("npx"));
+        assert!(docs.get("bearer_token_env_var").is_none());
+    }
+
+    #[test]
+    fn rewriting_a_toml_entry_keeps_fields_it_does_not_model() {
+        let dir = tempfile::tempdir().expect("tmpdir");
+        let path = dir.path().join("config.toml");
+        fs::write(
+            &path,
+            "[mcp_servers.docs]\nurl = \"https://old/mcp\"\nstartup_timeout_sec = 30\nenabled_tools = [\"search\"]\n",
+        )
+        .expect("seed");
+        let operation = WriteOperation {
+            path: path.to_string_lossy().to_string(),
+            mode: "merge_toml_table_entries".to_string(),
+            field: Some("mcp_servers".to_string()),
+            remove_keys: Some(vec!["docs".to_string()]),
+            content: r#"{"docs":{"url":"https://new/mcp"}}"#.to_string(),
+        };
+        apply_operation(&path, &operation).expect("apply");
+
+        let written: toml::Table =
+            toml::from_str(&fs::read_to_string(&path).expect("read")).expect("toml");
+        let docs = &written["mcp_servers"]["docs"];
+        assert_eq!(docs["url"].as_str(), Some("https://new/mcp"));
+        assert_eq!(docs["startup_timeout_sec"].as_integer(), Some(30));
+        assert!(docs.get("enabled_tools").is_some());
     }
 
     #[test]
@@ -709,9 +895,10 @@ mod tests {
         .expect("apply");
         restore_test_runtime(previous_home, previous_dir);
 
-        let next = fs::read_to_string(&path).expect("read");
-        assert!(next.contains("\"theme\": \"dark\""));
-        assert!(next.contains("\"new\""));
+        let next: serde_json::Value =
+            serde_json::from_str(&fs::read_to_string(&path).expect("read")).expect("json");
+        assert_eq!(next["theme"], "dark");
+        assert_eq!(next["mcpServers"]["new"]["command"], "npx");
     }
 
     #[test]
@@ -740,12 +927,12 @@ mod tests {
         .expect("apply");
         restore_test_runtime(previous_home, previous_dir);
 
-        let next = fs::read_to_string(&path).expect("read");
-        assert!(next.contains("\"theme\": \"dark\""));
-        assert!(next.contains("\"unknown\""));
-        assert!(next.contains("\"managed\""));
-        assert!(next.contains("\"fresh\""));
-        assert!(!next.contains("\"command\": \"old\""));
+        let next: serde_json::Value =
+            serde_json::from_str(&fs::read_to_string(&path).expect("read")).expect("json");
+        assert_eq!(next["theme"], "dark");
+        assert_eq!(next["mcpServers"]["unknown"]["command"], "keep");
+        assert_eq!(next["mcpServers"]["managed"]["command"], "new");
+        assert_eq!(next["mcpServers"]["fresh"]["command"], "npx");
     }
 
     #[test]

@@ -87,9 +87,9 @@ export const CLIENTS: ClientMeta[] = [
   },
   {
     id: 'windsurf',
-    label: 'Windsurf',
+    label: 'Devin Desktop (Windsurf)',
     accent: 'client-vscode',
-    icon: <ClientLogo src="/logos/apps/windsurf.svg" alt="Windsurf" />,
+    icon: <ClientLogo src="/logos/apps/devin.svg" alt="Devin Desktop" />,
   },
   {
     id: 'kiro',
@@ -103,6 +103,54 @@ export const CLIENTS: ClientMeta[] = [
     accent: 'client-cursor',
     icon: <ClientLogo src="/logos/apps/qoder.svg" alt="Qoder" />,
   },
+  {
+    id: 'kiloCode',
+    label: 'Kilo Code',
+    accent: 'client-vscode',
+    icon: <ClientLogo src="/logos/apps/kilocode.svg" alt="Kilo Code" />,
+  },
+  {
+    id: 'factoryDroid',
+    label: 'Factory Droid',
+    accent: 'client-codex',
+    icon: <ClientLogo src="/logos/apps/factorydroid.svg" alt="Factory Droid" />,
+  },
+  {
+    id: 'kimiCli',
+    label: 'Kimi CLI',
+    accent: 'client-cursor',
+    icon: <ClientLogo src="/logos/apps/kimi.svg" alt="Kimi CLI" />,
+  },
+  {
+    id: 'zed',
+    label: 'Zed',
+    accent: 'client-codex',
+    icon: <ClientLogo src="/logos/apps/zed.svg" alt="Zed" />,
+  },
+  {
+    id: 'mistralVibe',
+    label: 'Mistral Vibe',
+    accent: 'client-cursor',
+    icon: <ClientLogo src="/logos/apps/mistral.svg" alt="Mistral Vibe" />,
+  },
+  {
+    id: 'hermes',
+    label: 'Hermes Agent',
+    accent: 'client-claude',
+    icon: <ClientLogo src="/logos/apps/hermes.svg" alt="Hermes Agent" />,
+  },
+  {
+    id: 'goose',
+    label: 'Goose',
+    accent: 'client-vscode',
+    icon: <ClientLogo src="/logos/apps/goose.svg" alt="Goose" />,
+  },
+  {
+    id: 'amp',
+    label: 'Amp',
+    accent: 'client-claude',
+    icon: <ClientLogo src="/logos/apps/amp.svg" alt="Amp" />,
+  },
 ]
 
 export const CLIENTS_BY_LABEL = [...CLIENTS].sort((left, right) =>
@@ -115,11 +163,9 @@ export function getVisibleClients(visibleApps: readonly SupportedApp[]): ClientM
 
 export const PLANNED_CLIENTS = [
   'RooCode',
-  'Kilo Code',
   'Amazon Q',
   'Auggie CLI',
   'CodeBuddy',
   'CoStrict',
   'Crush',
-  'Factory Droid',
 ] as const

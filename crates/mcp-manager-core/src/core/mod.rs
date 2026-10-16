@@ -19,10 +19,18 @@ pub enum SupportedApp {
     Windsurf,
     Kiro,
     Qoder,
+    KiloCode,
+    FactoryDroid,
+    KimiCli,
+    Zed,
+    MistralVibe,
+    Hermes,
+    Goose,
+    Amp,
 }
 
 impl SupportedApp {
-    pub const ALL: [SupportedApp; 15] = [
+    pub const ALL: [SupportedApp; 23] = [
         SupportedApp::Vscode,
         SupportedApp::Cursor,
         SupportedApp::ClaudeCode,
@@ -38,6 +46,14 @@ impl SupportedApp {
         SupportedApp::Windsurf,
         SupportedApp::Kiro,
         SupportedApp::Qoder,
+        SupportedApp::KiloCode,
+        SupportedApp::FactoryDroid,
+        SupportedApp::KimiCli,
+        SupportedApp::Zed,
+        SupportedApp::MistralVibe,
+        SupportedApp::Hermes,
+        SupportedApp::Goose,
+        SupportedApp::Amp,
     ];
 
     pub fn as_str(self) -> &'static str {
@@ -57,6 +73,14 @@ impl SupportedApp {
             SupportedApp::Windsurf => "windsurf",
             SupportedApp::Kiro => "kiro",
             SupportedApp::Qoder => "qoder",
+            SupportedApp::KiloCode => "kiloCode",
+            SupportedApp::FactoryDroid => "factoryDroid",
+            SupportedApp::KimiCli => "kimiCli",
+            SupportedApp::Zed => "zed",
+            SupportedApp::MistralVibe => "mistralVibe",
+            SupportedApp::Hermes => "hermes",
+            SupportedApp::Goose => "goose",
+            SupportedApp::Amp => "amp",
         }
     }
 
@@ -75,9 +99,18 @@ impl SupportedApp {
             SupportedApp::IFlow => "iFlow",
             SupportedApp::QwenCode => "Qwen Code",
             SupportedApp::Cline => "Cline",
-            SupportedApp::Windsurf => "Windsurf",
+            // Renamed by Cognition in June 2026; the old name stays for recognition.
+            SupportedApp::Windsurf => "Devin Desktop (Windsurf)",
             SupportedApp::Kiro => "Kiro",
             SupportedApp::Qoder => "Qoder",
+            SupportedApp::KiloCode => "Kilo Code",
+            SupportedApp::FactoryDroid => "Factory Droid",
+            SupportedApp::KimiCli => "Kimi CLI",
+            SupportedApp::Zed => "Zed",
+            SupportedApp::MistralVibe => "Mistral Vibe",
+            SupportedApp::Hermes => "Hermes Agent",
+            SupportedApp::Goose => "Goose",
+            SupportedApp::Amp => "Amp",
         }
     }
 
@@ -99,6 +132,14 @@ impl SupportedApp {
             SupportedApp::Windsurf => "windsurf",
             SupportedApp::Kiro => "kiro",
             SupportedApp::Qoder => "qoder",
+            SupportedApp::KiloCode => "kilo-code",
+            SupportedApp::FactoryDroid => "factory-droid",
+            SupportedApp::KimiCli => "kimi-cli",
+            SupportedApp::Zed => "zed",
+            SupportedApp::MistralVibe => "mistral-vibe",
+            SupportedApp::Hermes => "hermes",
+            SupportedApp::Goose => "goose",
+            SupportedApp::Amp => "amp",
         }
     }
 
@@ -109,7 +150,16 @@ impl SupportedApp {
             .find(|app| app.as_str() == key)
     }
 
-    /// Accepts the kebab-case id, the camelCase id, or the display name, ignoring case.
+    /// Other names a client is known by.
+    fn aliases(self) -> &'static [&'static str] {
+        match self {
+            SupportedApp::Windsurf => &["devin-desktop"],
+            _ => &[],
+        }
+    }
+
+    /// Accepts the kebab-case id, the camelCase id, the display name, or an
+    /// alias, ignoring case.
     pub fn parse(value: &str) -> Option<SupportedApp> {
         let key = |text: &str| {
             text.chars()
@@ -121,6 +171,7 @@ impl SupportedApp {
         SupportedApp::ALL.into_iter().find(|app| {
             [app.cli_id(), app.as_str(), app.display_name()]
                 .into_iter()
+                .chain(app.aliases().iter().copied())
                 .any(|name| key(name) == wanted)
         })
     }
@@ -352,6 +403,14 @@ pub fn empty_apps() -> HashMap<SupportedApp, bool> {
         (SupportedApp::Windsurf, false),
         (SupportedApp::Kiro, false),
         (SupportedApp::Qoder, false),
+        (SupportedApp::KiloCode, false),
+        (SupportedApp::FactoryDroid, false),
+        (SupportedApp::KimiCli, false),
+        (SupportedApp::Zed, false),
+        (SupportedApp::MistralVibe, false),
+        (SupportedApp::Hermes, false),
+        (SupportedApp::Goose, false),
+        (SupportedApp::Amp, false),
     ])
 }
 
@@ -465,6 +524,14 @@ mod tests {
         assert_eq!(SupportedApp::ClaudeCode.cli_id(), "claude-code");
         assert_eq!(SupportedApp::IFlow.cli_id(), "iflow");
         assert_eq!(SupportedApp::parse("iflow"), Some(SupportedApp::IFlow));
+        assert_eq!(
+            SupportedApp::parse("devin-desktop"),
+            Some(SupportedApp::Windsurf)
+        );
+        assert_eq!(
+            SupportedApp::parse("Windsurf"),
+            Some(SupportedApp::Windsurf)
+        );
         assert_eq!(SupportedApp::parse("nope"), None);
     }
 

@@ -164,4 +164,46 @@ mod tests {
             },
         );
     }
+
+    #[test]
+    fn writes_http_as_http_url_and_keeps_sse_on_url() {
+        let remote = |id: &str, kind: &str| {
+            let mut apps = empty_apps();
+            apps.insert(SupportedApp::QwenCode, true);
+            MCPServer {
+                id: id.to_string(),
+                name: id.to_string(),
+                enabled: true,
+                transport: TransportSpec {
+                    kind: kind.to_string(),
+                    url: Some(format!("https://{id}.example.com/mcp")),
+                    headers: Default::default(),
+                },
+                command: None,
+                apps,
+                placements: vec![],
+                description: None,
+                homepage: None,
+            }
+        };
+        let operations = QwenCodeAdapter.plan_apply(
+            &ctx(),
+            &MCPConfig {
+                version: 1,
+                servers: vec![remote("streamable", "http"), remote("legacy", "sse")],
+            },
+            None,
+        );
+        let written: serde_json::Value =
+            serde_json::from_str(&operations[0].content).expect("json");
+        // Qwen Code reads a bare `url` as SSE.
+        assert_eq!(
+            written["streamable"]["httpUrl"],
+            "https://streamable.example.com/mcp"
+        );
+        assert!(written["streamable"].get("url").is_none());
+        assert_eq!(written["legacy"]["url"], "https://legacy.example.com/mcp");
+        // Kept so a re-import still sees SSE.
+        assert_eq!(written["legacy"]["type"], "sse");
+    }
 }

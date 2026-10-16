@@ -86,8 +86,42 @@ pub(crate) fn strip_json_comments(content: &str) -> String {
     out
 }
 
+/// Removes commas that directly precede `}` or `]`, outside strings. Expects
+/// comments to be stripped already.
+fn strip_trailing_commas(content: &str) -> String {
+    let mut out = String::with_capacity(content.len());
+    let mut in_string = false;
+    let mut escaped = false;
+    for (index, ch) in content.char_indices() {
+        if in_string {
+            if escaped {
+                escaped = false;
+            } else if ch == '\\' {
+                escaped = true;
+            } else if ch == '"' {
+                in_string = false;
+            }
+        } else if ch == '"' {
+            in_string = true;
+        } else if ch == ',' {
+            let rest = content[index + 1..].trim_start();
+            if rest.starts_with('}') || rest.starts_with(']') {
+                continue;
+            }
+        }
+        out.push(ch);
+    }
+    out
+}
+
+/// Parses JSON that may contain comments and trailing commas.
+pub(crate) fn parse_jsonc(content: &str) -> Result<Value, String> {
+    serde_json::from_str(&strip_trailing_commas(&strip_json_comments(content)))
+        .map_err(|e| e.to_string())
+}
+
 fn parse_jsonc_value(content: &str) -> Result<Value, String> {
-    let normalized = strip_json_comments(content);
+    let normalized = strip_trailing_commas(&strip_json_comments(content));
     if normalized.trim().is_empty() {
         return Ok(Value::Object(Map::new()));
     }
@@ -197,18 +231,12 @@ fn parse_server(id: &str, input: &Map<String, Value>) -> Result<MCPServer, Strin
             .filter(|value| !value.trim().is_empty())
             .unwrap_or(id)
             .to_string(),
-        enabled: if input
-            .get("disabled")
-            .and_then(Value::as_bool)
-            .unwrap_or(false)
-        {
-            false
-        } else {
-            input
-                .get("enabled")
-                .and_then(Value::as_bool)
-                .unwrap_or(true)
-        },
+        // A client's `disabled: true` / `enabled: false` turns the server off
+        // in that client only (Kiro, Cline, Windsurf, OpenCode, ...). It stays
+        // in the client's file, where a rewrite keeps it; reading it as the
+        // server being off everywhere would make the next apply delete the
+        // entry from every client.
+        enabled: true,
         transport,
         command,
         apps: empty_apps(),
@@ -617,7 +645,7 @@ args = ["@playwright/mcp@latest"]
     }
 
     #[test]
-    fn parses_server_url_alias_and_disabled() {
+    fn parses_server_url_alias_and_keeps_client_switch_out_of_enabled() {
         let parsed = parse_mcp_json(
             r#"{"mcpServers":{"linear":{"serverUrl":"https://mcp.linear.app/sse","type":"sse","disabled":true}}}"#,
         );
@@ -626,7 +654,15 @@ args = ["@playwright/mcp@latest"]
             parsed.servers[0].transport.url.as_deref(),
             Some("https://mcp.linear.app/sse")
         );
-        assert!(!parsed.servers[0].enabled);
+        assert!(parsed.servers[0].enabled, "turned off in that client only");
+    }
+
+    #[test]
+    fn ignores_client_enabled_false() {
+        let parsed =
+            parse_mcp_json(r#"{"mcpServers":{"linear":{"command":"npx","enabled":false}}}"#);
+        assert!(parsed.errors.is_empty());
+        assert!(parsed.servers[0].enabled);
     }
 
     #[test]
@@ -638,6 +674,33 @@ args = ["@playwright/mcp@latest"]
         let headers = &parsed.servers[0].transport.headers;
         assert_eq!(headers["Authorization"], "Bearer t");
         assert_eq!(headers["X-Retries"], "3");
+    }
+
+    #[test]
+    fn parses_trailing_commas_like_opencode_examples() {
+        let normalized = super::extract_opencode_mcp_json(
+            r#"{
+              "mcp": {
+                "ctx": {
+                  "type": "local",
+                  "command": ["npx", "-y", "ctx", ],
+                  "environment": { "A": "1", },
+                },
+              },
+              "note": "keeps , } inside strings",
+            }"#,
+        )
+        .expect("JSONC with trailing commas");
+        let parsed = parse_mcp_json(&normalized);
+        assert!(parsed.errors.is_empty(), "{:?}", parsed.errors);
+        assert_eq!(
+            parsed.servers[0].command.as_ref().unwrap().args,
+            ["-y", "ctx"]
+        );
+        assert_eq!(
+            super::parse_jsonc(r#"{"a": "x, }", "b": [1,],}"#).unwrap(),
+            serde_json::json!({"a": "x, }", "b": [1]})
+        );
     }
 
     #[test]

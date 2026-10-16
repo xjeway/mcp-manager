@@ -463,13 +463,13 @@ servers:
     auth: oauth
   apps:
     cursor: true
-    zed: true
+    futureClient: true
   placements:
   - app: cursor
     scope: user
     enabled: true
     pinned: true
-  - app: zed
+  - app: futureClient
     scope: user
     enabled: true
 ";
@@ -518,11 +518,11 @@ servers:
         assert_eq!(saved["profiles"], serde_json::json!(["work"]));
         assert_eq!(linear["tags"], serde_json::json!(["work"]));
         assert_eq!(linear["transport"]["auth"], "oauth");
-        assert_eq!(linear["apps"]["zed"], true);
+        assert_eq!(linear["apps"]["futureClient"], true);
         let placements = linear["placements"].as_array().unwrap();
         assert_eq!(placements.len(), 2);
         assert_eq!(placements[0]["pinned"], true);
-        assert_eq!(placements[1]["app"], "zed");
+        assert_eq!(placements[1]["app"], "futureClient");
         assert_eq!(saved["servers"][1]["id"], "context7");
     }
 
@@ -541,10 +541,10 @@ servers:
         let saved = saved_value(&ctx);
         let linear = &saved["servers"][0];
         assert!(linear["apps"].get("cursor").is_none());
-        assert_eq!(linear["apps"]["zed"], true);
+        assert_eq!(linear["apps"]["futureClient"], true);
         let placements = linear["placements"].as_array().unwrap();
         assert_eq!(placements.len(), 1);
-        assert_eq!(placements[0]["app"], "zed");
+        assert_eq!(placements[0]["app"], "futureClient");
 
         update(&ctx, |config| {
             config.servers.clear();

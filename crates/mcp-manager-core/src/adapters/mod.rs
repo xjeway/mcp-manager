@@ -1,18 +1,26 @@
+mod amp;
 mod antigravity;
 mod claude_code;
 mod claude_desktop;
 mod cline;
 mod codex;
 mod cursor;
+mod factory_droid;
 mod gemini_cli;
 mod github_copilot;
+mod goose;
+mod hermes;
 mod iflow;
+mod kilo_code;
+mod kimi_cli;
 mod kiro;
+mod mistral_vibe;
 mod opencode;
 mod qoder;
 mod qwen_code;
 mod vscode;
 mod windsurf;
+mod zed;
 
 use crate::core::{
     ApplyWarning, LocalConfigSource, MCPConfig, MCPServer, PlacementScope, SupportedApp,
@@ -22,21 +30,29 @@ use crate::platform::PlatformContext;
 use serde_json::{Map, Value};
 use std::collections::BTreeSet;
 
+pub use amp::AmpAdapter;
 pub use antigravity::AntigravityAdapter;
 pub use claude_code::ClaudeCodeAdapter;
 pub use claude_desktop::ClaudeDesktopAdapter;
 pub use cline::ClineAdapter;
 pub use codex::CodexAdapter;
 pub use cursor::CursorAdapter;
+pub use factory_droid::FactoryDroidAdapter;
 pub use gemini_cli::GeminiCliAdapter;
 pub use github_copilot::GithubCopilotAdapter;
+pub use goose::GooseAdapter;
+pub use hermes::HermesAdapter;
 pub use iflow::IFlowAdapter;
+pub use kilo_code::KiloCodeAdapter;
+pub use kimi_cli::KimiCliAdapter;
 pub use kiro::KiroAdapter;
+pub use mistral_vibe::MistralVibeAdapter;
 pub use opencode::OpenCodeAdapter;
 pub use qoder::QoderAdapter;
 pub use qwen_code::QwenCodeAdapter;
 pub use vscode::VSCodeAdapter;
 pub use windsurf::WindsurfAdapter;
+pub use zed::ZedAdapter;
 
 pub struct ParsedSources {
     pub sources: Vec<LocalConfigSource>,
@@ -83,6 +99,14 @@ pub fn workspace_scope_path(ctx: &PlatformContext, app: SupportedApp) -> Option<
         SupportedApp::IFlow => ".iflow/settings.json",
         SupportedApp::QwenCode => ".qwen/settings.json",
         SupportedApp::Kiro => ".kiro/settings/mcp.json",
+        SupportedApp::Codex => ".codex/config.toml",
+        SupportedApp::Qoder => ".qoder/settings.json",
+        SupportedApp::KiloCode => "kilo.json",
+        SupportedApp::FactoryDroid => ".factory/mcp.json",
+        SupportedApp::Zed => ".zed/settings.json",
+        SupportedApp::MistralVibe => ".vibe/config.toml",
+        // Amp asks before it runs servers from workspace settings.
+        SupportedApp::Amp => ".amp/settings.json",
         _ => return None,
     };
     Some(ctx.workspace_file(relative).to_string_lossy().to_string())
@@ -252,9 +276,214 @@ pub fn managed_toml_field_writes(
         .collect()
 }
 
+/// Writes for a client that keeps its servers as a `[[field]]` list of tables
+/// identified by `name`. `content_for_path` returns the entries keyed by name.
+pub fn managed_toml_array_writes(
+    ctx: &PlatformContext,
+    field: &str,
+    app: SupportedApp,
+    config: &MCPConfig,
+    previous_config: Option<&MCPConfig>,
+    content_for_path: fn(&MCPConfig, SupportedApp, &str, &PlatformContext) -> Value,
+) -> Vec<WriteOperation> {
+    target_paths(ctx, config, previous_config, app)
+        .into_iter()
+        .map(|path| WriteOperation {
+            content: serde_json::to_string(&content_for_path(config, app, &path, ctx))
+                .expect("serialize managed toml list"),
+            path: path.clone(),
+            mode: "merge_toml_array_entries".to_string(),
+            field: Some(field.to_string()),
+            remove_keys: Some(managed_server_ids(ctx, config, previous_config, app, &path)),
+        })
+        .collect()
+}
+
+/// Mistral Vibe's `[[mcp_servers]]` entries, keyed by `name`.
+///
+/// Vibe rejects unknown fields, so only its own keys are written. Remote
+/// servers use `streamable-http` (Vibe has no SSE client, so SSE servers are
+/// left out and reported by `apply_warnings`), and their headers go in a
+/// static `auth` table. A command with whitespace in it is written as a list,
+/// because Vibe splits a string command like a shell would.
+pub fn vibe_mcp_servers_at(
+    config: &MCPConfig,
+    app: SupportedApp,
+    path: &str,
+    ctx: &PlatformContext,
+) -> Value {
+    let mut servers = Map::new();
+    for server in &config.servers {
+        if !server.enabled || !server_enabled_for_path(ctx, server, app, path) {
+            continue;
+        }
+        let value = if server.transport.kind == "stdio" {
+            let command = server.command.as_ref();
+            let program = command.map(|c| c.program.clone()).unwrap_or_default();
+            let needs_list = program
+                .chars()
+                .any(|ch| ch.is_whitespace() || matches!(ch, '"' | '\'' | '\\'));
+            let program = if needs_list {
+                serde_json::json!([program])
+            } else {
+                Value::String(program)
+            };
+            serde_json::json!({
+                "transport": "stdio",
+                "command": program,
+                "args": command.map(|c| c.args.clone()).unwrap_or_default(),
+                "env": command.map(|c| c.env.clone()).unwrap_or_default(),
+            })
+        } else if server.transport.kind != "sse" || sse_supported(app) {
+            let mut remote = serde_json::json!({
+                "transport": "streamable-http",
+                "url": server.transport.url.clone().unwrap_or_default(),
+            });
+            if let Some(headers) = headers_value(server) {
+                remote["auth"] = serde_json::json!({"type": "static", "headers": headers});
+            }
+            remote
+        } else {
+            continue;
+        };
+        servers.insert(server.id.clone(), value);
+    }
+    Value::Object(servers)
+}
+
+/// Writes for a client that keeps its servers in a YAML mapping under `field`.
+pub fn managed_yaml_mapping_writes(
+    ctx: &PlatformContext,
+    field: &str,
+    app: SupportedApp,
+    config: &MCPConfig,
+    previous_config: Option<&MCPConfig>,
+    content_for_path: fn(&MCPConfig, SupportedApp, &str, &PlatformContext) -> Value,
+) -> Vec<WriteOperation> {
+    target_paths(ctx, config, previous_config, app)
+        .into_iter()
+        .map(|path| WriteOperation {
+            content: serde_json::to_string(&content_for_path(config, app, &path, ctx))
+                .expect("serialize managed yaml mapping"),
+            path: path.clone(),
+            mode: "merge_yaml_mapping_entries".to_string(),
+            field: Some(field.to_string()),
+            remove_keys: Some(managed_server_ids(ctx, config, previous_config, app, &path)),
+        })
+        .collect()
+}
+
+/// Servers enabled for `app` at `path`, without the SSE servers `app` cannot
+/// reach.
+fn servers_for_path<'a>(
+    config: &'a MCPConfig,
+    app: SupportedApp,
+    path: &'a str,
+    ctx: &'a PlatformContext,
+) -> impl Iterator<Item = &'a MCPServer> {
+    config.servers.iter().filter(move |server| {
+        server.enabled
+            && server_enabled_for_path(ctx, server, app, path)
+            && (server.transport.kind != "sse" || sse_supported(app))
+    })
+}
+
+/// Hermes Agent's `mcp_servers`: `command`/`args`/`env`, or `url`/`headers`
+/// with `transport: sse` for SSE (streamable HTTP is its default).
+pub fn hermes_mcp_servers_at(
+    config: &MCPConfig,
+    app: SupportedApp,
+    path: &str,
+    ctx: &PlatformContext,
+) -> Value {
+    let mut servers = Map::new();
+    for server in servers_for_path(config, app, path, ctx) {
+        let value = if server.transport.kind == "stdio" {
+            let command = server.command.as_ref();
+            serde_json::json!({
+                "command": command.map(|c| c.program.clone()).unwrap_or_default(),
+                "args": command.map(|c| c.args.clone()).unwrap_or_default(),
+                "env": command.map(|c| c.env.clone()).unwrap_or_default(),
+            })
+        } else {
+            let mut remote = serde_json::json!({
+                "url": server.transport.url.clone().unwrap_or_default(),
+            });
+            if server.transport.kind == "sse" {
+                remote["transport"] = Value::String("sse".to_string());
+            }
+            if let Some(headers) = headers_value(server) {
+                remote["headers"] = headers;
+            }
+            remote
+        };
+        servers.insert(server.id.clone(), value);
+    }
+    Value::Object(servers)
+}
+
+/// Goose's key for an extension named `name` (`name_to_key` in Goose).
+pub fn goose_key(name: &str) -> String {
+    name.chars()
+        .filter(|ch| !ch.is_whitespace())
+        .map(|ch| {
+            if ch.is_ascii_alphanumeric() || ch == '_' || ch == '-' {
+                ch
+            } else {
+                '_'
+            }
+        })
+        .collect::<String>()
+        .to_lowercase()
+}
+
+/// Goose's `extensions`, keyed by server id. Goose looks an extension up by
+/// the key of its `name`, so the display name is used only when it maps back
+/// to the id. Goose has no SSE client; SSE servers are left out and reported
+/// by `apply_warnings`.
+pub fn goose_extensions_at(
+    config: &MCPConfig,
+    app: SupportedApp,
+    path: &str,
+    ctx: &PlatformContext,
+) -> Value {
+    let mut extensions = Map::new();
+    for server in servers_for_path(config, app, path, ctx) {
+        let name = if goose_key(&server.name) == server.id {
+            server.name.clone()
+        } else {
+            server.id.clone()
+        };
+        let mut value = if server.transport.kind == "stdio" {
+            let command = server.command.as_ref();
+            serde_json::json!({
+                "type": "stdio",
+                "cmd": command.map(|c| c.program.clone()).unwrap_or_default(),
+                "args": command.map(|c| c.args.clone()).unwrap_or_default(),
+                "envs": command.map(|c| c.env.clone()).unwrap_or_default(),
+            })
+        } else {
+            let mut remote = serde_json::json!({
+                "type": "streamable_http",
+                "uri": server.transport.url.clone().unwrap_or_default(),
+            });
+            if let Some(headers) = headers_value(server) {
+                remote["headers"] = headers;
+            }
+            remote
+        };
+        value["name"] = Value::String(name);
+        value["enabled"] = Value::Bool(true);
+        extensions.insert(server.id.clone(), value);
+    }
+    Value::Object(extensions)
+}
+
 #[derive(Clone, Copy)]
 struct StandardJsonAppProfile {
     include_transport_type: bool,
+    /// Key for a remote server's URL.
+    url_key: &'static str,
     tools: Option<&'static [&'static str]>,
     /// Key for remote request headers; `None` when the client cannot take them.
     headers_key: Option<&'static str>,
@@ -269,7 +498,17 @@ fn standard_json_app_profile(app: SupportedApp) -> StandardJsonAppProfile {
         _ => Some("headers"),
     };
     StandardJsonAppProfile {
-        include_transport_type: true,
+        // Kimi CLI's and Amp's documented formats have no `type`; they infer
+        // the transport. Zed tells local from remote by `command` versus `url`.
+        include_transport_type: !matches!(
+            app,
+            SupportedApp::KimiCli | SupportedApp::Zed | SupportedApp::Amp
+        ),
+        // Windsurf and Antigravity ignore a remote server given as plain `url`.
+        url_key: match app {
+            SupportedApp::Windsurf | SupportedApp::Antigravity => "serverUrl",
+            _ => "url",
+        },
         tools: match app {
             SupportedApp::GithubCopilot => Some(&["*"]),
             _ => None,
@@ -283,31 +522,43 @@ pub fn http_headers_supported(app: SupportedApp) -> bool {
     standard_json_app_profile(app).headers_key.is_some()
 }
 
-/// Servers whose headers will be dropped because a client they are enabled for
-/// cannot store them.
-pub fn unsupported_header_warnings(config: &MCPConfig) -> Vec<ApplyWarning> {
-    config
-        .servers
-        .iter()
-        .filter(|server| server.enabled && headers_value(server).is_some())
-        .flat_map(|server| {
-            SupportedApp::ALL
-                .into_iter()
-                .filter(|app| !http_headers_supported(*app))
-                .filter(move |app| {
-                    server.apps.get(app).copied().unwrap_or(false)
-                        || server
-                            .placements
-                            .iter()
-                            .any(|placement| placement.app == *app && placement.enabled)
-                })
-                .map(move |app| ApplyWarning {
-                    kind: "httpHeadersUnsupported".to_string(),
-                    app,
-                    server_id: server.id.clone(),
-                })
-        })
-        .collect()
+/// Clients that can only reach a remote server over streamable HTTP. An SSE
+/// server is not written to them.
+fn sse_supported(app: SupportedApp) -> bool {
+    !matches!(app, SupportedApp::MistralVibe | SupportedApp::Goose)
+}
+
+/// Clients `server` is enabled for, at any scope.
+fn enabled_apps(server: &MCPServer) -> impl Iterator<Item = SupportedApp> + '_ {
+    SupportedApp::ALL.into_iter().filter(move |app| {
+        server.apps.get(app).copied().unwrap_or(false)
+            || server
+                .placements
+                .iter()
+                .any(|placement| placement.app == *app && placement.enabled)
+    })
+}
+
+/// Settings an apply will leave out of a client because the client cannot
+/// store them: request headers (`httpHeadersUnsupported`), or a whole SSE
+/// server (`sseUnsupported`).
+pub fn apply_warnings(config: &MCPConfig) -> Vec<ApplyWarning> {
+    let warning = |kind: &str, app, server: &MCPServer| ApplyWarning {
+        kind: kind.to_string(),
+        app,
+        server_id: server.id.clone(),
+    };
+    let mut warnings = Vec::new();
+    for server in config.servers.iter().filter(|server| server.enabled) {
+        for app in enabled_apps(server) {
+            if server.transport.kind == "sse" && !sse_supported(app) {
+                warnings.push(warning("sseUnsupported", app, server));
+            } else if headers_value(server).is_some() && !http_headers_supported(app) {
+                warnings.push(warning("httpHeadersUnsupported", app, server));
+            }
+        }
+    }
+    warnings
 }
 
 fn headers_value(server: &MCPServer) -> Option<Value> {
@@ -316,6 +567,13 @@ fn headers_value(server: &MCPServer) -> Option<Value> {
         && !transport.headers.is_empty()
         && !transport.sends_headers_insecurely())
     .then(|| serde_json::to_value(&server.transport.headers).expect("serialize transport headers"))
+}
+
+/// Qwen Code and iFlow, forks of an older Gemini CLI, ignore `type` and read
+/// `url` as SSE; streamable HTTP has to be `httpUrl`. Gemini CLI itself reads
+/// `url` + `type` (and `url` alone as HTTP), so it keeps the standard shape.
+fn needs_http_url_key(app: SupportedApp, kind: &str) -> bool {
+    matches!(app, SupportedApp::QwenCode | SupportedApp::IFlow) && kind != "sse"
 }
 
 fn standard_json_transport_type(kind: &str) -> &'static str {
@@ -379,8 +637,13 @@ pub fn standard_mcp_servers_at(
                     ),
                 ])
             } else {
+                let url_key = if needs_http_url_key(app, &server.transport.kind) {
+                    "httpUrl"
+                } else {
+                    profile.url_key
+                };
                 Map::from_iter([(
-                    "url".to_string(),
+                    url_key.to_string(),
                     Value::String(server.transport.url.clone().unwrap_or_default()),
                 )])
             };
@@ -484,6 +747,14 @@ pub fn adapters() -> Vec<Box<dyn AppAdapter>> {
         Box::new(WindsurfAdapter),
         Box::new(KiroAdapter),
         Box::new(QoderAdapter),
+        Box::new(KiloCodeAdapter),
+        Box::new(FactoryDroidAdapter),
+        Box::new(KimiCliAdapter),
+        Box::new(ZedAdapter),
+        Box::new(MistralVibeAdapter),
+        Box::new(HermesAdapter),
+        Box::new(GooseAdapter),
+        Box::new(AmpAdapter),
     ]
 }
 
@@ -530,6 +801,8 @@ pub(crate) mod header_fixture {
         let path = ctx.user_app_config_path(adapter.app());
         fs::create_dir_all(path.parent().unwrap()).unwrap();
         fs::write(&path, fixture).unwrap();
+        let original_host = read_host(&path);
+        let original_remote = original_host[expect.field]["remote"].clone();
 
         let parsed = adapter.parse_source(&ctx, &path.to_string_lossy(), 20, fixture);
         assert!(parsed.errors.is_empty(), "{:?}", parsed.errors);
@@ -575,6 +848,14 @@ pub(crate) mod header_fixture {
         let entries = &host[expect.field];
         assert!(entries.get("other").is_some(), "unmanaged server preserved");
         let written = &entries["remote"];
+        let original_url_key = ["url", "serverUrl", "httpUrl"]
+            .into_iter()
+            .find(|key| original_remote.get(*key).is_some())
+            .expect("fixture remote has a URL");
+        assert!(
+            written.get(original_url_key).is_some(),
+            "remote URL written as `{original_url_key}` like the client's own file: {written}"
+        );
         match expect.headers_key {
             Some(key) => {
                 assert_eq!(written[key]["Authorization"], "Bearer rotated", "{written}");
@@ -588,9 +869,75 @@ pub(crate) mod header_fixture {
     }
 }
 
+/// Shared check for clients whose entries carry their own on/off switch
+/// (`disabled: true` or `enabled: false`).
+#[cfg(test)]
+pub(crate) mod client_switch_fixture {
+    use super::AppAdapter;
+    use crate::core::MCPConfig;
+    use crate::platform::{PlatformContext, PlatformOs};
+    use crate::storage::apply_operation;
+    use serde_json::Value;
+    use std::fs;
+    use std::path::PathBuf;
+
+    /// Imports `fixture`, whose `off` server is switched off in the client
+    /// with `switch: value` under `field`, and applies the import twice. The
+    /// server must import as enabled, and both applies must keep the entry
+    /// and the client's switch.
+    pub fn assert_switch_kept(
+        adapter: &dyn AppAdapter,
+        fixture: &str,
+        field: &str,
+        switch: &str,
+        value: bool,
+    ) {
+        let home = tempfile::tempdir().expect("tempdir");
+        let ctx = PlatformContext {
+            os: PlatformOs::MacOS,
+            home_dir: home.path().to_path_buf(),
+            workspace_root: home.path().to_path_buf(),
+        };
+        let path = ctx.user_app_config_path(adapter.app());
+        fs::create_dir_all(path.parent().unwrap()).unwrap();
+        fs::write(&path, fixture).unwrap();
+
+        let parsed = adapter.parse_source(&ctx, &path.to_string_lossy(), 20, fixture);
+        assert!(parsed.errors.is_empty(), "{:?}", parsed.errors);
+        let servers = parsed
+            .servers
+            .into_iter()
+            .map(|(server, _)| server)
+            .collect::<Vec<_>>();
+        let off = servers
+            .iter()
+            .find(|server| server.id == "off")
+            .expect("off server imported");
+        assert!(off.enabled, "switched off in {:?} only", adapter.app());
+        assert!(off.apps[&adapter.app()]);
+
+        let config = MCPConfig {
+            version: 1,
+            servers,
+        };
+        // A first apply, then a later one that knows the server from the
+        // previous config (and so lists it among the entries it manages).
+        for previous in [None, Some(&config)] {
+            for operation in adapter.plan_apply(&ctx, &config, previous) {
+                apply_operation(&PathBuf::from(&operation.path), &operation).expect("apply");
+            }
+            let content = fs::read_to_string(&path).unwrap();
+            let host: Value = crate::parser::parse_jsonc(&content).expect("valid JSONC");
+            let entry = &host[field]["off"];
+            assert!(entry.is_object(), "entry kept: {content}");
+            assert_eq!(entry[switch], Value::Bool(value), "{content}");
+        }
+    }
+}
+
 #[cfg(test)]
 mod tests {
-    use super::unsupported_header_warnings;
+    use super::apply_warnings;
     use crate::core::{
         empty_apps, ApplyWarning, MCPConfig, MCPServer, PlacementScope, ServerPlacement,
         SupportedApp, TransportSpec,
@@ -642,7 +989,7 @@ mod tests {
 
     #[test]
     fn warns_when_headers_target_a_client_without_header_support() {
-        let warnings = unsupported_header_warnings(&config(vec![remote(
+        let warnings = apply_warnings(&config(vec![remote(
             "linear",
             true,
             &[SupportedApp::ClaudeDesktop, SupportedApp::Vscode],
@@ -664,7 +1011,7 @@ mod tests {
     fn no_warning_without_headers_or_when_disabled() {
         let mut disabled = remote("off", true, &[SupportedApp::ClaudeDesktop]);
         disabled.enabled = false;
-        assert!(unsupported_header_warnings(&config(vec![
+        assert!(apply_warnings(&config(vec![
             remote("plain", false, &[SupportedApp::ClaudeDesktop]),
             disabled,
             remote("vscode-only", true, &[SupportedApp::Vscode]),
@@ -682,6 +1029,6 @@ mod tests {
             enabled: true,
             managed: true,
         });
-        assert_eq!(unsupported_header_warnings(&config(vec![server])).len(), 1);
+        assert_eq!(apply_warnings(&config(vec![server])).len(), 1);
     }
 }

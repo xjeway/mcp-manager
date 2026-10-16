@@ -2,7 +2,12 @@ import type { PlacementScope, SupportedApp } from '../types/config'
 
 export type ClientScopeId = 'user' | 'project' | 'localProject' | 'agent'
 export type ProjectManagementMode = 'direct' | 'viaOtherClient' | 'unsupported'
-export type ConfigMergePolicy = 'mergeJsonField' | 'mergeTomlTable' | 'replaceJson' | 'managedExternally'
+export type ConfigMergePolicy =
+  | 'mergeJsonField'
+  | 'mergeTomlTable'
+  | 'mergeYamlMapping'
+  | 'replaceJson'
+  | 'managedExternally'
 
 export interface ClientScopeCapability {
   id: ClientScopeId
@@ -16,7 +21,7 @@ export interface ClientScopeCapability {
 
 export interface ClientCapability {
   app: SupportedApp
-  configFormat: 'json' | 'jsonc' | 'toml'
+  configFormat: 'json' | 'jsonc' | 'toml' | 'yaml'
   mergePolicy: ConfigMergePolicy
   projectManagement: ProjectManagementMode
   projectViaApp?: SupportedApp
@@ -89,7 +94,13 @@ export const CLIENT_CAPABILITIES: Record<SupportedApp, ClientCapability> = {
     scopes: [localProjectScope(30), projectScope(20), userScope(10)],
   },
   claudeDesktop: userOnly('claudeDesktop', 'json', 'mergeJsonField'),
-  codex: userOnly('codex', 'toml', 'mergeTomlTable'),
+  codex: {
+    app: 'codex',
+    configFormat: 'toml',
+    mergePolicy: 'mergeTomlTable',
+    projectManagement: 'direct',
+    scopes: [projectScope(20), userScope(10)],
+  },
   openCode: {
     app: 'openCode',
     configFormat: 'jsonc',
@@ -101,8 +112,9 @@ export const CLIENT_CAPABILITIES: Record<SupportedApp, ClientCapability> = {
     app: 'githubCopilot',
     configFormat: 'json',
     mergePolicy: 'mergeJsonField',
+    // Copilot CLI reads the project `.mcp.json` that Claude Code owns.
     projectManagement: 'viaOtherClient',
-    projectViaApp: 'vscode',
+    projectViaApp: 'claudeCode',
     scopes: [userScope()],
   },
   geminiCli: {
@@ -129,7 +141,51 @@ export const CLIENT_CAPABILITIES: Record<SupportedApp, ClientCapability> = {
   },
   cline: userOnly('cline', 'json', 'mergeJsonField'),
   windsurf: userOnly('windsurf', 'json', 'mergeJsonField'),
-  qoder: userOnly('qoder', 'json', 'mergeJsonField'),
+  qoder: {
+    app: 'qoder',
+    configFormat: 'json',
+    mergePolicy: 'mergeJsonField',
+    projectManagement: 'direct',
+    scopes: [projectScope(20), userScope(10)],
+  },
+  kiloCode: {
+    app: 'kiloCode',
+    configFormat: 'jsonc',
+    mergePolicy: 'mergeJsonField',
+    projectManagement: 'direct',
+    scopes: [projectScope(20), userScope(10)],
+  },
+  factoryDroid: {
+    app: 'factoryDroid',
+    configFormat: 'json',
+    mergePolicy: 'mergeJsonField',
+    projectManagement: 'direct',
+    scopes: [projectScope(20), userScope(10)],
+  },
+  kimiCli: userOnly('kimiCli', 'json', 'mergeJsonField'),
+  amp: {
+    app: 'amp',
+    configFormat: 'jsonc',
+    mergePolicy: 'mergeJsonField',
+    projectManagement: 'direct',
+    scopes: [projectScope(20), userScope(10)],
+  },
+  hermes: userOnly('hermes', 'yaml', 'mergeYamlMapping'),
+  goose: userOnly('goose', 'yaml', 'mergeYamlMapping'),
+  mistralVibe: {
+    app: 'mistralVibe',
+    configFormat: 'toml',
+    mergePolicy: 'mergeTomlTable',
+    projectManagement: 'direct',
+    scopes: [projectScope(20), userScope(10)],
+  },
+  zed: {
+    app: 'zed',
+    configFormat: 'jsonc',
+    mergePolicy: 'mergeJsonField',
+    projectManagement: 'direct',
+    scopes: [projectScope(20), userScope(10)],
+  },
   kiro: {
     app: 'kiro',
     configFormat: 'json',

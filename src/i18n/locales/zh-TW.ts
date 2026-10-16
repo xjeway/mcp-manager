@@ -242,6 +242,7 @@ const zhTW: LocaleMessages = {
   hideHeaderValue: '隱藏標頭值',
   applyWarningUndoNotRecorded: '變更已套用，但未能記錄下來，因此無法復原：{{error}}',
   applyWarningHttpHeadersUnsupported: '{{client}} 不支援儲存請求標頭，{{server}} 的請求標頭未寫入該用戶端，請在 {{client}} 中手動設定。',
+  applyWarningSseUnsupported: '{{client}} 不支援 SSE，SSE 伺服器 {{server}} 未寫入該用戶端。若該伺服器提供 Streamable HTTP 位址，請改用該位址。',
   addArg: '新增參數',
   checkForUpdates: '檢查更新',
   checkingUpdates: '檢查中...',
