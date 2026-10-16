@@ -30,7 +30,7 @@ storage path, merge behavior, and precedence.
 | iFlow | `~/.iflow/settings.json` | `.iflow/settings.json` | None | Direct project support; the product was shut down on 2026-04-17, kept only for existing configs |
 | Qwen Code | `~/.qwen/settings.json` | `.qwen/settings.json` | None | Direct project support |
 | Cline | `cline_mcp_settings.json` | Unsupported by current model | None | User only |
-| Devin Desktop (formerly Windsurf; id `windsurf`, CLI alias `devin-desktop`) | `~/.codeium/windsurf/mcp_config.json` | Unsupported by current model | None | User only; remote servers use `serverUrl`. Devin imports this Windsurf-era file by default; Devin's own files (below) are not managed yet |
+| Devin Desktop (formerly Windsurf; id `windsurf`, CLI alias `devin-desktop`) | `~/.config/devin/mcp_config.json` once it exists, otherwise `~/.codeium/windsurf/mcp_config.json` | Unsupported by current model | None | User only; remote servers use `serverUrl`. Only the file in use is read |
 | Qoder | `~/.qoder/settings.json` | `.qoder/settings.json` (`.mcp.json` is also read but shared with Claude Code) | None | Direct project support |
 | Kilo Code | `~/.config/kilo/kilo.json` (or `kilo.jsonc`) | `kilo.json(c)`, `.kilo/kilo.json(c)` | None | Direct project support; same `mcp` schema as OpenCode. Kilo also reads `opencode.json`, which is left to the OpenCode adapter |
 | Factory Droid | `~/.factory/mcp.json` | `.factory/mcp.json` | Ancestor-folder `.factory/mcp.json` (not read) | Direct project support. Project files are committed, so keep tokens out of them |
@@ -90,12 +90,15 @@ replaced.
 - Copilot CLI and Claude Code both read `.mcp.json`, so it is managed only
   through Claude Code. Writing it from two adapters would let one delete the
   other's entries.
-- Devin Desktop (renamed from Windsurf on 2026-06-02) and Devin CLI share
-  Devin's own MCP files: `~/.config/devin/mcp_config.json`
-  (`%APPDATA%\devin\mcp_config.json` on Windows), project
-  `.devin/mcp_config.json` and `.devin/mcp_config.local.json`, with `url` for
-  remote servers. Before writing them, confirm on a live install whether Devin
-  imports the Windsurf-era file on every start or once, so a server is not
-  listed in both.
-- Antigravity 2.0's shared config path and Windsurf's `serverUrl` key come from
-  third-party sources; confirm them on a real install.
+- Devin Desktop (renamed from Windsurf on 2026-06-02) keeps its servers in
+  `~/.config/devin/mcp_config.json`. On first start with only the Windsurf-era
+  file it asks once whether to copy that file there (confirmed on a macOS
+  install), and then reads only the new file. MCP Manager therefore uses the
+  new file once it exists and the Windsurf-era file until then, and reads only
+  the file in use, so a server left in the old file does not come back. The
+  Windows location (`%APPDATA%\devin\mcp_config.json`, else
+  `~/.config/devin/`) is unconfirmed; a wrong guess only means the old file
+  stays in use. Devin's project files (`.devin/mcp_config.json`) are not
+  managed yet.
+- Antigravity 2.0's shared config path comes from third-party sources; confirm
+  it on a real install.

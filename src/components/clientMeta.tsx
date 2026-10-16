@@ -87,7 +87,7 @@ export const CLIENTS: ClientMeta[] = [
   },
   {
     id: 'windsurf',
-    label: 'Devin Desktop (Windsurf)',
+    label: 'Devin Desktop',
     accent: 'client-vscode',
     icon: <ClientLogo src="/logos/apps/devin.svg" alt="Devin Desktop" />,
   },

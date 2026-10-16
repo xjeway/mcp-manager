@@ -220,7 +220,7 @@ export function Dashboard({
                 <span className="stat-icon-wrap">{stat.icon}</span>
               </div>
               <strong className="stat-value">{stat.count}</strong>
-              <span className="stat-caption">{stat.label}</span>
+              <span className="stat-caption" title={stat.label}>{stat.label}</span>
             </button>
           ))}
         </section>

@@ -11,6 +11,11 @@ impl AppAdapter for WindsurfAdapter {
     }
 
     fn detect_sources(&self, ctx: &PlatformContext) -> Vec<(String, u32)> {
+        // Once Devin has its own file it ignores the Windsurf-era ones, so a
+        // server left there must not come back on import.
+        if let Some(path) = ctx.devin_config_path() {
+            return vec![(path.to_string_lossy().to_string(), 20)];
+        }
         vec![
             (
                 ctx.user_app_config_path(self.app())
@@ -92,6 +97,32 @@ mod tests {
         assert_eq!(sources.len(), 2);
         assert!(sources[0].0.ends_with(".codeium/windsurf/mcp_config.json"));
         assert!(sources[1].0.ends_with(".codeium/mcp_config.json"));
+    }
+
+    #[test]
+    fn switches_to_devin_desktop_file_once_it_exists() {
+        let home = tempfile::tempdir().expect("tempdir");
+        let ctx = PlatformContext {
+            os: PlatformOs::MacOS,
+            home_dir: home.path().to_path_buf(),
+            workspace_root: home.path().to_path_buf(),
+        };
+        let legacy = home.path().join(crate::platform::WINDSURF_LEGACY_CONFIG);
+        let devin = home.path().join(".config/devin/mcp_config.json");
+        let sources = || {
+            WindsurfAdapter
+                .detect_sources(&ctx)
+                .into_iter()
+                .map(|(path, _)| PathBuf::from(path))
+                .collect::<Vec<_>>()
+        };
+        assert_eq!(sources()[0], legacy);
+        assert_eq!(ctx.user_app_config_path(SupportedApp::Windsurf), legacy);
+
+        std::fs::create_dir_all(devin.parent().unwrap()).unwrap();
+        std::fs::write(&devin, "{}").unwrap();
+        assert_eq!(sources(), std::slice::from_ref(&devin));
+        assert_eq!(ctx.user_app_config_path(SupportedApp::Windsurf), devin);
     }
 
     #[test]
