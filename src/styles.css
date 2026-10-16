@@ -787,16 +787,27 @@ button.stat-card:focus-visible {
 
 .server-list-row {
   display: grid;
-  grid-template-columns: 16px minmax(124px, 1.2fr) 92px minmax(180px, 1.4fr) auto;
+  /* Clients column sizes to one line of icons when space allows; the name column absorbs the squeeze. */
+  grid-template-columns: 16px minmax(110px, 1fr) 92px minmax(180px, max-content) auto;
   align-items: center;
   gap: 8px;
-  height: 46px;
+  /* min-height (not a fixed height) so a row grows instead of overlapping the next if icons ever wrap. */
   min-height: 46px;
-  max-height: 46px;
   padding: 5px 10px;
   border-top: 1px solid var(--line);
   transition: background 180ms ease, border-color 180ms ease;
   cursor: pointer;
+}
+
+.server-list-row > .server-cell {
+  min-width: 0;
+}
+
+.server-cell-name strong {
+  display: block;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .server-list-row.is-selected {
