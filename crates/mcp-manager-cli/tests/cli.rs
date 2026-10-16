@@ -519,3 +519,28 @@ fn keeps_what_a_newer_version_saved_and_will_not_write_a_newer_format() {
     assert!(sandbox.cursor_servers().get("ctx").is_some());
     assert!(sandbox.listed_ids().contains(&"ctx".to_string()));
 }
+
+#[test]
+fn reports_a_server_a_client_cannot_take() {
+    let sandbox = Sandbox::new();
+
+    let report = sandbox.json(&[
+        "add",
+        "events",
+        "-a",
+        "goose",
+        "--url",
+        "https://example.com/sse",
+        "--transport",
+        "sse",
+        "-y",
+        "--json",
+    ]);
+
+    // Goose's file has nothing to write, but the server is still reported.
+    assert_eq!(report["applied"], false);
+    assert!(!sandbox.home.join(".config/goose/config.yaml").exists());
+    assert_eq!(report["warnings"][0]["kind"], "sseUnsupported");
+    assert_eq!(report["warnings"][0]["app"], "goose");
+    assert_eq!(report["warnings"][0]["serverId"], "events");
+}
