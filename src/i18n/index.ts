@@ -12,6 +12,7 @@ import deDE from './locales/de-DE'
 import enUS from './locales/en-US'
 import esES from './locales/es-ES'
 import frFR from './locales/fr-FR'
+import itIT from './locales/it-IT'
 import jaJP from './locales/ja-JP'
 import koKR from './locales/ko-KR'
 import ptBR from './locales/pt-BR'
@@ -33,6 +34,7 @@ export const resources = {
   'de-DE': { translation: deDE },
   'fr-FR': { translation: frFR },
   'es-ES': { translation: esES },
+  'it-IT': { translation: itIT },
   'pt-BR': { translation: ptBR },
   'ru-RU': { translation: ruRU },
 } as const satisfies Record<AppLanguage, unknown>

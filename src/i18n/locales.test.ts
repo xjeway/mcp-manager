@@ -67,6 +67,7 @@ describe('matchLanguage', () => {
     ['de-AT', 'de-DE'],
     ['fr-CA', 'fr-FR'],
     ['es-MX', 'es-ES'],
+    ['it-CH', 'it-IT'],
     ['pt-PT', 'pt-BR'],
     ['ru', 'ru-RU'],
   ])('maps %s to %s', (tag, expected) => {
@@ -74,7 +75,7 @@ describe('matchLanguage', () => {
   })
 
   it('returns undefined for unsupported or empty tags', () => {
-    expect(matchLanguage('it-IT')).toBeUndefined()
+    expect(matchLanguage('nl-NL')).toBeUndefined()
     expect(matchLanguage('')).toBeUndefined()
     expect(matchLanguage(undefined)).toBeUndefined()
   })

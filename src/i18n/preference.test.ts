@@ -30,14 +30,14 @@ describe('language preference', () => {
   })
 
   it('uses the first supported system language', async () => {
-    stubSystemLanguages(['it-IT', 'de-CH'])
+    stubSystemLanguages(['nl-NL', 'de-CH'])
     const { default: i18n } = await loadI18n()
 
     expect(i18n.language).toBe('de-DE')
   })
 
   it('falls back to English when no system language is supported', async () => {
-    stubSystemLanguages(['it-IT'])
+    stubSystemLanguages(['nl-NL'])
     const { default: i18n } = await loadI18n()
 
     expect(i18n.language).toBe('en-US')
