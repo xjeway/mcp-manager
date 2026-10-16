@@ -60,6 +60,7 @@ const ruRU: LocaleMessages = {
   batchDisableFor: 'Отключить {{client}} для выбранных серверов ({{count}})',
   batchClear: 'Снять выделение',
   close: 'Закрыть',
+  dismissNotification: 'Закрыть уведомление',
   marketplace: 'Каталог',
   marketplaceTitle: 'Поиск MCP-серверов',
   marketplaceOpen: 'Открыть каталог',

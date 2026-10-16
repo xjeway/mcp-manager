@@ -58,6 +58,7 @@ const ptBR: LocaleMessages = {
   batchDisableFor: 'Desativar {{client}} para os {{count}} servidores selecionados',
   batchClear: 'Limpar seleção',
   close: 'Fechar',
+  dismissNotification: 'Fechar notificação',
   marketplace: 'Catálogo',
   marketplaceTitle: 'Encontrar servidores MCP',
   marketplaceOpen: 'Explorar o catálogo',

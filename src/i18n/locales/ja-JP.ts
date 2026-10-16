@@ -58,6 +58,7 @@ const jaJP: LocaleMessages = {
   batchDisableFor: '選択した {{count}} 件のサーバーで {{client}} を無効にする',
   batchClear: '選択を解除',
   close: '閉じる',
+  dismissNotification: '通知を閉じる',
   marketplace: 'マーケットプレイス',
   marketplaceTitle: 'MCP サーバーを探す',
   marketplaceOpen: 'マーケットプレイスを見る',

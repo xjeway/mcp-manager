@@ -58,6 +58,7 @@ const zhCN: LocaleMessages = {
   batchDisableFor: '为已选的 {{count}} 个 server 停用 {{client}}',
   batchClear: '取消选择',
   close: '关闭',
+  dismissNotification: '关闭通知',
   marketplace: '在线市场',
   marketplaceTitle: '发现 MCP server',
   marketplaceOpen: '浏览在线市场',
