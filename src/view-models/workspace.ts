@@ -189,7 +189,6 @@ export function mapConfigToWorkspaceView(
   return {
     stats: visibleClients.map((client) => ({
       ...client,
-      label: client.shortLabel ?? client.label,
       count: config.servers.filter((server) => server.enabled && isServerAppEnabled(server, client.id)).length,
     })),
     rows: config.servers.map((server) => ({

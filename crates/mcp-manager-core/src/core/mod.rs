@@ -99,8 +99,8 @@ impl SupportedApp {
             SupportedApp::IFlow => "iFlow",
             SupportedApp::QwenCode => "Qwen Code",
             SupportedApp::Cline => "Cline",
-            // Renamed by Cognition in June 2026; the old name stays for recognition.
-            SupportedApp::Windsurf => "Devin Desktop (Windsurf)",
+            // Windsurf, renamed by Cognition in June 2026; the id stays `windsurf`.
+            SupportedApp::Windsurf => "Devin Desktop",
             SupportedApp::Kiro => "Kiro",
             SupportedApp::Qoder => "Qoder",
             SupportedApp::KiloCode => "Kilo Code",

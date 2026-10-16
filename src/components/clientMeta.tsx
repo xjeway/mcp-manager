@@ -10,8 +10,6 @@ export interface ClientMeta {
   icon: ReactNode
   id: SupportedApp
   label: string
-  /** Used where space is tight, such as the dashboard counts. */
-  shortLabel?: string
 }
 
 export const CLIENTS: ClientMeta[] = [
@@ -89,8 +87,7 @@ export const CLIENTS: ClientMeta[] = [
   },
   {
     id: 'windsurf',
-    label: 'Devin Desktop (Windsurf)',
-    shortLabel: 'Devin Desktop',
+    label: 'Devin Desktop',
     accent: 'client-vscode',
     icon: <ClientLogo src="/logos/apps/devin.svg" alt="Devin Desktop" />,
   },

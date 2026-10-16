@@ -154,16 +154,6 @@ describe('workspace view-models', () => {
     expect(view.rows[0].enabledApps).toEqual(['cursor', 'kiro', 'vscode'])
   })
 
-  it('uses the short client name in stats', () => {
-    const view = mapConfigToWorkspaceView(
-      { version: 1, servers: [] },
-      ['windsurf', 'kiro'],
-      ((key: string) => key) as never,
-    )
-
-    expect(view.stats.map((stat) => stat.label)).toEqual(['Devin Desktop', 'Kiro'])
-  })
-
   it('maps placements into workspace rows and stats', () => {
     const view = mapConfigToWorkspaceView(
       {
