@@ -217,6 +217,7 @@ const jaJP: LocaleMessages = {
   updateDownloadPrompt: '新しいバージョン {{version}} があります。今すぐダウンロードしますか？',
   updateInstalled: 'アップデートをインストールしました。アプリを再起動してください。',
   updateReadyBackground: 'アップデート {{version}} の準備ができました。都合のよいときにアプリを再起動してください。',
+  updateRestartToUpdate: '再起動してアップデート',
   updateCheckFailedDetail: 'アップデートの確認に失敗しました: {{error}}',
   updateFeedUnavailablePrompt: 'このビルドでは自動アップデートをまだ利用できません。代わりに Releases ページを開きますか？',
   updateFeedUnavailableDownload: 'このビルドでは自動アップデートをまだ利用できません。{{url}} から最新の公開ビルドをダウンロードしてください',

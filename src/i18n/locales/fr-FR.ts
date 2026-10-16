@@ -217,6 +217,7 @@ const frFR: LocaleMessages = {
   updateDownloadPrompt: 'Nouvelle version {{version}} disponible. La télécharger maintenant ?',
   updateInstalled: 'Mise à jour installée. Veuillez redémarrer l’application.',
   updateReadyBackground: 'La mise à jour {{version}} est prête. Redémarrez l’application quand vous le souhaitez.',
+  updateRestartToUpdate: 'Redémarrer pour mettre à jour',
   updateCheckFailedDetail: 'Échec de la recherche de mises à jour : {{error}}',
   updateFeedUnavailablePrompt: 'Les mises à jour automatiques ne sont pas encore disponibles pour cette version. Ouvrir plutôt la page Releases ?',
   updateFeedUnavailableDownload: 'Les mises à jour automatiques ne sont pas encore disponibles pour cette version. Téléchargez la dernière version publiée depuis {{url}}',

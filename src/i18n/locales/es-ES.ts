@@ -217,6 +217,7 @@ const esES: LocaleMessages = {
   updateDownloadPrompt: 'Hay una nueva versión {{version}} disponible. ¿Descargarla ahora?',
   updateInstalled: 'Actualización instalada. Reinicia la aplicación.',
   updateReadyBackground: 'La actualización {{version}} está lista. Reinicia la aplicación cuando te venga bien.',
+  updateRestartToUpdate: 'Reiniciar para actualizar',
   updateCheckFailedDetail: 'Error al buscar actualizaciones: {{error}}',
   updateFeedUnavailablePrompt: 'Las actualizaciones automáticas aún no están disponibles para esta compilación. ¿Abrir la página de Releases en su lugar?',
   updateFeedUnavailableDownload: 'Las actualizaciones automáticas aún no están disponibles para esta compilación. Descarga la última versión publicada desde {{url}}',

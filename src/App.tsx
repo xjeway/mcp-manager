@@ -8,6 +8,7 @@ import { MarketplacePage } from './components/MarketplacePage'
 import { SettingsPage } from './components/SettingsPage'
 import { ServerEditor } from './components/ServerEditor'
 import { ToastViewport } from './components/ToastViewport'
+import { UpdateIndicator } from './components/UpdateIndicator'
 import { UpdateProgressWindow } from './components/UpdateProgressWindow'
 import { applyWarningMessages, mapConfigToWorkspaceView, type FeedbackItem } from './view-models/workspace'
 import { getLanguagePreference, setLanguagePreference } from './i18n'
@@ -57,6 +58,7 @@ import {
   subscribeToUpdateState,
   syncUpdateStateToWindow,
 } from './services/updater'
+import { showUpdateProgressWindow } from './services/updateProgressWindow'
 import { UPDATE_INSTALL_REQUEST_EVENT, UPDATE_SYNC_REQUEST_EVENT } from './services/updaterEvents'
 import { deriveVisibleApps } from './services/visibleApps'
 import { resolveWindowSurface } from './services/windowSurface'
@@ -142,6 +144,8 @@ function MainApp() {
   const [editorDirty, setEditorDirty] = useState(false)
   const closeConfirmedRef = useRef(false)
   const updateStateRef = useRef(getUpdateState())
+  const [updateState, setUpdateState] = useState(getUpdateState)
+  const updateReadyToastRef = useRef<string | null>(null)
 
   useEffect(() => {
     if (typeof window === 'undefined') {
@@ -176,11 +180,14 @@ function MainApp() {
     }
   }, [])
 
-  const pushFeedback = (kind: FeedbackItem['kind'], message: string) => {
-    setFeedbacks((current) => [
-      { id: `${Date.now()}-${Math.random().toString(36).slice(2)}`, kind, message },
-      ...current,
-    ].slice(0, 4))
+  const pushFeedback = (
+    kind: FeedbackItem['kind'],
+    message: string,
+    options?: Pick<FeedbackItem, 'persistent' | 'action'>,
+  ): string => {
+    const id = `${Date.now()}-${Math.random().toString(36).slice(2)}`
+    setFeedbacks((current) => [{ id, kind, message, ...options }, ...current].slice(0, 4))
+    return id
   }
 
   const dismissFeedback = (id: string) => {
@@ -191,13 +198,25 @@ function MainApp() {
     const unsubscribe = subscribeToUpdateState((state) => {
       const previous = updateStateRef.current
       updateStateRef.current = state
+      setUpdateState(state)
 
       if (state.phase === 'downloaded' && previous.phase !== 'downloaded' && state.targetVersion) {
         void hasVisibleUpdateProgressWindow().then((visible) => {
-          if (!visible) {
-            pushFeedback('success', t('updateReadyBackground', { version: state.targetVersion }))
+          // The update stays pending until the user restarts, so this toast does too.
+          if (!visible && updateStateRef.current.phase === 'downloaded') {
+            updateReadyToastRef.current = pushFeedback(
+              'success',
+              t('updateReadyBackground', { version: state.targetVersion }),
+              { persistent: true, action: { label: t('updateWindowInstallNow'), onClick: () => void installDownloadedUpdate() } },
+            )
           }
         })
+      }
+
+      const readyToast = updateReadyToastRef.current
+      if (state.phase !== 'downloaded' && readyToast) {
+        updateReadyToastRef.current = null
+        setFeedbacks((current) => current.filter((item) => item.id !== readyToast))
       }
 
       if (state.phase === 'error' && state.error && previous.error !== state.error) {
@@ -899,6 +918,13 @@ function MainApp() {
           onToggleApp={(serverId, app) => void handleToggleApp(serverId, app)}
           onBatchSetApp={(serverIds, app, enabled) => void handleBatchSetApp(serverIds, app, enabled)}
           onRollback={() => void handleRollback()}
+          updateIndicator={
+            <UpdateIndicator
+              state={updateState}
+              onInstall={() => void installDownloadedUpdate()}
+              onShowProgress={() => void showUpdateProgressWindow().then(() => syncUpdateStateToWindow())}
+            />
+          }
         />
       )}
     </>

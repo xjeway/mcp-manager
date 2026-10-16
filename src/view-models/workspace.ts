@@ -15,6 +15,9 @@ export interface FeedbackItem {
   id: string
   kind: 'success' | 'warning' | 'error' | 'info'
   message: string
+  /** Stay until dismissed even when the kind would auto-dismiss. */
+  persistent?: boolean
+  action?: { label: string; onClick: () => void }
 }
 
 export interface WorkspaceStatViewModel {

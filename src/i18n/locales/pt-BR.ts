@@ -217,6 +217,7 @@ const ptBR: LocaleMessages = {
   updateDownloadPrompt: 'Nova versão {{version}} disponível. Baixar agora?',
   updateInstalled: 'Atualização instalada. Reinicie o aplicativo.',
   updateReadyBackground: 'A atualização {{version}} está pronta. Reinicie o aplicativo quando for conveniente.',
+  updateRestartToUpdate: 'Reiniciar para atualizar',
   updateCheckFailedDetail: 'Falha ao verificar atualizações: {{error}}',
   updateFeedUnavailablePrompt: 'As atualizações automáticas ainda não estão disponíveis para esta versão. Abrir a página de Releases em vez disso?',
   updateFeedUnavailableDownload: 'As atualizações automáticas ainda não estão disponíveis para esta versão. Baixe a versão publicada mais recente em {{url}}',

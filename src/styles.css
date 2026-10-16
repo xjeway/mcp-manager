@@ -147,6 +147,20 @@ button {
   line-height: 1.4;
 }
 
+.toast-action {
+  margin-top: 8px;
+  padding: 4px 10px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--panel-muted);
+  font-size: 0.78rem;
+  font-weight: 600;
+}
+
+.toast-action:hover {
+  border-color: var(--line-strong);
+}
+
 .toast-close {
   width: 24px;
   height: 24px;
@@ -489,6 +503,35 @@ button {
   background: linear-gradient(180deg, var(--accent), var(--accent-strong));
   border-color: rgba(11, 74, 185, 0.5);
   color: white;
+}
+
+.update-indicator {
+  height: 32px;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 0 12px;
+  border: 1px solid var(--line);
+  border-radius: 9px;
+  background: var(--panel-muted);
+  font-size: 0.78rem;
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.update-indicator:disabled {
+  cursor: default;
+  opacity: 0.8;
+}
+
+.update-indicator-ready {
+  border-color: color-mix(in srgb, var(--accent) 55%, transparent);
+  background: color-mix(in srgb, var(--accent) 14%, var(--panel-muted));
+  color: var(--accent);
+}
+
+.update-indicator-ready:hover {
+  background: color-mix(in srgb, var(--accent) 22%, var(--panel-muted));
 }
 
 .icon-button.danger,

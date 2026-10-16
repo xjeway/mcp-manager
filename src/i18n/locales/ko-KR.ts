@@ -217,6 +217,7 @@ const koKR: LocaleMessages = {
   updateDownloadPrompt: '새 버전 {{version}}을(를) 사용할 수 있습니다. 지금 다운로드할까요?',
   updateInstalled: '업데이트를 설치했습니다. 앱을 다시 시작하세요.',
   updateReadyBackground: '업데이트 {{version}}이(가) 준비되었습니다. 편할 때 앱을 다시 시작하세요.',
+  updateRestartToUpdate: '다시 시작하여 업데이트',
   updateCheckFailedDetail: '업데이트 확인 실패: {{error}}',
   updateFeedUnavailablePrompt: '이 빌드에서는 아직 자동 업데이트를 사용할 수 없습니다. 대신 Releases 페이지를 열까요?',
   updateFeedUnavailableDownload: '이 빌드에서는 아직 자동 업데이트를 사용할 수 없습니다. {{url}}에서 최신 빌드를 다운로드하세요',

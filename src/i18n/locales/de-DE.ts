@@ -217,6 +217,7 @@ const deDE: LocaleMessages = {
   updateDownloadPrompt: 'Neue Version {{version}} verfügbar. Jetzt herunterladen?',
   updateInstalled: 'Update installiert. Bitte starten Sie die App neu.',
   updateReadyBackground: 'Update {{version}} ist bereit. Starten Sie die App neu, wenn es Ihnen passt.',
+  updateRestartToUpdate: 'Neu starten und aktualisieren',
   updateCheckFailedDetail: 'Suche nach Updates fehlgeschlagen: {{error}}',
   updateFeedUnavailablePrompt: 'Automatische Updates sind für diesen Build noch nicht verfügbar. Stattdessen die Releases-Seite öffnen?',
   updateFeedUnavailableDownload: 'Automatische Updates sind für diesen Build noch nicht verfügbar. Laden Sie den neuesten veröffentlichten Build von {{url}} herunter',

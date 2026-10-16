@@ -215,6 +215,7 @@ const enUS = {
   updateDownloadPrompt: 'New version {{version}} available. Download now?',
   updateInstalled: 'Update installed. Please restart app.',
   updateReadyBackground: 'Update {{version}} is ready. Restart the app when convenient.',
+  updateRestartToUpdate: 'Restart to Update',
   updateCheckFailedDetail: 'Update check failed: {{error}}',
   updateFeedUnavailablePrompt: 'Automatic updates are not available for this build yet. Open the Releases page instead?',
   updateFeedUnavailableDownload: 'Automatic updates are not available for this build yet. Download the latest published build from {{url}}',

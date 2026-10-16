@@ -60,7 +60,7 @@ function ToastItem({
   const { t } = useTranslation()
   const [hovered, setHovered] = useState(false)
   const [focusedWithin, setFocusedWithin] = useState(false)
-  const duration = toastDuration(item.kind)
+  const duration = item.persistent ? null : toastDuration(item.kind)
   const remaining = useRef(duration ?? 0)
 
   // Count down only while the toast can actually be read: not while the
@@ -96,6 +96,18 @@ function ToastItem({
       <div className="toast-icon">{toastIcon(item.kind)}</div>
       <div className="toast-body">
         <p>{item.message}</p>
+        {item.action ? (
+          <button
+            type="button"
+            className="toast-action"
+            onClick={() => {
+              item.action?.onClick()
+              onDismiss(item.id)
+            }}
+          >
+            {item.action.label}
+          </button>
+        ) : null}
       </div>
       <button
         type="button"

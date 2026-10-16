@@ -137,6 +137,24 @@ describe('ToastViewport', () => {
     expect(onDismiss).toHaveBeenCalledWith('a')
   })
 
+  it('keeps a persistent toast even when its kind would auto-dismiss', () => {
+    render([{ id: 'ready', kind: 'success', message: 'Update ready', persistent: true }])
+    advance(60_000)
+    expect(onDismiss).not.toHaveBeenCalled()
+  })
+
+  it('runs the action and dismisses the toast', () => {
+    const onClick = vi.fn()
+    render([{ id: 'ready', kind: 'success', message: 'Update ready', action: { label: 'Install now', onClick } }])
+
+    const action = document.querySelector<HTMLButtonElement>('.toast-action')
+    expect(action?.textContent).toBe('Install now')
+    act(() => action?.click())
+
+    expect(onClick).toHaveBeenCalledTimes(1)
+    expect(onDismiss).toHaveBeenCalledWith('ready')
+  })
+
   it('does not restart the countdown when the parent re-renders', () => {
     const items: FeedbackItem[] = [{ id: 'a', kind: 'info', message: 'FYI' }]
     render(items)
