@@ -22,6 +22,9 @@ servers:
       windsurf: false
       kiro: false
       qoder: false
+      kiloCode: false
+      factoryDroid: false
+      kimiCli: false
   - description: Docs lookup
     id: context7
     name: context7
@@ -51,6 +54,9 @@ servers:
       windsurf: false
       kiro: false
       qoder: false
+      kiloCode: false
+      factoryDroid: false
+      kimiCli: false
     placements:
       - app: claudeCode
         scope: workspace

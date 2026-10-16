@@ -16,6 +16,9 @@ export const SUPPORTED_APPS = [
   'windsurf',
   'kiro',
   'qoder',
+  'kiloCode',
+  'factoryDroid',
+  'kimiCli',
 ] as const
 
 export type SupportedApp = (typeof SUPPORTED_APPS)[number]

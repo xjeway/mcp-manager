@@ -123,6 +123,17 @@ impl PlatformContext {
             SupportedApp::Windsurf => self.home_dir.join(".codeium/windsurf/mcp_config.json"),
             SupportedApp::Kiro => self.home_dir.join(".kiro/settings/mcp.json"),
             SupportedApp::Qoder => self.home_dir.join(".qoder/settings.json"),
+            SupportedApp::KiloCode => {
+                // `kilo.json` is the recommended name; use `kilo.jsonc` when that is what exists.
+                let jsonc = self.home_dir.join(".config/kilo/kilo.jsonc");
+                if jsonc.exists() && !self.home_dir.join(".config/kilo/kilo.json").exists() {
+                    jsonc
+                } else {
+                    self.home_dir.join(".config/kilo/kilo.json")
+                }
+            }
+            SupportedApp::FactoryDroid => self.home_dir.join(".factory/mcp.json"),
+            SupportedApp::KimiCli => self.home_dir.join(".kimi/mcp.json"),
         }
     }
 
@@ -197,6 +208,9 @@ impl PlatformContext {
                 &["Qoder.app"][..],
                 &["AppData/Local/Programs/Qoder/Qoder.exe"][..],
             ),
+            SupportedApp::KiloCode => (&["kilo", "kilocode"][..], &[][..], &[][..]),
+            SupportedApp::FactoryDroid => (&["droid"][..], &[][..], &[][..]),
+            SupportedApp::KimiCli => (&["kimi"][..], &[][..], &[][..]),
         };
 
         self.command_exists(commands)
@@ -297,7 +311,10 @@ impl PlatformContext {
             | SupportedApp::Antigravity
             | SupportedApp::QwenCode
             | SupportedApp::Cline
-            | SupportedApp::Qoder => {
+            | SupportedApp::Qoder
+            | SupportedApp::KiloCode
+            | SupportedApp::FactoryDroid
+            | SupportedApp::KimiCli => {
                 vec![self.user_app_config_path(app).to_string_lossy().to_string()]
             }
             SupportedApp::GithubCopilot => vec![

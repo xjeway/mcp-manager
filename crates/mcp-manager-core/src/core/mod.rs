@@ -19,10 +19,13 @@ pub enum SupportedApp {
     Windsurf,
     Kiro,
     Qoder,
+    KiloCode,
+    FactoryDroid,
+    KimiCli,
 }
 
 impl SupportedApp {
-    pub const ALL: [SupportedApp; 15] = [
+    pub const ALL: [SupportedApp; 18] = [
         SupportedApp::Vscode,
         SupportedApp::Cursor,
         SupportedApp::ClaudeCode,
@@ -38,6 +41,9 @@ impl SupportedApp {
         SupportedApp::Windsurf,
         SupportedApp::Kiro,
         SupportedApp::Qoder,
+        SupportedApp::KiloCode,
+        SupportedApp::FactoryDroid,
+        SupportedApp::KimiCli,
     ];
 
     pub fn as_str(self) -> &'static str {
@@ -57,6 +63,9 @@ impl SupportedApp {
             SupportedApp::Windsurf => "windsurf",
             SupportedApp::Kiro => "kiro",
             SupportedApp::Qoder => "qoder",
+            SupportedApp::KiloCode => "kiloCode",
+            SupportedApp::FactoryDroid => "factoryDroid",
+            SupportedApp::KimiCli => "kimiCli",
         }
     }
 
@@ -78,6 +87,9 @@ impl SupportedApp {
             SupportedApp::Windsurf => "Windsurf",
             SupportedApp::Kiro => "Kiro",
             SupportedApp::Qoder => "Qoder",
+            SupportedApp::KiloCode => "Kilo Code",
+            SupportedApp::FactoryDroid => "Factory Droid",
+            SupportedApp::KimiCli => "Kimi CLI",
         }
     }
 
@@ -99,6 +111,9 @@ impl SupportedApp {
             SupportedApp::Windsurf => "windsurf",
             SupportedApp::Kiro => "kiro",
             SupportedApp::Qoder => "qoder",
+            SupportedApp::KiloCode => "kilo-code",
+            SupportedApp::FactoryDroid => "factory-droid",
+            SupportedApp::KimiCli => "kimi-cli",
         }
     }
 
@@ -352,6 +367,9 @@ pub fn empty_apps() -> HashMap<SupportedApp, bool> {
         (SupportedApp::Windsurf, false),
         (SupportedApp::Kiro, false),
         (SupportedApp::Qoder, false),
+        (SupportedApp::KiloCode, false),
+        (SupportedApp::FactoryDroid, false),
+        (SupportedApp::KimiCli, false),
     ])
 }
 

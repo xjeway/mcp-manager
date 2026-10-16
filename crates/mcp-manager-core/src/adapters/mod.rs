@@ -6,7 +6,10 @@ mod codex;
 mod cursor;
 mod gemini_cli;
 mod github_copilot;
+mod factory_droid;
 mod iflow;
+mod kilo_code;
+mod kimi_cli;
 mod kiro;
 mod opencode;
 mod qoder;
@@ -30,7 +33,10 @@ pub use codex::CodexAdapter;
 pub use cursor::CursorAdapter;
 pub use gemini_cli::GeminiCliAdapter;
 pub use github_copilot::GithubCopilotAdapter;
+pub use factory_droid::FactoryDroidAdapter;
 pub use iflow::IFlowAdapter;
+pub use kilo_code::KiloCodeAdapter;
+pub use kimi_cli::KimiCliAdapter;
 pub use kiro::KiroAdapter;
 pub use opencode::OpenCodeAdapter;
 pub use qoder::QoderAdapter;
@@ -87,6 +93,8 @@ pub fn workspace_scope_path(ctx: &PlatformContext, app: SupportedApp) -> Option<
         SupportedApp::GithubCopilot => ".mcp.json",
         SupportedApp::Codex => ".codex/config.toml",
         SupportedApp::Qoder => ".qoder/settings.json",
+        SupportedApp::KiloCode => "kilo.json",
+        SupportedApp::FactoryDroid => ".factory/mcp.json",
         _ => return None,
     };
     Some(ctx.workspace_file(relative).to_string_lossy().to_string())
@@ -285,7 +293,7 @@ fn standard_json_app_profile(app: SupportedApp) -> StandardJsonAppProfile {
         SupportedApp::GeminiCli | SupportedApp::QwenCode | SupportedApp::IFlow
     );
     StandardJsonAppProfile {
-        include_transport_type: !google_style_remote && !gemini_family,
+        include_transport_type: !google_style_remote && !gemini_family && app != SupportedApp::KimiCli,
         url_key: if google_style_remote { "serverUrl" } else { "url" },
         tools: match app {
             SupportedApp::GithubCopilot => Some(&["*"]),
@@ -513,6 +521,9 @@ pub fn adapters() -> Vec<Box<dyn AppAdapter>> {
         Box::new(WindsurfAdapter),
         Box::new(KiroAdapter),
         Box::new(QoderAdapter),
+        Box::new(KiloCodeAdapter),
+        Box::new(FactoryDroidAdapter),
+        Box::new(KimiCliAdapter),
     ]
 }
 

@@ -25,6 +25,9 @@ describe('evaluateApplyRisks', () => {
           windsurf: false,
           kiro: false,
           qoder: false,
+          kiloCode: false,
+          factoryDroid: false,
+          kimiCli: false,
         },
       },
     ])

@@ -103,6 +103,24 @@ export const CLIENTS: ClientMeta[] = [
     accent: 'client-cursor',
     icon: <ClientLogo src="/logos/apps/qoder.svg" alt="Qoder" />,
   },
+  {
+    id: 'kiloCode',
+    label: 'Kilo Code',
+    accent: 'client-vscode',
+    icon: <ClientLogo src="/logos/apps/kilocode.svg" alt="Kilo Code" />,
+  },
+  {
+    id: 'factoryDroid',
+    label: 'Factory Droid',
+    accent: 'client-codex',
+    icon: <ClientLogo src="/logos/apps/factorydroid.svg" alt="Factory Droid" />,
+  },
+  {
+    id: 'kimiCli',
+    label: 'Kimi CLI',
+    accent: 'client-cursor',
+    icon: <ClientLogo src="/logos/apps/kimi.svg" alt="Kimi CLI" />,
+  },
 ]
 
 export const CLIENTS_BY_LABEL = [...CLIENTS].sort((left, right) =>
@@ -115,11 +133,9 @@ export function getVisibleClients(visibleApps: readonly SupportedApp[]): ClientM
 
 export const PLANNED_CLIENTS = [
   'RooCode',
-  'Kilo Code',
   'Amazon Q',
   'Auggie CLI',
   'CodeBuddy',
   'CoStrict',
   'Crush',
-  'Factory Droid',
 ] as const

@@ -23,6 +23,9 @@ export function useAppStats(config: MCPConfig): Record<SupportedApp, number> {
       windsurf: 0,
       kiro: 0,
       qoder: 0,
+      kiloCode: 0,
+      factoryDroid: 0,
+      kimiCli: 0,
     })
   }, [config.servers])
 }

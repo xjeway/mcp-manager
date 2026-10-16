@@ -141,6 +141,21 @@ export const CLIENT_CAPABILITIES: Record<SupportedApp, ClientCapability> = {
     projectManagement: 'direct',
     scopes: [projectScope(20), userScope(10)],
   },
+  kiloCode: {
+    app: 'kiloCode',
+    configFormat: 'jsonc',
+    mergePolicy: 'mergeJsonField',
+    projectManagement: 'direct',
+    scopes: [projectScope(20), userScope(10)],
+  },
+  factoryDroid: {
+    app: 'factoryDroid',
+    configFormat: 'json',
+    mergePolicy: 'mergeJsonField',
+    projectManagement: 'direct',
+    scopes: [projectScope(20), userScope(10)],
+  },
+  kimiCli: userOnly('kimiCli', 'json', 'mergeJsonField'),
   kiro: {
     app: 'kiro',
     configFormat: 'json',

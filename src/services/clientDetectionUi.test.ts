@@ -24,6 +24,9 @@ describe('clientDetectionUi', () => {
         'windsurf',
         'kiro',
         'qoder',
+        'kiloCode',
+        'factoryDroid',
+        'kimiCli',
       ]),
     ).toBe(false)
   })

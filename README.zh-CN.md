@@ -204,6 +204,9 @@ make dev
 | Windsurf | ✅ | ✅ |
 | Kiro | ✅ | ✅ |
 | Qoder | ✅ | ✅ |
+| Kilo Code | ✅ | ✅ |
+| Factory Droid | ✅ | ✅ |
+| Kimi CLI | ✅ | ✅ |
 | VS Code | ✅ | ✅ |
 
 ## 命令行（预览）

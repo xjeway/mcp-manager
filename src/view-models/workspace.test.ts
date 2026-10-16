@@ -43,6 +43,9 @@ describe('workspace view-models', () => {
               windsurf: false,
               kiro: false,
               qoder: false,
+              kiloCode: false,
+              factoryDroid: false,
+              kimiCli: false,
             },
           },
         ],
@@ -80,6 +83,9 @@ describe('workspace view-models', () => {
         windsurf: false,
         kiro: true,
         qoder: false,
+        kiloCode: false,
+        factoryDroid: false,
+        kimiCli: false,
       },
     })
 
@@ -118,6 +124,9 @@ describe('workspace view-models', () => {
               windsurf: false,
               kiro: true,
               qoder: false,
+              kiloCode: false,
+              factoryDroid: false,
+              kimiCli: false,
             },
           },
         ],
@@ -157,6 +166,9 @@ describe('workspace view-models', () => {
               windsurf: false,
               kiro: false,
               qoder: false,
+              kiloCode: false,
+              factoryDroid: false,
+              kimiCli: false,
             },
             placements: [
               {
@@ -257,6 +269,9 @@ describe('workspace view-models', () => {
         windsurf: false,
         kiro: false,
         qoder: false,
+        kiloCode: false,
+        factoryDroid: false,
+        kimiCli: false,
       },
       placements: [
         { app: 'vscode', scope: 'user', path: '/user/mcp.json', enabled: true, managed: true },
