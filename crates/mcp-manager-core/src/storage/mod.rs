@@ -689,8 +689,8 @@ mod tests {
         };
         apply_operation(&path, &operation).expect("apply");
 
-        let written: toml::Table = toml::from_str(&fs::read_to_string(&path).expect("read"))
-            .expect("toml");
+        let written: toml::Table =
+            toml::from_str(&fs::read_to_string(&path).expect("read")).expect("toml");
         let docs = &written["mcp_servers"]["docs"];
         assert_eq!(docs["url"].as_str(), Some("https://new/mcp"));
         assert_eq!(docs["startup_timeout_sec"].as_integer(), Some(30));

@@ -16,27 +16,40 @@ impl AppAdapter for KiloCodeAdapter {
     fn detect_sources(&self, ctx: &PlatformContext) -> Vec<(String, u32)> {
         vec![
             (
-                ctx.workspace_file("kilo.json").to_string_lossy().to_string(),
+                ctx.workspace_file("kilo.json")
+                    .to_string_lossy()
+                    .to_string(),
                 10,
             ),
             (
-                ctx.workspace_file("kilo.jsonc").to_string_lossy().to_string(),
+                ctx.workspace_file("kilo.jsonc")
+                    .to_string_lossy()
+                    .to_string(),
                 11,
             ),
             (
-                ctx.workspace_file(".kilo/kilo.json").to_string_lossy().to_string(),
+                ctx.workspace_file(".kilo/kilo.json")
+                    .to_string_lossy()
+                    .to_string(),
                 12,
             ),
             (
-                ctx.workspace_file(".kilo/kilo.jsonc").to_string_lossy().to_string(),
+                ctx.workspace_file(".kilo/kilo.jsonc")
+                    .to_string_lossy()
+                    .to_string(),
                 13,
             ),
             (
-                ctx.user_app_config_path(self.app()).to_string_lossy().to_string(),
+                ctx.user_app_config_path(self.app())
+                    .to_string_lossy()
+                    .to_string(),
                 20,
             ),
             (
-                ctx.home_dir.join(".config/kilo/kilo.jsonc").to_string_lossy().to_string(),
+                ctx.home_dir
+                    .join(".config/kilo/kilo.jsonc")
+                    .to_string_lossy()
+                    .to_string(),
                 21,
             ),
         ]

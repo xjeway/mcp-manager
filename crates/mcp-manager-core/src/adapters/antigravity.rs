@@ -18,7 +18,12 @@ impl AppAdapter for AntigravityAdapter {
             crate::platform::ANTIGRAVITY_LEGACY_CONFIG,
         ]
         .into_iter()
-        .map(|relative| (ctx.home_dir.join(relative).to_string_lossy().to_string(), 20))
+        .map(|relative| {
+            (
+                ctx.home_dir.join(relative).to_string_lossy().to_string(),
+                20,
+            )
+        })
         .collect()
     }
 

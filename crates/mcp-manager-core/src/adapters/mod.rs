@@ -4,9 +4,9 @@ mod claude_desktop;
 mod cline;
 mod codex;
 mod cursor;
+mod factory_droid;
 mod gemini_cli;
 mod github_copilot;
-mod factory_droid;
 mod iflow;
 mod kilo_code;
 mod kimi_cli;
@@ -31,9 +31,9 @@ pub use claude_desktop::ClaudeDesktopAdapter;
 pub use cline::ClineAdapter;
 pub use codex::CodexAdapter;
 pub use cursor::CursorAdapter;
+pub use factory_droid::FactoryDroidAdapter;
 pub use gemini_cli::GeminiCliAdapter;
 pub use github_copilot::GithubCopilotAdapter;
-pub use factory_droid::FactoryDroidAdapter;
 pub use iflow::IFlowAdapter;
 pub use kilo_code::KiloCodeAdapter;
 pub use kimi_cli::KimiCliAdapter;
@@ -293,8 +293,14 @@ fn standard_json_app_profile(app: SupportedApp) -> StandardJsonAppProfile {
         SupportedApp::GeminiCli | SupportedApp::QwenCode | SupportedApp::IFlow
     );
     StandardJsonAppProfile {
-        include_transport_type: !google_style_remote && !gemini_family && app != SupportedApp::KimiCli,
-        url_key: if google_style_remote { "serverUrl" } else { "url" },
+        include_transport_type: !google_style_remote
+            && !gemini_family
+            && app != SupportedApp::KimiCli,
+        url_key: if google_style_remote {
+            "serverUrl"
+        } else {
+            "url"
+        },
         tools: match app {
             SupportedApp::GithubCopilot => Some(&["*"]),
             _ => None,

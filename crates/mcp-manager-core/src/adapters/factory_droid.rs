@@ -13,11 +13,15 @@ impl AppAdapter for FactoryDroidAdapter {
     fn detect_sources(&self, ctx: &PlatformContext) -> Vec<(String, u32)> {
         vec![
             (
-                ctx.workspace_file(".factory/mcp.json").to_string_lossy().to_string(),
+                ctx.workspace_file(".factory/mcp.json")
+                    .to_string_lossy()
+                    .to_string(),
                 10,
             ),
             (
-                ctx.user_app_config_path(self.app()).to_string_lossy().to_string(),
+                ctx.user_app_config_path(self.app())
+                    .to_string_lossy()
+                    .to_string(),
                 20,
             ),
         ]
