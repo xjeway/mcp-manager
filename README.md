@@ -1,5 +1,5 @@
 <h1 align="center">
-  <img src="./src-tauri/icons/app-icon-rounded.png" alt="MCP Manager logo" width="64" valign="middle" /> MCP Manager
+  <img src="./src-tauri/icons/app-icon-rounded.png" alt="MCP Manager logo" width="80" valign="middle" /> MCP Manager
 </h1>
 
 <p align="center">
