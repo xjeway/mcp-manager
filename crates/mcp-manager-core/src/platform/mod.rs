@@ -11,6 +11,7 @@ pub enum PlatformOs {
 
 pub const ANTIGRAVITY_SHARED_CONFIG: &str = ".gemini/config/mcp_config.json";
 pub const ANTIGRAVITY_LEGACY_CONFIG: &str = ".gemini/antigravity/mcp_config.json";
+pub const WINDSURF_LEGACY_CONFIG: &str = ".codeium/windsurf/mcp_config.json";
 
 #[derive(Debug, Clone)]
 pub struct PlatformContext {
@@ -78,6 +79,20 @@ impl PlatformContext {
         }
     }
 
+    /// Devin Desktop (formerly Windsurf) keeps its MCP servers in its own file
+    /// and offers once to copy the Windsurf-era file there; after that it no
+    /// longer reads the old one. Returns the new file once it exists.
+    pub fn devin_config_path(&self) -> Option<PathBuf> {
+        let mut candidates = vec![self.home_dir.join(".config/devin/mcp_config.json")];
+        if self.os == PlatformOs::Windows {
+            candidates.insert(
+                0,
+                self.home_dir.join("AppData/Roaming/devin/mcp_config.json"),
+            );
+        }
+        candidates.into_iter().find(|path| path.exists())
+    }
+
     pub fn user_app_config_path(&self, app: SupportedApp) -> PathBuf {
         match app {
             SupportedApp::Vscode => match self.os {
@@ -120,7 +135,9 @@ impl PlatformContext {
             SupportedApp::Cline => self
                 .home_dir
                 .join(".cline/data/settings/cline_mcp_settings.json"),
-            SupportedApp::Windsurf => self.home_dir.join(".codeium/windsurf/mcp_config.json"),
+            SupportedApp::Windsurf => self
+                .devin_config_path()
+                .unwrap_or_else(|| self.home_dir.join(WINDSURF_LEGACY_CONFIG)),
             SupportedApp::Kiro => self.home_dir.join(".kiro/settings/mcp.json"),
             SupportedApp::Qoder => self.home_dir.join(".qoder/settings.json"),
             SupportedApp::KiloCode => {
