@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react'
+import { type ReactNode, useEffect, useRef, useState } from 'react'
 import { Copy, LoaderCircle, PenSquare, Plus, RefreshCw, RotateCcw, Search, SearchX, Settings, Store, Trash2, X } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import { getVisibleClients } from './clientMeta'
@@ -24,6 +24,8 @@ interface DashboardProps {
   onToggleApp: (serverId: string, app: SupportedApp) => void
   onBatchSetApp: (serverIds: string[], app: SupportedApp, enabled: boolean) => void
   onCopyCommand: (serverId: string) => void
+  /** Status of an update that is downloading or waiting for a restart. */
+  updateIndicator?: ReactNode
 }
 
 function SelectAllCheckbox({
@@ -74,6 +76,7 @@ export function Dashboard({
   onOpenRepository,
   onSyncLocalConfig,
   onOpenSettings,
+  updateIndicator,
   onDelete,
   onEdit,
   onRollback,
@@ -150,6 +153,7 @@ export function Dashboard({
           </div>
 
           <div className="header-controls" data-tauri-no-drag>
+            {updateIndicator}
             <button type="button" className="icon-button toolbar-icon" onClick={onOpenSettings} aria-label={t('settings')}>
               <Settings size={14} />
             </button>

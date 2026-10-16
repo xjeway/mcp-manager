@@ -219,6 +219,7 @@ const ruRU: LocaleMessages = {
   updateDownloadPrompt: 'Доступна новая версия {{version}}. Скачать сейчас?',
   updateInstalled: 'Обновление установлено. Перезапустите приложение.',
   updateReadyBackground: 'Обновление {{version}} готово. Перезапустите приложение, когда будет удобно.',
+  updateRestartToUpdate: 'Перезапустить для обновления',
   updateCheckFailedDetail: 'Не удалось проверить обновления: {{error}}',
   updateFeedUnavailablePrompt: 'Автоматические обновления для этой сборки пока недоступны. Открыть страницу Releases?',
   updateFeedUnavailableDownload: 'Автоматические обновления для этой сборки пока недоступны. Скачайте последнюю опубликованную сборку с {{url}}',

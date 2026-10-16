@@ -213,6 +213,7 @@ const zhCN: LocaleMessages = {
   updateDownloadPrompt: '发现新版本 {{version}}。现在下载吗？',
   updateInstalled: '更新已安装，请重启应用。',
   updateReadyBackground: '新版本 {{version}} 已就绪，可在方便时重启应用完成安装。',
+  updateRestartToUpdate: '重启以更新',
   updateCheckFailedDetail: '检查更新失败：{{error}}',
   updateFeedUnavailablePrompt: '当前构建暂时不支持自动更新。要改为打开 Releases 发布页吗？',
   updateFeedUnavailableDownload: '当前构建暂时不支持自动更新。请从 {{url}} 下载最新已发布版本',

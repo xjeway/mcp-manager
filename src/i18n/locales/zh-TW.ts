@@ -213,6 +213,7 @@ const zhTW: LocaleMessages = {
   updateDownloadPrompt: '發現新版本 {{version}}。現在下載嗎？',
   updateInstalled: '更新已安裝，請重新啟動應用程式。',
   updateReadyBackground: '新版本 {{version}} 已就緒，可在方便時重新啟動應用程式完成安裝。',
+  updateRestartToUpdate: '重新啟動以更新',
   updateCheckFailedDetail: '檢查更新失敗：{{error}}',
   updateFeedUnavailablePrompt: '目前的建置暫不支援自動更新。要改為開啟 Releases 發布頁嗎？',
   updateFeedUnavailableDownload: '目前的建置暫不支援自動更新。請從 {{url}} 下載最新發布的版本',
