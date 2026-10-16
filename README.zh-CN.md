@@ -25,186 +25,52 @@
 
 ## 目录
 
-- [为什么选择 MCP Manager](#为什么选择-mcp-manager)
-- [界面截图](#界面截图)
+- [功能特性](#功能特性)
 - [下载与安装](#下载与安装)
-  - [macOS](#macos) · [Windows](#windows) · [Linux](#linux-用户) · [从源码构建](#从源码构建)
-- [快速开始](#快速开始)
 - [支持的客户端](#支持的客户端)
 - [命令行（预览）](#命令行预览)
-- [工作方式](#工作方式)
-- [当前范围](#当前范围)
-- [项目结构](#项目结构)
-- [开发命令](#开发命令)
-- [自动发版](#自动发版)
-- [参与贡献](#参与贡献)
+- [隐私与联网](#隐私与联网)
+- [开发](#开发)
 - [Star History](#star-history)
 - [免责声明](#免责声明)
-- [License](#license)
 
-## 为什么选择 MCP Manager
+## 功能特性
 
-`MCP Manager` 是一个跨平台桌面应用，适合不想手动维护多份 MCP 客户端配置的用户。
+- **统一工作台**管理所有 MCP Server，可从客户端已有的配置中导入
+- **在线市场**：在 GitHub MCP Registry、官方 MCP Registry 或任何兼容的注册表中搜索 server，几步即可添加
+- 支持**表单或原始 JSON** 编辑
+- **一次应用到多个客户端**，写入前审查有风险的改动，并自动备份、支持回滚
+- 浅色 / 深色主题，界面支持 11 种语言，默认跟随系统语言
 
-- 统一维护所有 MCP Server 的工作台
-- 从本地客户端配置中导入已有条目
-- 在 GitHub MCP Registry、官方 MCP Registry，或自行添加的任何兼容 MCP Registry API 的注册表中搜索 server，几步即可添加
-- 支持表单模式和原始 JSON 模式编辑
-- 向多个受支持客户端生成并应用配置
-- 文件写入前展示风险提示
-- apply 过程支持备份与回滚
-- 支持浅色、深色、跟随系统主题
-- 界面支持英文、简体中文、繁体中文、日语、韩语、德语、法语、西班牙语、意大利语、巴西葡萄牙语和俄语（默认跟随系统语言）
-
-## 界面截图
-
-![MCP Manager 中文界面（浅色主题）](./docs/page-cn.png)
-
-![MCP Manager 中文界面（深色主题）](./docs/page-cn-dark.png)
+<table>
+  <tr>
+    <td><img src="./docs/page-cn.png" alt="MCP Manager，浅色主题" /></td>
+    <td><img src="./docs/page-cn-dark.png" alt="MCP Manager，深色主题" /></td>
+  </tr>
+</table>
 
 ## 下载与安装
 
-### 系统要求
+从 [最新发布版本](https://github.com/xjeway/mcp-manager/releases/latest) 下载对应平台的安装包：
 
-- 提供 macOS、Windows、Linux 的桌面安装包
-- 从源码构建需要 Node.js 20+、npm 10+、Rust stable，以及当前平台所需的 Tauri 系统依赖
+| 平台 | 安装包 |
+| --- | --- |
+| macOS | `.dmg`，或 `brew install --cask xjeway/mcp-manager/mcp-manager` |
+| Windows | `setup.exe`（x64 / arm64）或 `.msi`（x64） |
+| Linux | `.deb`、`.rpm` 或 `.AppImage` |
 
-### macOS
+Apple Silicon 和 ARM 设备请选择 `arm64` / `aarch64`，其他设备选择 `x64` / `x86_64` / `amd64`。
 
-#### Homebrew
+<details>
+<summary>macOS 提示应用已损坏或无法打开？</summary>
 
-```bash
-brew tap xjeway/mcp-manager
-brew install --cask mcp-manager
-brew update
-brew upgrade --cask mcp-manager
-```
-
-#### 手动下载
-
-下载地址：
-
-- <https://github.com/xjeway/mcp-manager/releases/latest>
-
-macOS 安装包文件名示例：
-
-- `MCP-Manager-<version>-<arch>.dmg`
-
-Arch 选择说明：
-
-- Apple Silicon Mac：选择 `arm64` 或 `aarch64` 资产
-- Intel Mac：选择 `x64` 或 `x86_64` 资产
-
-下载与你的 arch 匹配的 macOS 安装包后，可直接在本地打开：
-
-```bash
-open ~/Downloads/MCP-Manager*.dmg
-```
-
-当前公开发布的 macOS 安装包在 Apple 签名与公证接入完成前，可能仍会以未签名形式分发。如果 Gatekeeper 阻止打开 `MCP Manager.app`，请按下面的绕过流程处理：
-
-1. 先将 `MCP Manager.app` 拖到 `/Applications`。
-2. 在 Finder 中对应用执行一次“右键 -> 打开”。
-3. 如果 macOS 仍提示无法打开、已损坏或来源不明，可移除 quarantine 标记后重试：
+发布版本暂未经过公证。请先将应用移动到 `/Applications`，然后运行：
 
 ```bash
 xattr -dr com.apple.quarantine "/Applications/MCP Manager.app"
-open "/Applications/MCP Manager.app"
 ```
 
-### Windows
-
-#### 手动下载
-
-下载地址：
-
-- <https://github.com/xjeway/mcp-manager/releases/latest>
-
-Windows 安装包文件名示例：
-
-- `MCP-Manager-<version>-<arch>-setup.exe`
-- `MCP-Manager-<version>-x64.msi`
-
-Arch 选择说明：
-
-- Windows on ARM 设备：选择 `arm64` 安装包
-- Intel / AMD PC：选择 `x64` 或 `x86_64` 安装包
-
-安装包说明：
-
-- `setup.exe`：同时提供 Windows x64 和 Windows arm64 版本
-- `.msi`：在稳定版发布时提供 Windows x64 版本
-
-选择与你的 arch 匹配的安装包后，在本地运行：
-
-```powershell
-Start-Process "C:\Path\To\MCP-Manager-Setup.exe"
-# 或
-msiexec /i "C:\Path\To\MCP-Manager.msi"
-```
-
-### Linux 用户
-
-请从 [Releases](https://github.com/xjeway/mcp-manager/releases/latest) 页面下载最新的 Linux 安装包：
-
-Linux 安装包文件名示例：
-
-- `mcp-manager_<version>_<arch>.deb`（Debian/Ubuntu）
-- `mcp-manager-<version>.<arch>.rpm`（Fedora/RHEL/openSUSE）
-- `MCP-Manager-<version>-<arch>.AppImage`（Universal）
-
-展开说明：
-
-- `.deb`：适用于 Debian、Ubuntu、Linux Mint、Pop!_OS、elementary OS 等 Debian 系发行版
-- `.rpm`：适用于 Fedora、RHEL、Rocky Linux、AlmaLinux、openSUSE 等 RPM 系发行版
-- `.AppImage`：适用于可移植、通用的桌面 Linux 版本
-
-Arch 选择说明：
-
-- `x86_64` 或 `amd64`：适用于大多数 Intel / AMD 64 位 PC
-- `arm64` 或 `aarch64`：适用于 ARM64 Linux 设备，仅在该架构安装包已发布时选择
-
-按对应命令安装：
-
-```bash
-# Debian / Ubuntu
-sudo dpkg -i ./mcp-manager_<version>_amd64.deb
-
-# Fedora / RHEL / openSUSE
-sudo rpm -i ./mcp-manager-<version>.x86_64.rpm
-
-# AppImage
-chmod +x ./MCP-Manager-<version>.AppImage
-./MCP-Manager-<version>.AppImage
-```
-
-### 从源码构建
-
-安装依赖：
-
-```bash
-make install
-```
-
-启动桌面应用：
-
-```bash
-make tauri-dev
-```
-
-仅启动 Web UI：
-
-```bash
-make dev
-```
-
-## 快速开始
-
-1. 启动 `MCP Manager`。
-2. 从本地客户端配置文件导入已有条目。
-3. 使用表单模式或 JSON 模式编辑 Server。
-4. 将生成后的配置应用到一个或多个目标客户端。
-5. 确认风险提示后执行写入，并在需要时回滚。
+</details>
 
 ## 支持的客户端
 
@@ -230,111 +96,36 @@ make dev
 
 ## 命令行（预览）
 
-命令行工具 `mcpmgr` 与桌面应用共用同一份 server 列表，在任一端的修改另一端都能看到。可以直接用 `npx` 运行，也可以通过 npm 或 Homebrew 安装：
+`mcpmgr` 与桌面应用共用同一份 server 列表，在任一端的修改另一端都能看到。
 
 ```bash
-npx @mcpmgr/cli list
-npm install -g @mcpmgr/cli
-brew install xjeway/mcp-manager/mcpmgr
-```
+npx @mcpmgr/cli list                      # 或：npm i -g @mcpmgr/cli / brew install xjeway/mcp-manager/mcpmgr
 
-```bash
 mcpmgr add context7 -- npx -y @upstash/context7-mcp@latest
 mcpmgr add linear --url https://mcp.linear.app/mcp -a cursor,claude-code
-mcpmgr add --from mcp.json --project
-mcpmgr list
 mcpmgr remove context7 -a codex
 mcpmgr rollback
 ```
 
-在源码目录中可用 `cargo run --bin mcpmgr -- <命令>` 运行。
+在终端中，`add` 会分步引导你选择 server、客户端和作用范围，并在写入前预览每个文件。每一步也都有对应参数（`--yes`、`--dry-run`、`--json` 等）；在 Claude Code、Codex 等 AI 编程工具中运行时，会跳过提问并以该工具的客户端为目标。
 
-在终端中，`add` 会分步引导你选择 server、客户端和用户级或项目级配置，并在写入前列出每个客户端文件将发生的变化。每一步都可以用参数直接回答（`--server`、`--env`、`--app`、`--global`/`--project`、`--yes`）；`--dry-run` 只预览，`--json` 输出机器可读结果。在 Claude Code、Codex 等 AI 编程工具中运行时，会跳过提问并默认写入该工具的配置。
+## 隐私与联网
 
-## 工作方式
+MCP Manager 只在检查更新，以及打开在线市场页面时查询 MCP 注册表才会联网（结果缓存 6 小时，断网时仍可使用）。在 **设置 → 在线市场** 中关闭市场，即可完全停止这些请求。
 
-- 应用会读取本地客户端配置并转换为内部模型
-- apply 时会生成客户端对应配置，并通过原子写、备份与回滚保障安全
-- 在线市场会把注册表条目（npm、PyPI、Docker 镜像或远程 URL）转换成 server 草稿，在编辑器中确认后保存；所有客户端默认关闭
+## 开发
 
-### 联网说明
-
-MCP Manager 只在检查更新，以及打开在线市场页面时查询 MCP 注册表才会联网。注册表结果会缓存：打开市场时先显示缓存，超过 6 小时后在后台更新，断网时仍可查看上次的数据。在 **设置 → 市场来源** 中添加来源时，会向该地址发一次检查请求。在 **设置 → 在线市场** 中关闭后，不会再发起任何市场请求。
-
-## 当前范围
-
-当前版本主要聚焦配置管理。运行时生命周期管理，例如进程启停、日志查看、健康检查等，不属于 v1 范围。
-
-## 项目结构
-
-```text
-mcp-manager/
-  src/                前端应用
-  src-tauri/          Tauri 应用（对前端暴露的命令、在线市场）
-  crates/
-    mcp-manager-core/ 客户端适配、解析与安全写入（共用）
-    mcp-manager-cli/  命令行工具（`mcpmgr`）
-  public/             静态资源与品牌素材
-  docs/               发布说明与设计参考
-  openspec/           变更与规格记录
-```
-
-### 核心模块（`crates/mcp-manager-core`）
-
-- `platform`：平台路径解析与运行上下文
-- `adapters`：按客户端实现导入与 apply 逻辑
-- `core`：统一配置模型与合并规则
-- `parser`：YAML / JSON / TOML 解析与配置提取
-- `storage`：原子写、备份与回滚
-- `store`：共用的 `servers.yaml`，带文件锁与外部修改检测
-- `workflow`：跨所有客户端的导入、预览与应用
-- `ops`：server 列表的编辑与校验（与前端逻辑保持一致）
-
-## 开发命令
+需要 Node.js 20+、Rust stable，以及当前平台的 [Tauri 系统依赖](https://tauri.app/start/prerequisites/)。
 
 ```bash
-make install
-make dev
-make tauri-dev
-make build
-make test
-make check
-make tauri-build
+make install      # 安装依赖
+make tauri-dev    # 启动桌面应用
+make test && make check
 ```
 
-## 自动发版
+核心逻辑（客户端适配、解析、安全写入）位于 `crates/mcp-manager-core`，由 `src-tauri/` 中的 Tauri 应用和 `crates/mcp-manager-cli/` 中的命令行工具共用。发版流程见 [`docs/releasing.md`](./docs/releasing.md)。
 
-仓库已补充基于 GitHub Actions 和 Tauri 官方 release action 的自动发版方案。
-
-详见 [`docs/releasing.md`](./docs/releasing.md)，包含：
-
-- 基于 tag 的 GitHub Release 自动发布
-- macOS、Windows、Linux 安装包构建
-- Tauri updater 签名配置
-- 可选的平台代码签名说明
-- 版本同步与 git tag 辅助命令
-
-## 参与贡献
-
-欢迎提交 Issue 和 Pull Request。
-
-如果是比较大的改动，建议先开一个 issue 或 discussion，对范围和方向先达成一致，再开始实现。
-
-### 本地开发
-
-```bash
-make install
-make tauri-dev
-```
-
-### 提交 PR 前
-
-```bash
-make test
-make check
-```
-
-修改面向用户的项目文档时，请同步维护 [`README.md`](./README.md)、[`README.zh-CN.md`](./README.zh-CN.md) 以及 [`docs/readme/`](./docs/readme/) 中的其他语言版本。
+欢迎提交 Issue 和 Pull Request；如果是比较大的改动，请先开一个 issue。修改面向用户的文档时，请同步维护 [`README.md`](./README.md)、[`README.zh-CN.md`](./README.zh-CN.md) 以及 [`docs/readme/`](./docs/readme/)。
 
 ## Star History
 
@@ -348,10 +139,4 @@ make check
 
 ## 免责声明
 
-本项目以 AI 驱动开发为主：代码、测试和文档大多由 AI 生成，并由维护者人工审阅，仍可能存在错误。
-
-MCP Manager 会读取并改写其他工具的配置文件。应用内置了备份与回滚，但你仍应自行备份重要的客户端配置，应用变更前请仔细检查，并自行承担使用风险。本软件按“原样”依据 [MIT License](./LICENSE) 提供，不附带任何形式的担保。
-
-## License
-
-MIT @ xJeway
+本项目主要借助 AI 开发，并由维护者人工审阅，仍可能存在错误。MCP Manager 会改写其他工具的配置文件；应用内置了备份与回滚，但请自行备份重要的配置。本软件按“原样”依据 [MIT License](./LICENSE) 提供。
