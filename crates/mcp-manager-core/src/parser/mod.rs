@@ -86,8 +86,42 @@ pub(crate) fn strip_json_comments(content: &str) -> String {
     out
 }
 
+/// Removes commas that directly precede `}` or `]`, outside strings. Expects
+/// comments to be stripped already.
+fn strip_trailing_commas(content: &str) -> String {
+    let mut out = String::with_capacity(content.len());
+    let mut in_string = false;
+    let mut escaped = false;
+    for (index, ch) in content.char_indices() {
+        if in_string {
+            if escaped {
+                escaped = false;
+            } else if ch == '\\' {
+                escaped = true;
+            } else if ch == '"' {
+                in_string = false;
+            }
+        } else if ch == '"' {
+            in_string = true;
+        } else if ch == ',' {
+            let rest = content[index + 1..].trim_start();
+            if rest.starts_with('}') || rest.starts_with(']') {
+                continue;
+            }
+        }
+        out.push(ch);
+    }
+    out
+}
+
+/// Parses JSON that may contain comments and trailing commas.
+pub(crate) fn parse_jsonc(content: &str) -> Result<Value, String> {
+    serde_json::from_str(&strip_trailing_commas(&strip_json_comments(content)))
+        .map_err(|e| e.to_string())
+}
+
 fn parse_jsonc_value(content: &str) -> Result<Value, String> {
-    let normalized = strip_json_comments(content);
+    let normalized = strip_trailing_commas(&strip_json_comments(content));
     if normalized.trim().is_empty() {
         return Ok(Value::Object(Map::new()));
     }
@@ -638,6 +672,33 @@ args = ["@playwright/mcp@latest"]
         let headers = &parsed.servers[0].transport.headers;
         assert_eq!(headers["Authorization"], "Bearer t");
         assert_eq!(headers["X-Retries"], "3");
+    }
+
+    #[test]
+    fn parses_trailing_commas_like_opencode_examples() {
+        let normalized = super::extract_opencode_mcp_json(
+            r#"{
+              "mcp": {
+                "ctx": {
+                  "type": "local",
+                  "command": ["npx", "-y", "ctx", ],
+                  "environment": { "A": "1", },
+                },
+              },
+              "note": "keeps , } inside strings",
+            }"#,
+        )
+        .expect("JSONC with trailing commas");
+        let parsed = parse_mcp_json(&normalized);
+        assert!(parsed.errors.is_empty(), "{:?}", parsed.errors);
+        assert_eq!(
+            parsed.servers[0].command.as_ref().unwrap().args,
+            ["-y", "ctx"]
+        );
+        assert_eq!(
+            super::parse_jsonc(r#"{"a": "x, }", "b": [1,],}"#).unwrap(),
+            serde_json::json!({"a": "x, }", "b": [1]})
+        );
     }
 
     #[test]

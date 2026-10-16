@@ -233,7 +233,9 @@ pub fn preview(
         for (id, value) in &desired {
             let action = match existing.get(id) {
                 None => ChangeAction::Add,
-                Some(current) if current == value => ChangeAction::Unchanged,
+                Some(current) if current == &with_kept_fields(current, value) => {
+                    ChangeAction::Unchanged
+                }
                 Some(_) if managed_before.contains(id) => ChangeAction::Update,
                 Some(_) => ChangeAction::OverwriteUnmanaged,
             };
@@ -247,6 +249,14 @@ pub fn preview(
         }
     }
     changes
+}
+
+/// `desired` as the apply will write it over `current`, which keeps the
+/// fields MCP Manager does not model.
+fn with_kept_fields(current: &Value, desired: &Value) -> Value {
+    let mut written = desired.clone();
+    crate::storage::carry_unmanaged_fields(current, &mut written);
+    written
 }
 
 fn is_entry_merge(mode: &str) -> bool {
@@ -277,7 +287,7 @@ fn existing_entries(
             .ok()
             .and_then(|table| serde_json::to_value(table).ok())
     } else {
-        serde_json::from_str::<Value>(&crate::parser::strip_json_comments(&content)).ok()
+        crate::parser::parse_jsonc(&content).ok()
     };
     match host.as_ref().and_then(|host| host.get(field)) {
         Some(Value::Object(entries)) => entries.clone(),
@@ -468,6 +478,35 @@ mod tests {
         assert!(changes
             .iter()
             .all(|change| change.scope == PlacementScope::User));
+    }
+
+    #[test]
+    fn fields_an_apply_keeps_do_not_count_as_a_change() {
+        let home = tempdir().expect("tempdir");
+        let ctx = PlatformContext {
+            os: PlatformOs::Linux,
+            home_dir: home.path().to_path_buf(),
+            workspace_root: home.path().to_path_buf(),
+        };
+        let cursor = SupportedApp::Cursor;
+        fs::create_dir_all(home.path().join(".cursor")).unwrap();
+        // A hand-added timeout, a comment and a trailing comma.
+        fs::write(
+            home.path().join(".cursor/mcp.json"),
+            r#"{ "mcpServers": {
+                // tuned by hand
+                "same": { "command": "a", "args": [], "env": {}, "type": "stdio", "timeout": 9000 },
+            } }"#,
+        )
+        .unwrap();
+        let servers = config(vec![stdio_server("same", "a", &[cursor])]);
+
+        let changes = preview(&ctx, &servers, Some(&servers));
+
+        assert_eq!(
+            action_for(&changes, "same", cursor),
+            Some(ChangeAction::Unchanged)
+        );
     }
 
     #[test]

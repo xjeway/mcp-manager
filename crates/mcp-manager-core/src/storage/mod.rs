@@ -1,12 +1,14 @@
 use crate::core::WriteOperation;
 use crate::platform::PlatformContext;
 use chrono::Utc;
-use serde_json::{Map, Value};
+use serde_json::Value;
 use std::fs;
 use std::path::{Component, Path, PathBuf, Prefix};
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::time::Duration;
 use toml::Table;
+
+mod jsonc;
 
 fn base_dir() -> PathBuf {
     PlatformContext::current().app_data_dir()
@@ -311,24 +313,29 @@ fn apply_replace_json(path: &Path, content: &str) -> Result<(), String> {
     atomic_write(path, &pretty)
 }
 
+fn read_existing(path: &Path) -> Result<String, String> {
+    if path.exists() {
+        fs::read_to_string(path).map_err(|e| e.to_string())
+    } else {
+        Ok(String::new())
+    }
+}
+
+/// A client file that cannot be parsed is reported instead of replaced: it is
+/// usually hand-edited, and writing over it would lose everything in it.
+fn unreadable(path: &Path, error: String) -> String {
+    format!(
+        "{} could not be read as JSON: {error}",
+        path.to_string_lossy()
+    )
+}
+
 fn apply_merge_json_field(path: &Path, field: &str, content: &str) -> Result<(), String> {
     let field_value: Value = serde_json::from_str(content).map_err(|e| e.to_string())?;
-    let existing = if path.exists() {
-        fs::read_to_string(path).map_err(|e| e.to_string())?
-    } else {
-        "{}".to_string()
-    };
-    let mut host =
-        serde_json::from_str::<Value>(&existing).unwrap_or_else(|_| Value::Object(Map::new()));
-    let Some(host_map) = host.as_object_mut() else {
-        return Err(format!(
-            "{} does not contain a JSON object",
-            path.to_string_lossy()
-        ));
-    };
-    host_map.insert(field.to_string(), field_value);
-    let pretty = serde_json::to_string_pretty(&host).map_err(|e| e.to_string())?;
-    atomic_write(path, &pretty)
+    let existing = read_existing(path)?;
+    let updated = jsonc::set_root_member(&existing, field, &field_value)
+        .map_err(|error| unreadable(path, error))?;
+    atomic_write(path, &updated)
 }
 
 /// Fields MCP Manager models and rewrites on every apply. Anything else on an
@@ -360,7 +367,11 @@ fn is_local_entry<'a>(mut keys: impl Iterator<Item = &'a String>) -> bool {
     keys.any(|key| key == "command")
 }
 
-fn carry_unmanaged_json_fields(old: &Map<String, Value>, new: &mut Map<String, Value>) {
+/// Copies the fields of `old` that an apply keeps into `new`.
+pub(crate) fn carry_unmanaged_fields(old: &Value, new: &mut Value) {
+    let (Some(old), Some(new)) = (old.as_object(), new.as_object_mut()) else {
+        return;
+    };
     if is_local_entry(old.keys()) != is_local_entry(new.keys()) {
         return;
     }
@@ -381,54 +392,16 @@ fn apply_merge_json_object_entries(
     let Some(new_entries) = field_value.as_object() else {
         return Err(format!("{field} merge content must be a JSON object"));
     };
-
-    let existing = if path.exists() {
-        fs::read_to_string(path).map_err(|e| e.to_string())?
-    } else {
-        "{}".to_string()
-    };
-    let mut host =
-        serde_json::from_str::<Value>(&existing).unwrap_or_else(|_| Value::Object(Map::new()));
-    let Some(host_map) = host.as_object_mut() else {
-        return Err(format!(
-            "{} does not contain a JSON object",
-            path.to_string_lossy()
-        ));
-    };
-
-    let field_entry = host_map
-        .entry(field.to_string())
-        .or_insert_with(|| Value::Object(Map::new()));
-    let Some(target_map) = field_entry.as_object_mut() else {
-        return Err(format!(
-            "{} field {} does not contain a JSON object",
-            path.to_string_lossy(),
-            field
-        ));
-    };
-
-    let mut replaced = Map::new();
-    if let Some(keys) = remove_keys {
-        for key in keys {
-            if let Some(old) = target_map.remove(key) {
-                replaced.insert(key.clone(), old);
-            }
-        }
-    }
-
-    for (key, value) in new_entries {
-        let mut value = value.clone();
-        if let (Some(new_entry), Some(old_entry)) = (
-            value.as_object_mut(),
-            replaced.get(key).and_then(Value::as_object),
-        ) {
-            carry_unmanaged_json_fields(old_entry, new_entry);
-        }
-        target_map.insert(key.clone(), value);
-    }
-
-    let pretty = serde_json::to_string_pretty(&host).map_err(|e| e.to_string())?;
-    atomic_write(path, &pretty)
+    let existing = read_existing(path)?;
+    let updated = jsonc::merge_object_entries(
+        &existing,
+        field,
+        new_entries,
+        remove_keys.unwrap_or_default(),
+        carry_unmanaged_fields,
+    )
+    .map_err(|error| unreadable(path, error))?;
+    atomic_write(path, &updated)
 }
 
 fn apply_merge_toml_field(path: &Path, field: &str, content: &str) -> Result<(), String> {
@@ -857,9 +830,10 @@ mod tests {
         .expect("apply");
         restore_test_runtime(previous_home, previous_dir);
 
-        let next = fs::read_to_string(&path).expect("read");
-        assert!(next.contains("\"theme\": \"dark\""));
-        assert!(next.contains("\"new\""));
+        let next: serde_json::Value =
+            serde_json::from_str(&fs::read_to_string(&path).expect("read")).expect("json");
+        assert_eq!(next["theme"], "dark");
+        assert_eq!(next["mcpServers"]["new"]["command"], "npx");
     }
 
     #[test]
@@ -888,12 +862,12 @@ mod tests {
         .expect("apply");
         restore_test_runtime(previous_home, previous_dir);
 
-        let next = fs::read_to_string(&path).expect("read");
-        assert!(next.contains("\"theme\": \"dark\""));
-        assert!(next.contains("\"unknown\""));
-        assert!(next.contains("\"managed\""));
-        assert!(next.contains("\"fresh\""));
-        assert!(!next.contains("\"command\": \"old\""));
+        let next: serde_json::Value =
+            serde_json::from_str(&fs::read_to_string(&path).expect("read")).expect("json");
+        assert_eq!(next["theme"], "dark");
+        assert_eq!(next["mcpServers"]["unknown"]["command"], "keep");
+        assert_eq!(next["mcpServers"]["managed"]["command"], "new");
+        assert_eq!(next["mcpServers"]["fresh"]["command"], "npx");
     }
 
     #[test]
