@@ -203,7 +203,7 @@ make dev
 | iFlow | ✅ | ✅ |
 | Qwen Code | ✅ | ✅ |
 | Cline | ✅ | ✅ |
-| Windsurf | ✅ | ✅ |
+| Devin Desktop (formerly Windsurf) | ✅ | ✅ |
 | Kiro | ✅ | ✅ |
 | Qoder | ✅ | ✅ |
 | Kilo Code | ✅ | ✅ |

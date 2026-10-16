@@ -99,7 +99,8 @@ impl SupportedApp {
             SupportedApp::IFlow => "iFlow",
             SupportedApp::QwenCode => "Qwen Code",
             SupportedApp::Cline => "Cline",
-            SupportedApp::Windsurf => "Windsurf",
+            // Renamed by Cognition in June 2026; the old name stays for recognition.
+            SupportedApp::Windsurf => "Devin Desktop (Windsurf)",
             SupportedApp::Kiro => "Kiro",
             SupportedApp::Qoder => "Qoder",
             SupportedApp::KiloCode => "Kilo Code",
@@ -149,7 +150,16 @@ impl SupportedApp {
             .find(|app| app.as_str() == key)
     }
 
-    /// Accepts the kebab-case id, the camelCase id, or the display name, ignoring case.
+    /// Other names a client is known by.
+    fn aliases(self) -> &'static [&'static str] {
+        match self {
+            SupportedApp::Windsurf => &["devin-desktop"],
+            _ => &[],
+        }
+    }
+
+    /// Accepts the kebab-case id, the camelCase id, the display name, or an
+    /// alias, ignoring case.
     pub fn parse(value: &str) -> Option<SupportedApp> {
         let key = |text: &str| {
             text.chars()
@@ -161,6 +171,7 @@ impl SupportedApp {
         SupportedApp::ALL.into_iter().find(|app| {
             [app.cli_id(), app.as_str(), app.display_name()]
                 .into_iter()
+                .chain(app.aliases().iter().copied())
                 .any(|name| key(name) == wanted)
         })
     }
@@ -513,6 +524,14 @@ mod tests {
         assert_eq!(SupportedApp::ClaudeCode.cli_id(), "claude-code");
         assert_eq!(SupportedApp::IFlow.cli_id(), "iflow");
         assert_eq!(SupportedApp::parse("iflow"), Some(SupportedApp::IFlow));
+        assert_eq!(
+            SupportedApp::parse("devin-desktop"),
+            Some(SupportedApp::Windsurf)
+        );
+        assert_eq!(
+            SupportedApp::parse("Windsurf"),
+            Some(SupportedApp::Windsurf)
+        );
         assert_eq!(SupportedApp::parse("nope"), None);
     }
 

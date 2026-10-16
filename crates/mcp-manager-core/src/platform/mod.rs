@@ -211,8 +211,14 @@ impl PlatformContext {
             SupportedApp::Cline => (&["cline"][..], &[][..], &[][..]),
             SupportedApp::Windsurf => (
                 &["windsurf"][..],
-                &["Windsurf.app"][..],
-                &["AppData/Local/Programs/Windsurf/Windsurf.exe"][..],
+                // Renamed Devin Desktop in 2026. An in-place update keeps the old
+                // install; a fresh one may use the new name.
+                &["Windsurf.app", "Devin Desktop.app", "Devin.app"][..],
+                &[
+                    "AppData/Local/Programs/Windsurf/Windsurf.exe",
+                    "AppData/Local/Programs/Devin Desktop/Devin Desktop.exe",
+                    "AppData/Local/Programs/Devin/Devin.exe",
+                ][..],
             ),
             SupportedApp::Kiro => (
                 &["kiro"][..],
