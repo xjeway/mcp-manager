@@ -213,6 +213,7 @@ make dev
 | Mistral Vibe | ✅ | ✅ |
 | Hermes Agent | ✅ | ✅ |
 | Goose | ✅ | ✅ |
+| Amp | ✅ | ✅ |
 | VS Code | ✅ | ✅ |
 
 ## Command Line (Preview)

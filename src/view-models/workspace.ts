@@ -92,6 +92,7 @@ function emptyApps(): MCPServer['apps'] {
     mistralVibe: false,
     hermes: false,
     goose: false,
+    amp: false,
   }
 }
 

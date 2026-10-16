@@ -30,6 +30,7 @@ export function useAppStats(config: MCPConfig): Record<SupportedApp, number> {
       mistralVibe: 0,
       hermes: 0,
       goose: 0,
+      amp: 0,
     })
   }, [config.servers])
 }

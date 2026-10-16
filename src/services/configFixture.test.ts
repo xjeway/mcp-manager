@@ -36,6 +36,7 @@ const config: MCPConfig = {
         mistralVibe: false,
         hermes: false,
         goose: false,
+        amp: false,
       },
     },
     {
@@ -68,6 +69,7 @@ const config: MCPConfig = {
         mistralVibe: false,
         hermes: false,
         goose: false,
+        amp: false,
       },
       placements: [{ app: 'claudeCode', scope: 'workspace', enabled: true, managed: true }],
     },

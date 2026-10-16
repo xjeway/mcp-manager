@@ -44,6 +44,7 @@ function defaultConfig(): MCPConfig {
           mistralVibe: false,
           hermes: false,
           goose: false,
+          amp: false,
         },
       },
       {
@@ -74,6 +75,7 @@ function defaultConfig(): MCPConfig {
           mistralVibe: false,
           hermes: false,
           goose: false,
+          amp: false,
         },
       },
       {
@@ -109,6 +111,7 @@ function defaultConfig(): MCPConfig {
           mistralVibe: false,
           hermes: false,
           goose: false,
+          amp: false,
         },
       },
     ],

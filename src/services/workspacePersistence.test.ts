@@ -40,6 +40,7 @@ const previousConfig = {
         mistralVibe: false,
         hermes: false,
         goose: false,
+        amp: false,
       },
     },
   ],

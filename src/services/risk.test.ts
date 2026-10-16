@@ -32,6 +32,7 @@ describe('evaluateApplyRisks', () => {
           mistralVibe: false,
           hermes: false,
           goose: false,
+          amp: false,
         },
       },
     ])

@@ -163,6 +163,13 @@ export const CLIENT_CAPABILITIES: Record<SupportedApp, ClientCapability> = {
     scopes: [projectScope(20), userScope(10)],
   },
   kimiCli: userOnly('kimiCli', 'json', 'mergeJsonField'),
+  amp: {
+    app: 'amp',
+    configFormat: 'jsonc',
+    mergePolicy: 'mergeJsonField',
+    projectManagement: 'direct',
+    scopes: [projectScope(20), userScope(10)],
+  },
   hermes: userOnly('hermes', 'yaml', 'mergeYamlMapping'),
   goose: userOnly('goose', 'yaml', 'mergeYamlMapping'),
   mistralVibe: {

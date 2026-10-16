@@ -211,6 +211,7 @@ make dev
 | Mistral Vibe | ✅ | ✅ |
 | Hermes Agent | ✅ | ✅ |
 | Goose | ✅ | ✅ |
+| Amp | ✅ | ✅ |
 | VS Code | ✅ | ✅ |
 
 ## 命令行（预览）

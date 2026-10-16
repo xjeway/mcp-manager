@@ -1,3 +1,4 @@
+mod amp;
 mod antigravity;
 mod claude_code;
 mod claude_desktop;
@@ -29,6 +30,7 @@ use crate::platform::PlatformContext;
 use serde_json::{Map, Value};
 use std::collections::BTreeSet;
 
+pub use amp::AmpAdapter;
 pub use antigravity::AntigravityAdapter;
 pub use claude_code::ClaudeCodeAdapter;
 pub use claude_desktop::ClaudeDesktopAdapter;
@@ -103,6 +105,8 @@ pub fn workspace_scope_path(ctx: &PlatformContext, app: SupportedApp) -> Option<
         SupportedApp::FactoryDroid => ".factory/mcp.json",
         SupportedApp::Zed => ".zed/settings.json",
         SupportedApp::MistralVibe => ".vibe/config.toml",
+        // Amp asks before it runs servers from workspace settings.
+        SupportedApp::Amp => ".amp/settings.json",
         _ => return None,
     };
     Some(ctx.workspace_file(relative).to_string_lossy().to_string())
@@ -494,9 +498,12 @@ fn standard_json_app_profile(app: SupportedApp) -> StandardJsonAppProfile {
         _ => Some("headers"),
     };
     StandardJsonAppProfile {
-        // Kimi CLI's documented format has no `type`; it infers the transport.
-        // Zed tells local from remote by `command` versus `url`.
-        include_transport_type: !matches!(app, SupportedApp::KimiCli | SupportedApp::Zed),
+        // Kimi CLI's and Amp's documented formats have no `type`; they infer
+        // the transport. Zed tells local from remote by `command` versus `url`.
+        include_transport_type: !matches!(
+            app,
+            SupportedApp::KimiCli | SupportedApp::Zed | SupportedApp::Amp
+        ),
         // Windsurf and Antigravity ignore a remote server given as plain `url`.
         url_key: match app {
             SupportedApp::Windsurf | SupportedApp::Antigravity => "serverUrl",
@@ -747,6 +754,7 @@ pub fn adapters() -> Vec<Box<dyn AppAdapter>> {
         Box::new(MistralVibeAdapter),
         Box::new(HermesAdapter),
         Box::new(GooseAdapter),
+        Box::new(AmpAdapter),
     ]
 }
 

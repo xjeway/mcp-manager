@@ -23,6 +23,7 @@ export const SUPPORTED_APPS = [
   'mistralVibe',
   'hermes',
   'goose',
+  'amp',
 ] as const
 
 export type SupportedApp = (typeof SUPPORTED_APPS)[number]

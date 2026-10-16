@@ -37,6 +37,7 @@ describe('configSync', () => {
             mistralVibe: false,
             hermes: false,
             goose: false,
+            amp: false,
           },
         },
         {
@@ -69,6 +70,7 @@ describe('configSync', () => {
             mistralVibe: false,
             hermes: false,
             goose: false,
+            amp: false,
           },
         },
       ],
@@ -107,6 +109,7 @@ describe('configSync', () => {
             mistralVibe: false,
             hermes: false,
             goose: false,
+            amp: false,
           },
         },
         {
@@ -140,6 +143,7 @@ describe('configSync', () => {
             mistralVibe: false,
             hermes: false,
             goose: false,
+            amp: false,
           },
         },
       ],

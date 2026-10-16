@@ -26,6 +26,7 @@ body:
       label: 涉及的客户端 / Affected clients
       multiple: true
       options:
+        - Amp
         - Antigravity
         - Claude Code
         - Claude Desktop

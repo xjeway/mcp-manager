@@ -39,6 +39,7 @@ storage path, merge behavior, and precedence.
 | Mistral Vibe | `~/.vibe/config.toml` | `.vibe/config.toml` (trusted folders only) | None | Direct project support. Servers are a `[[mcp_servers]]` list keyed by `name`, edited in place. Remote servers are written as `streamable-http` with headers in a static `auth` table; SSE servers are not written (Vibe has no SSE client) and the apply reports it. Vibe rejects unknown fields, so no `type` is written |
 | Hermes Agent | `~/.hermes/config.yaml` | Unsupported | Profiles (`~/.hermes/profiles/<name>/config.yaml`, not read) | User only. `mcp_servers` mapping edited line by line in place; SSE servers get `transport: sse`. `enabled: false` is Hermes's own switch: it is not imported as the server being off, and applies keep it |
 | Goose | `~/.config/goose/config.yaml` (Windows: `%APPDATA%\\Block\\goose\\config\\config.yaml`) | Unsupported | None | User only. Only `stdio` and `streamable_http` entries of `extensions` are managed; built-in and platform extensions are left alone. Entries use `cmd`/`envs`/`uri`, carry `name` and `enabled`, and Goose's own `enabled` and `env_keys` are kept. SSE servers are not written (Goose has no SSE client) and the apply reports it |
+| Amp | `~/.config/amp/settings.json` (Windows: `%APPDATA%\\amp\\settings.json`) | `.amp/settings.json` (Amp asks before running servers from it) | Skill-bundled `mcp.json` (not read) | Direct project support. Servers live under the literal key `amp.mcpServers` in the settings file, edited in place; no `type` is written |
 | Kiro | `~/.kiro/settings/mcp.json` | `.kiro/settings/mcp.json` | Agent-level scope | Direct project support, agent scope read-only for now |
 
 ## Implementation Rules
@@ -57,6 +58,16 @@ storage path, merge behavior, and precedence.
 - Read-only higher-precedence scopes, such as Claude Code `localProject` and
   Kiro `agent`, can be shown later as status rows, but should not be writable
   until the adapter can round-trip them safely.
+
+## Evaluated, not managed yet
+
+- OpenClaw keeps servers under `mcp.servers` in `~/.openclaw/openclaw.json`
+  (or `OPENCLAW_CONFIG_PATH`). The file is JSON5, usually with unquoted keys,
+  which the in-place JSONC editor refuses, and OpenClaw ships
+  `openclaw mcp set`/`unset` for these edits. Supporting it means either a
+  JSON5 editor or driving that CLI.
+- Crush moved its configuration to `crushrc`, a Bash script it executes; the
+  older `crush.json` is deprecated.
 
 ## Writes keep fields MCP Manager does not model
 

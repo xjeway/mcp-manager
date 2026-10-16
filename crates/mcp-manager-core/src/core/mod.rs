@@ -26,10 +26,11 @@ pub enum SupportedApp {
     MistralVibe,
     Hermes,
     Goose,
+    Amp,
 }
 
 impl SupportedApp {
-    pub const ALL: [SupportedApp; 22] = [
+    pub const ALL: [SupportedApp; 23] = [
         SupportedApp::Vscode,
         SupportedApp::Cursor,
         SupportedApp::ClaudeCode,
@@ -52,6 +53,7 @@ impl SupportedApp {
         SupportedApp::MistralVibe,
         SupportedApp::Hermes,
         SupportedApp::Goose,
+        SupportedApp::Amp,
     ];
 
     pub fn as_str(self) -> &'static str {
@@ -78,6 +80,7 @@ impl SupportedApp {
             SupportedApp::MistralVibe => "mistralVibe",
             SupportedApp::Hermes => "hermes",
             SupportedApp::Goose => "goose",
+            SupportedApp::Amp => "amp",
         }
     }
 
@@ -106,6 +109,7 @@ impl SupportedApp {
             SupportedApp::MistralVibe => "Mistral Vibe",
             SupportedApp::Hermes => "Hermes Agent",
             SupportedApp::Goose => "Goose",
+            SupportedApp::Amp => "Amp",
         }
     }
 
@@ -134,6 +138,7 @@ impl SupportedApp {
             SupportedApp::MistralVibe => "mistral-vibe",
             SupportedApp::Hermes => "hermes",
             SupportedApp::Goose => "goose",
+            SupportedApp::Amp => "amp",
         }
     }
 
@@ -394,6 +399,7 @@ pub fn empty_apps() -> HashMap<SupportedApp, bool> {
         (SupportedApp::MistralVibe, false),
         (SupportedApp::Hermes, false),
         (SupportedApp::Goose, false),
+        (SupportedApp::Amp, false),
     ])
 }
 

@@ -146,6 +146,10 @@ impl PlatformContext {
                     .join("AppData/Roaming/Block/goose/config/config.yaml"),
                 _ => self.home_dir.join(".config/goose/config.yaml"),
             },
+            SupportedApp::Amp => match self.os {
+                PlatformOs::Windows => self.home_dir.join("AppData/Roaming/amp/settings.json"),
+                _ => self.home_dir.join(".config/amp/settings.json"),
+            },
         }
     }
 
@@ -236,6 +240,7 @@ impl PlatformContext {
                 &["Goose.app"][..],
                 &["AppData/Local/Programs/Goose/Goose.exe"][..],
             ),
+            SupportedApp::Amp => (&["amp"][..], &[][..], &[][..]),
         };
 
         self.command_exists(commands)
@@ -343,7 +348,8 @@ impl PlatformContext {
             | SupportedApp::Zed
             | SupportedApp::MistralVibe
             | SupportedApp::Hermes
-            | SupportedApp::Goose => {
+            | SupportedApp::Goose
+            | SupportedApp::Amp => {
                 vec![self.user_app_config_path(app).to_string_lossy().to_string()]
             }
             SupportedApp::GithubCopilot => vec![

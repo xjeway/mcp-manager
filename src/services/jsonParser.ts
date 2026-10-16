@@ -26,6 +26,7 @@ function defaultApps(): MCPServer['apps'] {
     mistralVibe: false,
     hermes: false,
     goose: false,
+    amp: false,
   }
 }
 
