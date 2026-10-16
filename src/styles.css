@@ -2399,12 +2399,6 @@ button.stat-card:focus-visible {
   }
 }
 
-@media (max-width: 1180px) {
-  .stats-strip {
-    grid-template-columns: 1fr 1fr;
-  }
-}
-
 @media (max-width: 920px) {
   .app-shell {
     padding: 14px;
@@ -2415,7 +2409,6 @@ button.stat-card:focus-visible {
     border-radius: 22px;
   }
 
-  .stats-strip,
   .editor-grid,
   .editor-field-grid,
   .client-toggle-grid,
