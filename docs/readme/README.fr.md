@@ -25,186 +25,52 @@
 
 ## Table des matières
 
-- [Pourquoi MCP Manager](#pourquoi-mcp-manager)
-- [Captures d’écran](#captures-décran)
-- [Téléchargement et installation](#téléchargement-et-installation)
-  - [macOS](#macos) · [Windows](#windows) · [Linux](#utilisateurs-linux) · [Compiler depuis les sources](#compiler-depuis-les-sources)
-- [Démarrage rapide](#démarrage-rapide)
+- [Fonctionnalités](#fonctionnalités)
+- [Installation](#installation)
 - [Clients pris en charge](#clients-pris-en-charge)
 - [Ligne de commande (aperçu)](#ligne-de-commande-aperçu)
-- [Fonctionnement](#fonctionnement)
-- [Périmètre](#périmètre)
-- [Structure du projet](#structure-du-projet)
+- [Confidentialité et réseau](#confidentialité-et-réseau)
 - [Développement](#développement)
-- [Automatisation des versions](#automatisation-des-versions)
-- [Contribuer](#contribuer)
 - [Star History](#star-history)
 - [Avertissement](#avertissement)
-- [Licence](#licence)
 
-## Pourquoi MCP Manager
+## Fonctionnalités
 
-`MCP Manager` est une application de bureau multiplateforme destinée à celles et ceux qui ne veulent pas modifier à la main les configurations de plusieurs clients MCP.
+- **Un espace de travail unique** pour tous vos serveurs MCP, importés depuis les configurations que vos clients possèdent déjà
+- **Catalogue en ligne** : trouvez des serveurs dans le GitHub MCP Registry, le MCP Registry officiel ou tout registre compatible, puis ajoutez-les en quelques clics
+- Modification en **mode formulaire ou en JSON brut**
+- **Application à plusieurs clients à la fois**, avec vérification des écritures risquées, sauvegardes automatiques et restauration
+- Thème clair / sombre, et une interface en 11 langues qui suit la langue du système
 
-- Conservez un espace de travail MCP unifié pour tous les serveurs configurés
-- Importez les entrées existantes depuis la configuration locale des clients
-- Trouvez des serveurs dans le GitHub MCP Registry, le MCP Registry officiel ou tout registre que vous ajoutez et qui implémente l’API MCP Registry, puis ajoutez-les en quelques clics
-- Modifiez les serveurs en mode formulaire ou en JSON brut
-- Appliquez la configuration générée à plusieurs clients pris en charge
-- Vérifiez les écritures risquées avant que les fichiers ne soient modifiés
-- Bénéficiez de sauvegardes et d’une restauration possible lors de l’application
-- Utilisez le thème clair, le thème sombre ou celui du système
-- Utilisez l’interface en anglais, chinois simplifié, chinois traditionnel, japonais, coréen, allemand, français, espagnol, italien, portugais du Brésil ou russe (elle suit par défaut la langue du système)
+<table>
+  <tr>
+    <td><img src="../../docs/page-en.png" alt="MCP Manager, thème clair" /></td>
+    <td><img src="../../docs/page-en-dark.png" alt="MCP Manager, thème sombre" /></td>
+  </tr>
+</table>
 
-## Captures d’écran
+## Installation
 
-![Interface de MCP Manager en anglais, thème clair](../../docs/page-en.png)
+Téléchargez le paquet correspondant à votre plateforme depuis la [dernière version](https://github.com/xjeway/mcp-manager/releases/latest) :
 
-![Interface de MCP Manager en anglais, thème sombre](../../docs/page-en-dark.png)
+| Plateforme | Paquet |
+| --- | --- |
+| macOS | `.dmg`, ou `brew install --cask xjeway/mcp-manager/mcp-manager` |
+| Windows | `setup.exe` (x64 / arm64) ou `.msi` (x64) |
+| Linux | `.deb`, `.rpm` ou `.AppImage` |
 
-## Téléchargement et installation
+Choisissez `arm64` / `aarch64` pour Apple Silicon et les appareils ARM, sinon `x64` / `x86_64` / `amd64`.
 
-### Configuration requise
+<details>
+<summary>macOS indique que l’application est endommagée ou ne peut pas être ouverte ?</summary>
 
-- Des paquets de bureau sont publiés pour macOS, Windows et Linux
-- La compilation depuis les sources nécessite Node.js 20+, npm 10+, Rust stable et les dépendances système de Tauri pour votre plateforme
-
-### macOS
-
-#### Homebrew
-
-```bash
-brew tap xjeway/mcp-manager
-brew install --cask mcp-manager
-brew update
-brew upgrade --cask mcp-manager
-```
-
-#### Téléchargement manuel
-
-Téléchargez depuis :
-
-- <https://github.com/xjeway/mcp-manager/releases/latest>
-
-Exemples de noms de fichiers macOS :
-
-- `MCP-Manager-<version>-<arch>.dmg`
-
-Choix de l’architecture :
-
-- Mac Apple Silicon : choisissez les fichiers `arm64` ou `aarch64`
-- Mac Intel : choisissez les fichiers `x64` ou `x86_64`
-
-Après avoir téléchargé le bon fichier macOS, ouvrez-le localement :
-
-```bash
-open ~/Downloads/MCP-Manager*.dmg
-```
-
-Les versions macOS publiques actuelles peuvent encore être non signées, le temps que la signature et la notarisation Apple soient mises en place. Si Gatekeeper bloque `MCP Manager.app`, procédez ainsi :
-
-1. Faites glisser `MCP Manager.app` dans `/Applications`.
-2. Dans le Finder, faites un clic droit sur l’application une fois et choisissez `Open`.
-3. Si macOS indique toujours que l’application ne peut pas être ouverte ou qu’elle est endommagée, retirez l’attribut de quarantaine et réessayez :
+Les versions publiées ne sont pas encore notarisées. Déplacez l’application dans `/Applications`, puis exécutez :
 
 ```bash
 xattr -dr com.apple.quarantine "/Applications/MCP Manager.app"
-open "/Applications/MCP Manager.app"
 ```
 
-### Windows
-
-#### Téléchargement manuel
-
-Téléchargez depuis :
-
-- <https://github.com/xjeway/mcp-manager/releases/latest>
-
-Exemples de noms de fichiers Windows :
-
-- `MCP-Manager-<version>-<arch>-setup.exe`
-- `MCP-Manager-<version>-x64.msi`
-
-Choix de l’architecture :
-
-- Appareils Windows sur ARM : choisissez l’installateur `arm64`
-- PC Intel / AMD : choisissez l’installateur `x64` ou `x86_64`
-
-Choix du paquet :
-
-- `setup.exe` : disponible pour Windows x64 et Windows arm64
-- `.msi` : publié pour les versions stables Windows x64
-
-Choisissez le fichier correspondant à votre architecture, puis exécutez-le localement :
-
-```powershell
-Start-Process "C:\Path\To\MCP-Manager-Setup.exe"
-# ou
-msiexec /i "C:\Path\To\MCP-Manager.msi"
-```
-
-### Utilisateurs Linux
-
-Téléchargez la dernière version Linux depuis la page [Releases](https://github.com/xjeway/mcp-manager/releases/latest) :
-
-Exemples de noms de fichiers Linux :
-
-- `mcp-manager_<version>_<arch>.deb` (Debian/Ubuntu)
-- `mcp-manager-<version>.<arch>.rpm` (Fedora/RHEL/openSUSE)
-- `MCP-Manager-<version>-<arch>.AppImage` (universel)
-
-Guide détaillé par distribution :
-
-- `.deb` : Debian, Ubuntu, Linux Mint, Pop!_OS, elementary OS et autres distributions basées sur Debian
-- `.rpm` : Fedora, RHEL, Rocky Linux, AlmaLinux, openSUSE et autres distributions basées sur RPM
-- `.AppImage` : option portable pour Linux de bureau lorsque vous ne voulez pas de paquet système
-
-Choix de l’architecture :
-
-- `x86_64` ou `amd64` pour la plupart des PC 64 bits Intel et AMD
-- `arm64` ou `aarch64` pour les appareils Linux ARM64, lorsque ce fichier est publié dans la version
-
-Installez avec la commande correspondante :
-
-```bash
-# Debian / Ubuntu
-sudo dpkg -i ./mcp-manager_<version>_amd64.deb
-
-# Fedora / RHEL / openSUSE
-sudo rpm -i ./mcp-manager-<version>.x86_64.rpm
-
-# AppImage
-chmod +x ./MCP-Manager-<version>-<arch>.AppImage
-./MCP-Manager-<version>-<arch>.AppImage
-```
-
-### Compiler depuis les sources
-
-Installez les dépendances :
-
-```bash
-make install
-```
-
-Lancez l’application de bureau :
-
-```bash
-make tauri-dev
-```
-
-Lancez uniquement l’interface web :
-
-```bash
-make dev
-```
-
-## Démarrage rapide
-
-1. Lancez `MCP Manager`.
-2. Importez les entrées existantes depuis les fichiers de configuration locaux des clients.
-3. Modifiez les serveurs en mode formulaire ou en mode JSON.
-4. Appliquez la configuration générée à un ou plusieurs clients pris en charge.
-5. Vérifiez les avertissements, puis écrivez avec la protection par sauvegarde et restauration.
+</details>
 
 ## Clients pris en charge
 
@@ -230,111 +96,36 @@ Chacun des clients ci-dessous prend en charge à la fois l’**import** (lecture
 
 ## Ligne de commande (aperçu)
 
-Un outil en ligne de commande, `mcpmgr`, partage la liste des serveurs de l’application de bureau : les modifications faites dans l’un apparaissent dans l’autre. Lancez-le avec `npx`, ou installez-le avec npm ou Homebrew :
+`mcpmgr` partage la liste des serveurs de l’application de bureau : les modifications faites dans l’un apparaissent dans l’autre.
 
 ```bash
-npx @mcpmgr/cli list
-npm install -g @mcpmgr/cli
-brew install xjeway/mcp-manager/mcpmgr
-```
+npx @mcpmgr/cli list                      # ou : npm i -g @mcpmgr/cli / brew install xjeway/mcp-manager/mcpmgr
 
-```bash
 mcpmgr add context7 -- npx -y @upstash/context7-mcp@latest
 mcpmgr add linear --url https://mcp.linear.app/mcp -a cursor,claude-code
-mcpmgr add --from mcp.json --project
-mcpmgr list
 mcpmgr remove context7 -a codex
 mcpmgr rollback
 ```
 
-Depuis une copie du dépôt, utilisez `cargo run --bin mcpmgr -- <command>`.
+Dans un terminal, `add` vous guide dans le choix des serveurs, des clients et de la portée, et affiche un aperçu de chaque fichier avant d’écrire. Chaque étape dispose aussi d’une option (`--yes`, `--dry-run`, `--json`, …) ; dans un agent de programmation IA comme Claude Code ou Codex, il ignore les questions et cible le client de cet agent.
 
-Dans un terminal, `add` vous guide dans le choix des serveurs, des clients et de la portée (utilisateur ou projet), puis montre ce que recevra chaque fichier client avant d’écrire. Chaque étape peut être renseignée par une option (`--server`, `--env`, `--app`, `--global`/`--project`, `--yes`) ; `--dry-run` affiche un aperçu et `--json` produit une sortie lisible par une machine. Lancé dans un agent de programmation IA comme Claude Code ou Codex, il ignore les questions et cible le client de cet agent.
+## Confidentialité et réseau
 
-## Fonctionnement
-
-- L’application lit la configuration locale des clients et la convertit dans le modèle interne
-- L’application écrit une sortie propre à chaque client, avec des mises à jour atomiques, des sauvegardes et une restauration possible
-- Le catalogue en ligne transforme une entrée de registre (npm, PyPI, image Docker ou URL distante) en brouillon de serveur que vous vérifiez dans l’éditeur ; tous les clients sont désactivés au départ
-
-### Accès réseau
-
-MCP Manager ne se connecte à Internet que pour rechercher des mises à jour et, lorsque la page du catalogue est ouverte, pour interroger les registres MCP. Les résultats des registres sont mis en cache : le catalogue s’ouvre depuis le cache et le met à jour en arrière-plan au bout de 6 heures, et il fonctionne toujours hors ligne avec les dernières données. Ajouter une source dans **Paramètres → Sources du catalogue** lui envoie une requête de vérification. Désactivez le catalogue dans **Paramètres → Catalogue en ligne** pour supprimer totalement ces requêtes.
-
-## Périmètre
-
-Le périmètre actuel se concentre sur la gestion de la configuration. La gestion du cycle de vie à l’exécution, comme le démarrage et l’arrêt des processus, les journaux et les vérifications d’état, est volontairement exclue de la v1.
-
-## Structure du projet
-
-```text
-mcp-manager/
-  src/                application frontend
-  src-tauri/          application tauri (commandes exposées au frontend, catalogue en ligne)
-  crates/
-    mcp-manager-core/ adaptateurs clients, analyse, écritures sûres (partagé)
-    mcp-manager-cli/  outil en ligne de commande (`mcpmgr`)
-  public/             ressources statiques et identité visuelle
-  docs/               notes de version et références de conception
-  openspec/           suivi des changements et des spécifications
-```
-
-### Modules principaux (`crates/mcp-manager-core`)
-
-- `platform` : résolution des chemins selon l’OS et contexte d’environnement
-- `adapters` : logique d’import et d’application propre à chaque client
-- `core` : modèle de configuration canonique et comportement de fusion
-- `parser` : analyse et extraction YAML / JSON / TOML
-- `storage` : écriture atomique, sauvegarde et restauration
-- `store` : le fichier partagé `servers.yaml`, avec verrouillage et détection des changements
-- `workflow` : import, aperçu et application pour tous les clients
-- `ops` : modifications et validation de la liste des serveurs, en miroir du frontend
+MCP Manager ne se connecte à Internet que pour rechercher des mises à jour et, lorsque la page du catalogue est ouverte, pour interroger les registres MCP (mis en cache pendant 6 heures, utilisable hors ligne). Désactivez le catalogue dans **Paramètres → Catalogue en ligne** pour supprimer totalement ces requêtes.
 
 ## Développement
 
-```bash
-make install
-make dev
-make tauri-dev
-make build
-make test
-make check
-make tauri-build
-```
-
-## Automatisation des versions
-
-Ce dépôt contient des workflows GitHub Actions pour la CI et la création des paquets de bureau à l’aide de l’action de publication officielle de Tauri.
-
-Consultez [`docs/releasing.md`](../../docs/releasing.md) pour :
-
-- la publication de GitHub Releases déclenchée par les tags
-- la génération des paquets macOS, Windows et Linux
-- la configuration de la signature du programme de mise à jour
-- la signature de code facultative par plateforme
-- les commandes d’aide à la synchronisation des versions et aux tags git
-
-## Contribuer
-
-Les issues et les pull requests sont les bienvenues.
-
-Si vous prévoyez de proposer un changement important, ouvrez d’abord une issue ou une discussion afin que le périmètre et l’orientation soient clairs avant l’implémentation.
-
-### Développement local
+Nécessite Node.js 20+, Rust stable et les [prérequis de Tauri](https://tauri.app/start/prerequisites/) pour votre plateforme.
 
 ```bash
-make install
-make tauri-dev
+make install      # installer les dépendances
+make tauri-dev    # lancer l’application de bureau
+make test && make check
 ```
 
-### Avant d’ouvrir une PR
+La logique principale (adaptateurs clients, analyse, écritures sûres) se trouve dans `crates/mcp-manager-core`, partagée par l’application Tauri dans `src-tauri/` et l’outil en ligne de commande dans `crates/mcp-manager-cli/`. Les versions sont décrites dans [`docs/releasing.md`](../../docs/releasing.md).
 
-```bash
-make test
-make check
-```
-
-Gardez [`README.md`](../../README.md), [`README.zh-CN.md`](../../README.zh-CN.md) et les traductions de [`docs/readme/`](./) synchronisés lorsque vous modifiez la documentation du projet destinée aux utilisateurs.
+Les issues et les pull requests sont les bienvenues ; pour les changements importants, ouvrez d’abord une issue. Lorsque vous modifiez la documentation destinée aux utilisateurs, gardez [`README.md`](../../README.md), [`README.zh-CN.md`](../../README.zh-CN.md) et [`docs/readme/`](./) synchronisés.
 
 ## Star History
 
@@ -348,10 +139,4 @@ Gardez [`README.md`](../../README.md), [`README.zh-CN.md`](../../README.zh-CN.md
 
 ## Avertissement
 
-Ce projet est principalement développé avec l’aide de l’IA (développement piloté par l’IA). Le code, les tests et la documentation sont en grande partie générés par l’IA et relus par un mainteneur humain ; ils peuvent donc encore contenir des erreurs.
-
-MCP Manager lit et réécrit les fichiers de configuration d’autres outils. Les sauvegardes et la restauration sont intégrées, mais vous devriez tout de même sauvegarder vous-même les configurations importantes de vos clients, vérifier les changements avant de les appliquer et utiliser le logiciel à vos propres risques. Il est fourni « en l’état » sous [licence MIT](../../LICENSE), sans aucune garantie.
-
-## Licence
-
-MIT @ xJeway
+Ce projet est principalement développé avec l’aide de l’IA et relu par un mainteneur humain ; il peut donc encore contenir des erreurs. MCP Manager réécrit les fichiers de configuration d’autres outils ; les sauvegardes et la restauration sont intégrées, mais conservez vos propres sauvegardes des configurations importantes. Fourni « en l’état » sous [licence MIT](../../LICENSE).

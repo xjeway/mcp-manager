@@ -1,27 +1,27 @@
 <p align="center">
-  <img src="../../src-tauri/icons/app-icon-rounded.png" alt="MCP Manager logo" width="160" height="160" />
+  <img src="../../src-tauri/icons/app-icon-rounded.png" alt="Logo do MCP Manager" width="160" height="160" />
 </p>
 
 <h1 align="center">MCP Manager</h1>
 
 <p align="center">
-  Une application de bureau multiplateforme pour gérer les configurations de serveurs MCP de Claude Code, Codex, Cursor, VS Code, OpenCode, Gemini CLI et bien d’autres.
+  Um aplicativo desktop multiplataforma para gerenciar configurações de servidores MCP no Claude Code, Codex, Cursor, VS Code, OpenCode, Gemini CLI e outros.
 </p>
 
 <p align="center">
-  <a href="https://github.com/xjeway/mcp-manager/stargazers"><img src="https://img.shields.io/github/stars/xjeway/mcp-manager?style=flat&label=%E2%98%85&color=f59e0b" alt="GitHub stars" /></a>
-  <a href="../../LICENSE"><img src="https://img.shields.io/badge/license-MIT-0f172a.svg" alt="MIT License" /></a>
+  <a href="https://github.com/xjeway/mcp-manager/stargazers"><img src="https://img.shields.io/github/stars/xjeway/mcp-manager?style=flat&label=%E2%98%85&color=f59e0b" alt="Estrelas no GitHub" /></a>
+  <a href="../../LICENSE"><img src="https://img.shields.io/badge/license-MIT-0f172a.svg" alt="Licença MIT" /></a>
   <img src="https://img.shields.io/badge/Tauri-2-24c8db.svg" alt="Tauri 2" />
   <img src="https://img.shields.io/badge/React-19-61dafb.svg" alt="React 19" />
   <img src="https://img.shields.io/badge/Rust-stable-f74c00.svg" alt="Rust stable" />
-  <img src="https://img.shields.io/badge/platform-macOS%20%7C%20Windows%20%7C%20Linux-16a34a.svg" alt="Cross-platform" />
+  <img src="https://img.shields.io/badge/platform-macOS%20%7C%20Windows%20%7C%20Linux-16a34a.svg" alt="Multiplataforma" />
 </p>
 
 <p align="center">
-  <sub><a href="../../README.md">English</a> · <a href="../../README.zh-CN.md">简体中文</a> · <a href="./README.zh-TW.md">繁體中文</a> · <a href="./README.ja.md">日本語</a> · <a href="./README.ko.md">한국어</a> · <a href="./README.de.md">Deutsch</a> · <b>Français</b> · <a href="./README.es.md">Español</a> · <a href="./README.it.md">Italiano</a> · <a href="./README.pt-BR.md">Português</a> · <a href="./README.ru.md">Русский</a></sub>
+  <sub><a href="../../README.md">English</a> · <a href="../../README.zh-CN.md">简体中文</a> · <a href="./README.zh-TW.md">繁體中文</a> · <a href="./README.ja.md">日本語</a> · <a href="./README.ko.md">한국어</a> · <a href="./README.de.md">Deutsch</a> · <a href="./README.fr.md">Français</a> · <a href="./README.es.md">Español</a> · <a href="./README.it.md">Italiano</a> · <b>Português</b> · <a href="./README.ru.md">Русский</a></sub>
 </p>
 
-<h3 align="center"><a href="https://github.com/xjeway/mcp-manager/releases/latest"><ins>Télécharger MCP Manager</ins></a></h3>
+<h3 align="center"><a href="https://github.com/xjeway/mcp-manager/releases/latest"><ins>Baixar o MCP Manager</ins></a></h3>
 
 ## Sumário
 
