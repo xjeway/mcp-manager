@@ -87,7 +87,7 @@
    - 在真机上确认 Antigravity 2.0 路径，必要时同时检测新旧两个路径；
    - iFlow 标记为 legacy；
    - 确认写入时是否丢失未建模字段（见上文风险）。
-2. **更新能力矩阵**：Copilot CLI 项目级改为 `.mcp.json`（与 Claude Code 共享，需要处理同一文件被两个客户端管理的情况，Qoder 适配器里已有类似处理）；Codex 增加项目级；Qoder 增加项目级。
+2. **更新能力矩阵**：Copilot CLI 项目级读的是 Claude Code 的 `.mcp.json`，只通过 Claude Code 管理（两个适配器同时写一个文件会互相删条目）；Codex 增加项目级；Qoder 增加项目级。
 3. **新增 A 类客户端**：Kilo Code、Factory Droid、Kimi CLI。
 4. **再做 B 类**，顺序建议：Zed → Mistral Vibe → Hermes → Goose；Amp 和 OpenClaw 待路径验证后再定。
 
