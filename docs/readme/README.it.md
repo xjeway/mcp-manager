@@ -62,7 +62,12 @@ Scegli `arm64` / `aarch64` per Apple Silicon e i dispositivi ARM, altrimenti `x6
 <details>
 <summary>macOS dice che l'app è danneggiata o non può essere aperta?</summary>
 
-Le build di rilascio non sono ancora notarizzate. Sposta l'app in `/Applications`, quindi esegui:
+Le build di rilascio hanno una firma ad hoc, ma non sono ancora notarizzate da Apple. Al primo avvio:
+
+1. Sposta l'app in `/Applications`, aprila e chiudi l'avviso.
+2. Apri **Impostazioni di Sistema → Privacy e sicurezza**, fai clic su **Apri comunque** in fondo alla pagina e conferma.
+
+Se macOS dice ancora che l'app è danneggiata (versioni precedenti non firmate), esegui:
 
 ```bash
 xattr -dr com.apple.quarantine "/Applications/MCP Manager.app"

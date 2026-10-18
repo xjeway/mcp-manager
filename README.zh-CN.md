@@ -62,7 +62,12 @@ Apple Silicon 和 ARM 设备请选择 `arm64` / `aarch64`，其他设备选择 `
 <details>
 <summary>macOS 提示应用已损坏或无法打开？</summary>
 
-发布版本暂未经过公证。请先将应用移动到 `/Applications`，然后运行：
+发布版本使用 ad-hoc 签名，暂未经过 Apple 公证。首次打开时：
+
+1. 将应用移动到 `/Applications` 并双击打开，在提示框中点「完成」。
+2. 打开「系统设置 → 隐私与安全性」，在页面底部点「仍要打开」，并用密码或触控 ID 确认。
+
+如果仍提示“已损坏”（较早的版本没有签名），运行：
 
 ```bash
 xattr -dr com.apple.quarantine "/Applications/MCP Manager.app"

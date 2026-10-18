@@ -62,7 +62,12 @@ Wählen Sie `arm64` / `aarch64` für Apple Silicon und ARM-Geräte, sonst `x64` 
 <details>
 <summary>macOS meldet, dass die App beschädigt ist oder nicht geöffnet werden kann?</summary>
 
-Release-Builds sind noch nicht notarisiert. Verschieben Sie die App nach `/Applications` und führen Sie dann aus:
+Release-Builds sind ad-hoc signiert, aber noch nicht von Apple notarisiert. Beim ersten Start:
+
+1. Verschieben Sie die App nach `/Applications`, öffnen Sie sie und schließen Sie die Warnung.
+2. Öffnen Sie **Systemeinstellungen → Datenschutz & Sicherheit**, klicken Sie unten auf **Dennoch öffnen** und bestätigen Sie.
+
+Wenn macOS weiterhin meldet, dass die App beschädigt ist (ältere, unsignierte Versionen), führen Sie aus:
 
 ```bash
 xattr -dr com.apple.quarantine "/Applications/MCP Manager.app"

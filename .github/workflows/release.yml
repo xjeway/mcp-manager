@@ -154,13 +154,17 @@ jobs:
           args: ${{ steps.release_args.outputs.args }}
           includeUpdaterJson: false
 
-      - name: Run Tauri release (macOS unsigned)
+      # Ad-hoc signing ("-") needs no Apple account. It gives the bundle a valid
+      # signature, so Gatekeeper reports an unverified developer (allowed via
+      # System Settings > Privacy & Security > Open Anyway) instead of "damaged".
+      - name: Run Tauri release (macOS ad-hoc signed)
         if: startsWith(matrix.platform, 'macos-') && env.HAS_APPLE_SIGNING != 'true'
         uses: tauri-apps/tauri-action@v0.6.2
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
           TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
+          APPLE_SIGNING_IDENTITY: "-"
         with:
           releaseId: ${{ needs.prepare-release.outputs.release_id }}
           args: ${{ steps.release_args.outputs.args }}

@@ -62,7 +62,12 @@ Elige `arm64` / `aarch64` para Apple Silicon y dispositivos ARM, y `x64` / `x86_
 <details>
 <summary>¿macOS dice que la aplicación está dañada o que no se puede abrir?</summary>
 
-Las compilaciones de las versiones aún no están notarizadas. Mueve la aplicación a `/Applications` y ejecuta:
+Las compilaciones de las versiones tienen firma ad hoc, pero Apple aún no las ha notarizado. En el primer inicio:
+
+1. Mueve la aplicación a `/Applications`, ábrela y cierra el aviso.
+2. Abre **Ajustes del Sistema → Privacidad y seguridad**, haz clic en **Abrir igualmente** cerca del final y confirma.
+
+Si macOS sigue diciendo que la aplicación está dañada (versiones antiguas sin firma), ejecuta:
 
 ```bash
 xattr -dr com.apple.quarantine "/Applications/MCP Manager.app"

@@ -75,9 +75,8 @@ Notes:
 - Use a single-line base64 string when creating the secret, for example: `openssl base64 -A -in certificate.p12 -out certificate-base64.txt`
 - Without these, macOS artifacts can still be built, but users will see stronger security warnings.
 - If only the signing secrets are set, the workflow signs macOS apps but skips notarization.
-- If the signing secrets are not set, the workflow falls back to unsigned macOS builds instead of attempting `security import`.
-- If you intentionally ship unsigned macOS builds for now, keep the README and release body aligned with an explicit workaround. The current recommended command is: `xattr -dr com.apple.quarantine "/Applications/MCP Manager.app"`
-- Until notarization is enabled, tell users to try Finder `Open` once before falling back to the `xattr` command.
+- If the signing secrets are not set, the workflow ad-hoc signs macOS builds (`APPLE_SIGNING_IDENTITY="-"`) instead of attempting `security import`. A bundle with no valid signature is reported as "damaged" on Apple Silicon; an ad-hoc signed one gets the milder "unverified developer" prompt.
+- Until notarization is enabled, keep the README and release body aligned: users open the app once, then allow it under System Settings → Privacy & Security → Open Anyway. The fallback is `xattr -dr com.apple.quarantine "/Applications/MCP Manager.app"`.
 
 ### Windows code signing
 
