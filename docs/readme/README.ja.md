@@ -62,7 +62,12 @@ Apple Silicon および ARM デバイスでは `arm64` / `aarch64` を、それ�
 <details>
 <summary>macOS でアプリが破損している、または開けないと表示される場合</summary>
 
-リリースビルドはまだ公証されていません。アプリを `/Applications` に移動してから、次を実行してください:
+リリースビルドは ad-hoc 署名されていますが、Apple の公証はまだ受けていません。初回起動時:
+
+1. アプリを `/Applications` に移動して開き、警告を閉じます。
+2. **システム設定 → プライバシーとセキュリティ** を開き、下部の **このまま開く** をクリックして確認します。
+
+それでも「破損している」と表示される場合（署名のない古いバージョン）は、次を実行してください:
 
 ```bash
 xattr -dr com.apple.quarantine "/Applications/MCP Manager.app"

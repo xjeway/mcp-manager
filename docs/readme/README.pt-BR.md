@@ -62,7 +62,12 @@ Escolha `arm64` / `aarch64` para Apple Silicon e dispositivos ARM; caso contrár
 <details>
 <summary>O macOS diz que o app está danificado ou não pode ser aberto?</summary>
 
-As builds de release ainda não são notarizadas. Mova o app para `/Applications` e execute:
+As builds de release têm assinatura ad hoc, mas ainda não são notarizadas pela Apple. Na primeira abertura:
+
+1. Mova o app para `/Applications`, abra-o e feche o aviso.
+2. Abra **Ajustes do Sistema → Privacidade e Segurança**, clique em **Abrir Mesmo Assim** perto do final e confirme.
+
+Se o macOS ainda disser que o app está danificado (versões antigas sem assinatura), execute:
 
 ```bash
 xattr -dr com.apple.quarantine "/Applications/MCP Manager.app"

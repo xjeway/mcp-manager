@@ -62,7 +62,12 @@ Apple Silicon 및 ARM 기기에서는 `arm64` / `aarch64`를, 그 외에는 `x64
 <details>
 <summary>macOS에서 앱이 손상되었거나 열 수 없다고 표시되나요?</summary>
 
-릴리스 빌드는 아직 공증되지 않았습니다. 앱을 `/Applications`로 옮긴 뒤 다음을 실행하세요:
+릴리스 빌드는 ad-hoc 서명되어 있지만 아직 Apple 공증을 받지 않았습니다. 처음 실행할 때:
+
+1. 앱을 `/Applications`로 옮긴 뒤 열고 경고 창을 닫습니다.
+2. **시스템 설정 → 개인정보 보호 및 보안**을 열고 하단의 **그래도 열기**를 클릭한 뒤 확인합니다.
+
+그래도 앱이 손상되었다고 표시되면(서명되지 않은 이전 버전) 다음을 실행하세요:
 
 ```bash
 xattr -dr com.apple.quarantine "/Applications/MCP Manager.app"

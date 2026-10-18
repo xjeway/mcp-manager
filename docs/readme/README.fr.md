@@ -62,7 +62,12 @@ Choisissez `arm64` / `aarch64` pour Apple Silicon et les appareils ARM, sinon `x
 <details>
 <summary>macOS indique que l’application est endommagée ou ne peut pas être ouverte ?</summary>
 
-Les versions publiées ne sont pas encore notarisées. Déplacez l’application dans `/Applications`, puis exécutez :
+Les versions publiées sont signées ad hoc, mais pas encore notarisées par Apple. Au premier lancement :
+
+1. Déplacez l’application dans `/Applications`, ouvrez-la et fermez l’avertissement.
+2. Ouvrez **Réglages Système → Confidentialité et sécurité**, cliquez sur **Ouvrir quand même** en bas de la page, puis confirmez.
+
+Si macOS indique toujours que l’application est endommagée (anciennes versions non signées), exécutez :
 
 ```bash
 xattr -dr com.apple.quarantine "/Applications/MCP Manager.app"
