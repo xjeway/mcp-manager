@@ -100,6 +100,7 @@ mod tests {
         empty_apps, MCPConfig, MCPServer, PlacementScope, ServerPlacement, SupportedApp,
         TransportSpec,
     };
+    use crate::platform::test_paths::{abs, UnixPath};
     use crate::platform::{PlatformContext, PlatformOs};
     use crate::storage::apply_operation;
     use std::collections::HashMap;
@@ -108,8 +109,8 @@ mod tests {
     fn ctx() -> PlatformContext {
         PlatformContext {
             os: PlatformOs::MacOS,
-            home_dir: PathBuf::from("/Users/test"),
-            workspace_root: PathBuf::from("/workspace/project"),
+            home_dir: abs("/Users/test"),
+            workspace_root: abs("/workspace/project"),
         }
     }
 
@@ -118,7 +119,7 @@ mod tests {
         let sources = WindsurfAdapter.detect_sources(&ctx());
         let paths = sources
             .iter()
-            .map(|(path, _)| path.as_str())
+            .map(|(path, _)| path.unix())
             .collect::<Vec<_>>();
         assert_eq!(
             paths,
@@ -321,7 +322,7 @@ mod tests {
         );
         assert_eq!(operations.len(), 1);
         assert_eq!(
-            operations[0].path,
+            operations[0].path.unix(),
             "/workspace/project/.devin/mcp_config.json"
         );
     }

@@ -93,6 +93,7 @@ mod tests {
         empty_apps, MCPConfig, MCPServer, PlacementScope, ServerPlacement, SupportedApp,
         TransportSpec,
     };
+    use crate::platform::test_paths::{abs, UnixPath};
     use crate::platform::{PlatformContext, PlatformOs};
     use crate::storage::apply_operation;
     use std::collections::HashMap;
@@ -101,9 +102,23 @@ mod tests {
     fn ctx() -> PlatformContext {
         PlatformContext {
             os: PlatformOs::MacOS,
-            home_dir: PathBuf::from("/Users/test"),
-            workspace_root: PathBuf::from("/workspace/project"),
+            home_dir: abs("/Users/test"),
+            workspace_root: abs("/workspace/project"),
         }
+    }
+
+    fn user_file() -> String {
+        ctx()
+            .user_app_config_path(SupportedApp::Grok)
+            .to_string_lossy()
+            .to_string()
+    }
+
+    fn project_file() -> String {
+        ctx()
+            .workspace_file(".grok/config.toml")
+            .to_string_lossy()
+            .to_string()
     }
 
     fn stdio_server(apps: HashMap<SupportedApp, bool>) -> MCPServer {
@@ -135,9 +150,9 @@ mod tests {
     fn detects_project_and_user_config() {
         let sources = GrokAdapter.detect_sources(&ctx());
         if std::env::var_os("GROK_HOME").is_none() {
-            assert_eq!(sources[1].0, "/Users/test/.grok/config.toml");
+            assert_eq!(sources[1].0.unix(), "/Users/test/.grok/config.toml");
         }
-        assert_eq!(sources[0].0, "/workspace/project/.grok/config.toml");
+        assert_eq!(sources[0].0.unix(), "/workspace/project/.grok/config.toml");
         assert!(sources[0].1 < sources[1].1, "project wins over user");
     }
 
@@ -145,7 +160,7 @@ mod tests {
     fn parses_stdio_http_and_sse_servers() {
         let parsed = GrokAdapter.parse_source(
             &ctx(),
-            "/Users/test/.grok/config.toml",
+            &user_file(),
             30,
             r#"[mcp_servers.filesystem]
 command = "npx"
@@ -186,12 +201,7 @@ type = "sse"
 
     #[test]
     fn invalid_toml_is_reported() {
-        let parsed = GrokAdapter.parse_source(
-            &ctx(),
-            "/Users/test/.grok/config.toml",
-            30,
-            "[mcp_servers.broken\n",
-        );
+        let parsed = GrokAdapter.parse_source(&ctx(), &user_file(), 30, "[mcp_servers.broken\n");
         assert!(parsed.servers.is_empty());
         assert_eq!(parsed.errors.len(), 1);
     }
@@ -200,7 +210,7 @@ type = "sse"
     fn project_servers_are_written_to_the_project_file() {
         let parsed = GrokAdapter.parse_source(
             &ctx(),
-            "/workspace/project/.grok/config.toml",
+            &project_file(),
             10,
             "[mcp_servers.filesystem]\ncommand = \"npx\"\n",
         );
@@ -228,7 +238,7 @@ type = "sse"
             None,
         );
         assert_eq!(operations.len(), 1);
-        assert_eq!(operations[0].path, "/workspace/project/.grok/config.toml");
+        assert_eq!(operations[0].path, project_file());
         assert_eq!(operations[0].mode, "merge_toml_table_entries");
         assert_eq!(operations[0].field.as_deref(), Some("mcp_servers"));
     }
