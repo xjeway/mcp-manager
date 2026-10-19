@@ -19,6 +19,7 @@ describe('client capabilities', () => {
       'cursor',
       'factoryDroid',
       'geminiCli',
+      'grok',
       'iFlow',
       'kiloCode',
       'kiro',
@@ -27,6 +28,7 @@ describe('client capabilities', () => {
       'qoder',
       'qwenCode',
       'vscode',
+      'windsurf',
       'zed',
     ])
   })

@@ -51,6 +51,7 @@ describe('workspace view-models', () => {
               hermes: false,
               goose: false,
               amp: false,
+              grok: false,
             },
           },
         ],
@@ -96,6 +97,7 @@ describe('workspace view-models', () => {
         hermes: false,
         goose: false,
         amp: false,
+        grok: false,
       },
     })
 
@@ -142,6 +144,7 @@ describe('workspace view-models', () => {
               hermes: false,
               goose: false,
               amp: false,
+              grok: false,
             },
           },
         ],
@@ -189,6 +192,7 @@ describe('workspace view-models', () => {
               hermes: false,
               goose: false,
               amp: false,
+              grok: false,
             },
             placements: [
               {
@@ -297,6 +301,7 @@ describe('workspace view-models', () => {
         hermes: false,
         goose: false,
         amp: false,
+        grok: false,
       },
       placements: [
         { app: 'vscode', scope: 'user', path: '/user/mcp.json', enabled: true, managed: true },

@@ -33,6 +33,7 @@ describe('evaluateApplyRisks', () => {
           hermes: false,
           goose: false,
           amp: false,
+          grok: false,
         },
       },
     ])

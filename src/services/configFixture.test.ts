@@ -37,6 +37,7 @@ const config: MCPConfig = {
         hermes: false,
         goose: false,
         amp: false,
+        grok: false,
       },
     },
     {
@@ -70,6 +71,7 @@ const config: MCPConfig = {
         hermes: false,
         goose: false,
         amp: false,
+        grok: false,
       },
       placements: [{ app: 'claudeCode', scope: 'workspace', enabled: true, managed: true }],
     },

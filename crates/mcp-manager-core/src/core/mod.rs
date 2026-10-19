@@ -27,10 +27,11 @@ pub enum SupportedApp {
     Hermes,
     Goose,
     Amp,
+    Grok,
 }
 
 impl SupportedApp {
-    pub const ALL: [SupportedApp; 23] = [
+    pub const ALL: [SupportedApp; 24] = [
         SupportedApp::Vscode,
         SupportedApp::Cursor,
         SupportedApp::ClaudeCode,
@@ -54,6 +55,7 @@ impl SupportedApp {
         SupportedApp::Hermes,
         SupportedApp::Goose,
         SupportedApp::Amp,
+        SupportedApp::Grok,
     ];
 
     pub fn as_str(self) -> &'static str {
@@ -81,6 +83,7 @@ impl SupportedApp {
             SupportedApp::Hermes => "hermes",
             SupportedApp::Goose => "goose",
             SupportedApp::Amp => "amp",
+            SupportedApp::Grok => "grok",
         }
     }
 
@@ -99,8 +102,9 @@ impl SupportedApp {
             SupportedApp::IFlow => "iFlow",
             SupportedApp::QwenCode => "Qwen Code",
             SupportedApp::Cline => "Cline",
-            // Windsurf, renamed by Cognition in June 2026; the id stays `windsurf`.
-            SupportedApp::Windsurf => "Devin Desktop",
+            // Windsurf, renamed Devin Desktop by Cognition in June 2026; the
+            // Devin CLI shares its files. The id stays `windsurf`.
+            SupportedApp::Windsurf => "Devin",
             SupportedApp::Kiro => "Kiro",
             SupportedApp::Qoder => "Qoder",
             SupportedApp::KiloCode => "Kilo Code",
@@ -111,6 +115,7 @@ impl SupportedApp {
             SupportedApp::Hermes => "Hermes Agent",
             SupportedApp::Goose => "Goose",
             SupportedApp::Amp => "Amp",
+            SupportedApp::Grok => "Grok Build",
         }
     }
 
@@ -140,6 +145,7 @@ impl SupportedApp {
             SupportedApp::Hermes => "hermes",
             SupportedApp::Goose => "goose",
             SupportedApp::Amp => "amp",
+            SupportedApp::Grok => "grok",
         }
     }
 
@@ -153,7 +159,7 @@ impl SupportedApp {
     /// Other names a client is known by.
     fn aliases(self) -> &'static [&'static str] {
         match self {
-            SupportedApp::Windsurf => &["devin-desktop"],
+            SupportedApp::Windsurf => &["devin-desktop", "devin-cli"],
             _ => &[],
         }
     }
@@ -411,6 +417,7 @@ pub fn empty_apps() -> HashMap<SupportedApp, bool> {
         (SupportedApp::Hermes, false),
         (SupportedApp::Goose, false),
         (SupportedApp::Amp, false),
+        (SupportedApp::Grok, false),
     ])
 }
 
@@ -528,6 +535,12 @@ mod tests {
             SupportedApp::parse("devin-desktop"),
             Some(SupportedApp::Windsurf)
         );
+        assert_eq!(
+            SupportedApp::parse("devin-cli"),
+            Some(SupportedApp::Windsurf)
+        );
+        assert_eq!(SupportedApp::parse("devin"), Some(SupportedApp::Windsurf));
+        assert_eq!(SupportedApp::parse("grok-build"), Some(SupportedApp::Grok));
         assert_eq!(
             SupportedApp::parse("Windsurf"),
             Some(SupportedApp::Windsurf)

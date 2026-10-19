@@ -24,6 +24,7 @@ export const SUPPORTED_APPS = [
   'hermes',
   'goose',
   'amp',
+  'grok',
 ] as const
 
 export type SupportedApp = (typeof SUPPORTED_APPS)[number]

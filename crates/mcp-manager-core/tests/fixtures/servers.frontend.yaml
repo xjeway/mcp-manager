@@ -30,6 +30,7 @@ servers:
       hermes: false
       goose: false
       amp: false
+      grok: false
   - description: Docs lookup
     id: context7
     name: context7
@@ -67,6 +68,7 @@ servers:
       hermes: false
       goose: false
       amp: false
+      grok: false
     placements:
       - app: claudeCode
         scope: workspace

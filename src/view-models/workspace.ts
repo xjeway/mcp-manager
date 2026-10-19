@@ -93,6 +93,7 @@ function emptyApps(): MCPServer['apps'] {
     hermes: false,
     goose: false,
     amp: false,
+    grok: false,
   }
 }
 

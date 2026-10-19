@@ -140,7 +140,15 @@ export const CLIENT_CAPABILITIES: Record<SupportedApp, ClientCapability> = {
     scopes: [projectScope(20), userScope(10)],
   },
   cline: userOnly('cline', 'json', 'mergeJsonField'),
-  windsurf: userOnly('windsurf', 'json', 'mergeJsonField'),
+  // Devin Desktop and the Devin CLI. The CLI also reads a gitignored
+  // `.devin/mcp_config.local.json`; servers imported from it are written back there.
+  windsurf: {
+    app: 'windsurf',
+    configFormat: 'jsonc',
+    mergePolicy: 'mergeJsonField',
+    projectManagement: 'direct',
+    scopes: [projectScope(20), userScope(10)],
+  },
   qoder: {
     app: 'qoder',
     configFormat: 'json',
@@ -167,6 +175,13 @@ export const CLIENT_CAPABILITIES: Record<SupportedApp, ClientCapability> = {
     app: 'amp',
     configFormat: 'jsonc',
     mergePolicy: 'mergeJsonField',
+    projectManagement: 'direct',
+    scopes: [projectScope(20), userScope(10)],
+  },
+  grok: {
+    app: 'grok',
+    configFormat: 'toml',
+    mergePolicy: 'mergeTomlTable',
     projectManagement: 'direct',
     scopes: [projectScope(20), userScope(10)],
   },

@@ -9,6 +9,7 @@ mod factory_droid;
 mod gemini_cli;
 mod github_copilot;
 mod goose;
+mod grok;
 mod hermes;
 mod iflow;
 mod kilo_code;
@@ -41,6 +42,7 @@ pub use factory_droid::FactoryDroidAdapter;
 pub use gemini_cli::GeminiCliAdapter;
 pub use github_copilot::GithubCopilotAdapter;
 pub use goose::GooseAdapter;
+pub use grok::GrokAdapter;
 pub use hermes::HermesAdapter;
 pub use iflow::IFlowAdapter;
 pub use kilo_code::KiloCodeAdapter;
@@ -107,6 +109,11 @@ pub fn workspace_scope_path(ctx: &PlatformContext, app: SupportedApp) -> Option<
         SupportedApp::MistralVibe => ".vibe/config.toml",
         // Amp asks before it runs servers from workspace settings.
         SupportedApp::Amp => ".amp/settings.json",
+        SupportedApp::Grok => ".grok/config.toml",
+        // Devin's shared, committed project file. Its gitignored
+        // `.devin/mcp_config.local.json` is written only for servers imported
+        // from there.
+        SupportedApp::Windsurf => ".devin/mcp_config.json",
         _ => return None,
     };
     Some(ctx.workspace_file(relative).to_string_lossy().to_string())
@@ -755,6 +762,7 @@ pub fn adapters() -> Vec<Box<dyn AppAdapter>> {
         Box::new(HermesAdapter),
         Box::new(GooseAdapter),
         Box::new(AmpAdapter),
+        Box::new(GrokAdapter),
     ]
 }
 

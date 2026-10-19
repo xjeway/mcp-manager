@@ -98,9 +98,14 @@ mod tests {
 
     #[test]
     fn ai_agent_wins_and_unknown_agents_have_no_client() {
-        let agent = detect_with(&[("AI_AGENT", "devin"), ("CLAUDECODE", "1")]).expect("agent");
-        assert_eq!(agent.name, "devin");
+        let agent = detect_with(&[("AI_AGENT", "replit"), ("CLAUDECODE", "1")]).expect("agent");
+        assert_eq!(agent.name, "replit");
         assert_eq!(agent.app, None);
+
+        assert_eq!(
+            detect_with(&[("AI_AGENT", "devin")]).and_then(|a| a.app),
+            Some(SupportedApp::Windsurf)
+        );
 
         assert_eq!(
             detect_with(&[("AI_AGENT", "kiro")]).and_then(|a| a.app),

@@ -41,6 +41,7 @@ const previousConfig = {
         hermes: false,
         goose: false,
         amp: false,
+        grok: false,
       },
     },
   ],

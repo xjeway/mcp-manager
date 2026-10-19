@@ -30,7 +30,7 @@ storage path, merge behavior, and precedence.
 | iFlow | `~/.iflow/settings.json` | `.iflow/settings.json` | None | Direct project support; the product was shut down on 2026-04-17, kept only for existing configs |
 | Qwen Code | `~/.qwen/settings.json` | `.qwen/settings.json` | None | Direct project support |
 | Cline | `cline_mcp_settings.json` | Unsupported by current model | None | User only |
-| Devin Desktop (formerly Windsurf; id `windsurf`, CLI alias `devin-desktop`) | `~/.config/devin/mcp_config.json` once it exists, otherwise `~/.codeium/windsurf/mcp_config.json` | Unsupported by current model | None | User only; remote servers use `serverUrl`. Only the file in use is read |
+| Devin: Desktop (formerly Windsurf) and CLI (id `windsurf`, CLI aliases `devin`, `devin-desktop`, `devin-cli`) | `~/.config/devin/mcp_config.json` (Windows: `%APPDATA%\\devin\\mcp_config.json`) once it exists, otherwise `~/.codeium/windsurf/mcp_config.json` | `.devin/mcp_config.json` (committed) | `.devin/mcp_config.local.json` (gitignored; local > project > user) | Direct project support. New project servers go to `.devin/mcp_config.json`; servers imported from the local file are written back there. Remote servers use `serverUrl`. Only the user file in use is read |
 | Qoder | `~/.qoder/settings.json` | `.qoder/settings.json` (`.mcp.json` is also read but shared with Claude Code) | None | Direct project support |
 | Kilo Code | `~/.config/kilo/kilo.json` (or `kilo.jsonc`) | `kilo.json(c)`, `.kilo/kilo.json(c)` | None | Direct project support; same `mcp` schema as OpenCode. Kilo also reads `opencode.json`, which is left to the OpenCode adapter |
 | Factory Droid | `~/.factory/mcp.json` | `.factory/mcp.json` | Ancestor-folder `.factory/mcp.json` (not read) | Direct project support. Project files are committed, so keep tokens out of them |
@@ -39,6 +39,7 @@ storage path, merge behavior, and precedence.
 | Mistral Vibe | `~/.vibe/config.toml` | `.vibe/config.toml` (trusted folders only) | None | Direct project support. Servers are a `[[mcp_servers]]` list keyed by `name`, edited in place. Remote servers are written as `streamable-http` with headers in a static `auth` table; SSE servers are not written (Vibe has no SSE client) and the apply reports it. Vibe rejects unknown fields, so no `type` is written |
 | Hermes Agent | `~/.hermes/config.yaml` | Unsupported | Profiles (`~/.hermes/profiles/<name>/config.yaml`, not read) | User only. `mcp_servers` mapping edited line by line in place; SSE servers get `transport: sse`. `enabled: false` is Hermes's own switch: it is not imported as the server being off, and applies keep it |
 | Goose | `~/.config/goose/config.yaml` (Windows: `%APPDATA%\\Block\\goose\\config\\config.yaml`) | Unsupported | None | User only. Only `stdio` and `streamable_http` entries of `extensions` are managed; built-in and platform extensions are left alone. Entries use `cmd`/`envs`/`uri`, carry `name` and `enabled`, and Goose's own `enabled` and `env_keys` are kept. SSE servers are not written (Goose has no SSE client) and the apply reports it |
+| Grok Build | `~/.grok/config.toml` (`$GROK_HOME/config.toml` when set) | `.grok/config.toml` | `.grok/config.toml` in folders between the project root and the current directory (not read); `.claude.json`, `.cursor/mcp.json`, `.mcp.json` (left to their own clients) | Direct project support. `[mcp_servers.<name>]` tables like Codex, edited in place, with remote headers in `headers`. A project server replaces a user server of the same name. Grok's own `enabled = false` is kept |
 | Amp | `~/.config/amp/settings.json` (Windows: `%APPDATA%\\amp\\settings.json`) | `.amp/settings.json` (Amp asks before running servers from it) | Skill-bundled `mcp.json` (not read) | Direct project support. Servers live under the literal key `amp.mcpServers` in the settings file, edited in place; no `type` is written |
 | Kiro | `~/.kiro/settings/mcp.json` | `.kiro/settings/mcp.json` | Agent-level scope | Direct project support, agent scope read-only for now |
 
@@ -96,9 +97,11 @@ replaced.
   install), and then reads only the new file. MCP Manager therefore uses the
   new file once it exists and the Windsurf-era file until then, and reads only
   the file in use, so a server left in the old file does not come back. The
-  Windows location (`%APPDATA%\devin\mcp_config.json`, else
-  `~/.config/devin/`) is unconfirmed; a wrong guess only means the old file
-  stays in use. Devin's project files (`.devin/mcp_config.json`) are not
-  managed yet.
+  Devin CLI reads the same user file (`%APPDATA%\devin\mcp_config.json` on
+  Windows, per its docs) plus the project files `.devin/mcp_config.json` and
+  `.devin/mcp_config.local.json`, so Desktop and CLI are one client here.
+- Grok Build also loads servers from Claude Code, Cursor and `.mcp.json`.
+  Those stay with their own clients; importing them again under Grok would
+  list each server twice.
 - Antigravity 2.0's shared config path comes from third-party sources; confirm
   it on a real install.

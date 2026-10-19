@@ -87,9 +87,9 @@ export const CLIENTS: ClientMeta[] = [
   },
   {
     id: 'windsurf',
-    label: 'Devin Desktop',
+    label: 'Devin',
     accent: 'client-vscode',
-    icon: <ClientLogo src="/logos/apps/devin.svg" alt="Devin Desktop" />,
+    icon: <ClientLogo src="/logos/apps/devin.svg" alt="Devin" />,
   },
   {
     id: 'kiro',
@@ -150,6 +150,12 @@ export const CLIENTS: ClientMeta[] = [
     label: 'Amp',
     accent: 'client-claude',
     icon: <ClientLogo src="/logos/apps/amp.svg" alt="Amp" />,
+  },
+  {
+    id: 'grok',
+    label: 'Grok Build',
+    accent: 'client-codex',
+    icon: <ClientLogo src="/logos/apps/grok.svg" alt="Grok Build" />,
   },
 ]
 
