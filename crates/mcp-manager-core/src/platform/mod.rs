@@ -13,6 +13,14 @@ pub const ANTIGRAVITY_SHARED_CONFIG: &str = ".gemini/config/mcp_config.json";
 pub const ANTIGRAVITY_LEGACY_CONFIG: &str = ".gemini/antigravity/mcp_config.json";
 pub const WINDSURF_LEGACY_CONFIG: &str = ".codeium/windsurf/mcp_config.json";
 
+/// Grok Build's config directory: `$GROK_HOME` when it is set, else `~/.grok`.
+fn grok_home(home_dir: &Path) -> PathBuf {
+    std::env::var_os("GROK_HOME")
+        .map(PathBuf::from)
+        .filter(|path| path.is_absolute())
+        .unwrap_or_else(|| home_dir.join(".grok"))
+}
+
 #[derive(Debug, Clone)]
 pub struct PlatformContext {
     pub os: PlatformOs,
@@ -167,6 +175,7 @@ impl PlatformContext {
                 PlatformOs::Windows => self.home_dir.join("AppData/Roaming/amp/settings.json"),
                 _ => self.home_dir.join(".config/amp/settings.json"),
             },
+            SupportedApp::Grok => grok_home(&self.home_dir).join("config.toml"),
         }
     }
 
@@ -227,7 +236,8 @@ impl PlatformContext {
             SupportedApp::QwenCode => (&["qwen", "qwen-code"][..], &[][..], &[][..]),
             SupportedApp::Cline => (&["cline"][..], &[][..], &[][..]),
             SupportedApp::Windsurf => (
-                &["windsurf"][..],
+                // `devin` is the Devin CLI, which shares Devin Desktop's files.
+                &["windsurf", "devin"][..],
                 // Renamed Devin Desktop in 2026. An in-place update keeps the old
                 // install; a fresh one may use the new name.
                 &["Windsurf.app", "Devin Desktop.app", "Devin.app"][..],
@@ -264,6 +274,7 @@ impl PlatformContext {
                 &["AppData/Local/Programs/Goose/Goose.exe"][..],
             ),
             SupportedApp::Amp => (&["amp"][..], &[][..], &[][..]),
+            SupportedApp::Grok => (&["grok"][..], &[][..], &[][..]),
         };
 
         self.command_exists(commands)
@@ -372,7 +383,8 @@ impl PlatformContext {
             | SupportedApp::MistralVibe
             | SupportedApp::Hermes
             | SupportedApp::Goose
-            | SupportedApp::Amp => {
+            | SupportedApp::Amp
+            | SupportedApp::Grok => {
                 vec![self.user_app_config_path(app).to_string_lossy().to_string()]
             }
             SupportedApp::GithubCopilot => vec![

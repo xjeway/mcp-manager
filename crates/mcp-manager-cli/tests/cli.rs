@@ -239,7 +239,7 @@ fn project_scope_writes_the_project_file_only() {
         "--url",
         "https://mcp.linear.app/mcp",
         "-a",
-        "claude-code,codex,windsurf",
+        "claude-code,codex,devin,kimi-cli",
         "--project",
         "-y",
     ]);
@@ -255,10 +255,18 @@ fn project_scope_writes_the_project_file_only() {
     let codex_project = fs::read_to_string(sandbox.project.join(".codex/config.toml")).unwrap();
     assert!(codex_project.contains("[mcp_servers.linear]"));
     assert!(!sandbox.codex_config().contains("linear"));
-    // Windsurf has no project-level config, so it falls back to user level.
-    let windsurf =
-        fs::read_to_string(sandbox.home.join(".codeium/windsurf/mcp_config.json")).unwrap();
-    assert!(windsurf.contains("linear"));
+    let devin = sandbox.read_json(&sandbox.project.join(".devin/mcp_config.json"));
+    assert_eq!(
+        devin["mcpServers"]["linear"]["serverUrl"],
+        "https://mcp.linear.app/mcp"
+    );
+    assert!(!sandbox
+        .home
+        .join(".codeium/windsurf/mcp_config.json")
+        .exists());
+    // Kimi CLI has no project-level config, so it falls back to user level.
+    let kimi = fs::read_to_string(sandbox.home.join(".kimi/mcp.json")).unwrap();
+    assert!(kimi.contains("linear"));
 
     let clients = sandbox.json(&["list", "--json"])[0]["clients"].clone();
     assert_eq!(clients[0]["scope"], "project");

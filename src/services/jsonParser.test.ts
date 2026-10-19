@@ -94,6 +94,7 @@ describe('parseMcpJson', () => {
       hermes: false,
       goose: false,
       amp: false,
+      grok: false,
     } satisfies MCPServer['apps'])
   })
 

@@ -45,6 +45,7 @@ function defaultConfig(): MCPConfig {
           hermes: false,
           goose: false,
           amp: false,
+          grok: false,
         },
       },
       {
@@ -76,6 +77,7 @@ function defaultConfig(): MCPConfig {
           hermes: false,
           goose: false,
           amp: false,
+          grok: false,
         },
       },
       {
@@ -112,6 +114,7 @@ function defaultConfig(): MCPConfig {
           hermes: false,
           goose: false,
           amp: false,
+          grok: false,
         },
       },
     ],

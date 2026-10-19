@@ -37,6 +37,7 @@ body:
         - Gemini CLI
         - GitHub Copilot
         - Goose
+        - Grok Build
         - Hermes Agent
         - iFlow
         - Kilo Code
@@ -47,7 +48,7 @@ body:
         - Qoder
         - Qwen Code
         - VS Code
-        - Devin Desktop
+        - Devin (Desktop / CLI)
         - Zed
         - 其他 / Other
   - type: textarea

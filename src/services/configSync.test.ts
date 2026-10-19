@@ -38,6 +38,7 @@ describe('configSync', () => {
             hermes: false,
             goose: false,
             amp: false,
+            grok: false,
           },
         },
         {
@@ -71,6 +72,7 @@ describe('configSync', () => {
             hermes: false,
             goose: false,
             amp: false,
+            grok: false,
           },
         },
       ],
@@ -110,6 +112,7 @@ describe('configSync', () => {
             hermes: false,
             goose: false,
             amp: false,
+            grok: false,
           },
         },
         {
@@ -144,6 +147,7 @@ describe('configSync', () => {
             hermes: false,
             goose: false,
             amp: false,
+            grok: false,
           },
         },
       ],

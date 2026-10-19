@@ -32,6 +32,7 @@ describe('clientDetectionUi', () => {
         'hermes',
         'goose',
         'amp',
+        'grok',
       ]),
     ).toBe(false)
   })
