@@ -28,6 +28,7 @@ describe('evaluateApplyRisks', () => {
           kiloCode: false,
           factoryDroid: false,
           kimiCli: false,
+          auggie: false,
           zed: false,
           mistralVibe: false,
           hermes: false,
@@ -128,5 +129,24 @@ describe('shared project secrets', () => {
     item.placements = [{ app: 'windsurf', scope: 'workspace', enabled: true, path: '/project/.devin/mcp_config.json' }]
     expect(sharedProjectSecretWarnings([item], workspace, t)[0]).toContain('secretAdviceDevin')
     expect(sharedProjectSecretWarnings([item], workspace, t)[0]).toContain('/project/.devin/mcp_config.json')
+  })
+})
+
+
+describe('Auggie shared and private project configuration', () => {
+  const t = ((key: string) => key) as import('i18next').TFunction
+  const server: import('../types/config').MCPServer = {
+    id: 'api', name: 'API', enabled: true,
+    apps: { auggie: false } as never,
+    transport: { type: 'http', url: 'https://example.com', headers: { Authorization: 'Bearer private' } },
+    placements: [{ app: 'auggie', scope: 'workspace', path: '/project/.augment/settings.local.json', enabled: true }],
+  }
+  it('warns for the shared file and exempts the local file', () => {
+    const workspace = { root: '/project', placementPaths: { auggie: '/project/.augment/settings.json' } }
+    expect(sharedProjectSecretWarnings([server], workspace, t)).toEqual([])
+    const shared = { ...server, placements: [{ ...server.placements![0], path: undefined }] }
+    expect(sharedProjectSecretWarnings([shared], workspace, t)).toEqual(['sharedProjectSecretWarning'])
+    const windowsPrivate = { ...server, placements: [{ ...server.placements![0], path: 'C:\\project\\.augment\\settings.local.json' }] }
+    expect(sharedProjectSecretWarnings([windowsPrivate], workspace, t)).toEqual([])
   })
 })

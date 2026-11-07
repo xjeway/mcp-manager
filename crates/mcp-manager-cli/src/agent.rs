@@ -81,6 +81,18 @@ mod tests {
     }
 
     #[test]
+    fn augment_agent_targets_auggie() {
+        assert_eq!(
+            detect_with(&[("AUGMENT_AGENT", "1")]).and_then(|agent| agent.app),
+            Some(SupportedApp::Auggie)
+        );
+        assert_eq!(
+            detect_with(&[("AI_AGENT", "auggie")]).and_then(|agent| agent.app),
+            Some(SupportedApp::Auggie)
+        );
+    }
+
+    #[test]
     fn maps_known_agents_to_their_client() {
         let claude = detect_with(&[("CLAUDECODE", "1")]).expect("agent");
         assert_eq!(claude.name, "claude");

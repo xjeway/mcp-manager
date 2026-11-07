@@ -116,6 +116,12 @@ export const CLIENTS: ClientMeta[] = [
     icon: <ClientLogo src="/logos/apps/factorydroid.svg" alt="Factory Droid" />,
   },
   {
+    id: 'auggie',
+    label: 'Auggie',
+    accent: 'client-auggie',
+    icon: <ClientLogo src="/logos/apps/auggie.svg" alt="Auggie" />,
+  },
+  {
     id: 'kimiCli',
     label: 'Kimi CLI',
     accent: 'client-cursor',

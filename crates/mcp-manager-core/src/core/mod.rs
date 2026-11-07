@@ -22,6 +22,7 @@ pub enum SupportedApp {
     KiloCode,
     FactoryDroid,
     KimiCli,
+    Auggie,
     Zed,
     MistralVibe,
     Hermes,
@@ -31,7 +32,7 @@ pub enum SupportedApp {
 }
 
 impl SupportedApp {
-    pub const ALL: [SupportedApp; 24] = [
+    pub const ALL: [SupportedApp; 25] = [
         SupportedApp::Vscode,
         SupportedApp::Cursor,
         SupportedApp::ClaudeCode,
@@ -50,6 +51,7 @@ impl SupportedApp {
         SupportedApp::KiloCode,
         SupportedApp::FactoryDroid,
         SupportedApp::KimiCli,
+        SupportedApp::Auggie,
         SupportedApp::Zed,
         SupportedApp::MistralVibe,
         SupportedApp::Hermes,
@@ -78,6 +80,7 @@ impl SupportedApp {
             SupportedApp::KiloCode => "kiloCode",
             SupportedApp::FactoryDroid => "factoryDroid",
             SupportedApp::KimiCli => "kimiCli",
+            SupportedApp::Auggie => "auggie",
             SupportedApp::Zed => "zed",
             SupportedApp::MistralVibe => "mistralVibe",
             SupportedApp::Hermes => "hermes",
@@ -110,6 +113,7 @@ impl SupportedApp {
             SupportedApp::KiloCode => "Kilo Code",
             SupportedApp::FactoryDroid => "Factory Droid",
             SupportedApp::KimiCli => "Kimi CLI",
+            SupportedApp::Auggie => "Auggie",
             SupportedApp::Zed => "Zed",
             SupportedApp::MistralVibe => "Mistral Vibe",
             SupportedApp::Hermes => "Hermes Agent",
@@ -140,6 +144,7 @@ impl SupportedApp {
             SupportedApp::KiloCode => "kilo-code",
             SupportedApp::FactoryDroid => "factory-droid",
             SupportedApp::KimiCli => "kimi-cli",
+            SupportedApp::Auggie => "auggie",
             SupportedApp::Zed => "zed",
             SupportedApp::MistralVibe => "mistral-vibe",
             SupportedApp::Hermes => "hermes",
@@ -160,6 +165,7 @@ impl SupportedApp {
     fn aliases(self) -> &'static [&'static str] {
         match self {
             SupportedApp::Windsurf => &["devin-desktop", "devin-cli"],
+            SupportedApp::Auggie => &["augment", "augment-cli"],
             _ => &[],
         }
     }
@@ -416,6 +422,7 @@ pub fn empty_apps() -> HashMap<SupportedApp, bool> {
         (SupportedApp::KiloCode, false),
         (SupportedApp::FactoryDroid, false),
         (SupportedApp::KimiCli, false),
+        (SupportedApp::Auggie, false),
         (SupportedApp::Zed, false),
         (SupportedApp::MistralVibe, false),
         (SupportedApp::Hermes, false),

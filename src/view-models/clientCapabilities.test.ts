@@ -14,6 +14,7 @@ describe('client capabilities', () => {
   it('lists the clients whose project config can be managed directly', () => {
     expect(getProjectConfigurableApps()).toEqual([
       'amp',
+      'auggie',
       'claudeCode',
       'codex',
       'cursor',
