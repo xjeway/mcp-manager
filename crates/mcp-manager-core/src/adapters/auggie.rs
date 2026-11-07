@@ -185,6 +185,30 @@ mod tests {
     }
 
     #[test]
+    fn writes_cross_client_streamable_http_as_auggie_http() {
+        let temp = tempfile::tempdir().unwrap();
+        let ctx = ctx(temp.path());
+        let path = ctx.user_app_config_path(SupportedApp::Auggie);
+        let parsed = AuggieAdapter.parse_source(
+            &ctx,
+            &path.to_string_lossy(),
+            20,
+            r#"{"mcpServers":{"api":{"type":"streamable-http","url":"https://example.com/mcp"}}}"#,
+        );
+        let config = MCPConfig {
+            version: 1,
+            servers: parsed
+                .servers
+                .into_iter()
+                .map(|(server, _)| server)
+                .collect(),
+        };
+        let operations = AuggieAdapter.plan_apply(&ctx, &config, None);
+        let written: serde_json::Value = serde_json::from_str(&operations[0].content).unwrap();
+        assert_eq!(written["api"]["type"], "http");
+    }
+
+    #[test]
     fn round_trips_http_headers() {
         crate::adapters::header_fixture::assert_round_trip(
             &AuggieAdapter,

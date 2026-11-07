@@ -759,7 +759,14 @@ pub fn standard_mcp_servers_at(
             if profile.include_transport_type {
                 value.insert(
                     "type".to_string(),
-                    Value::String(standard_json_transport_type(&server.transport.kind).to_string()),
+                    Value::String(
+                        if app == SupportedApp::Auggie && server.transport.kind == "streamable-http"
+                        {
+                            "http".to_string()
+                        } else {
+                            standard_json_transport_type(&server.transport.kind).to_string()
+                        },
+                    ),
                 );
             }
 
