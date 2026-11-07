@@ -114,3 +114,21 @@ describe('ServerEditor', () => {
     expect(stdio).not.toContain('requestHeaders')
   })
 })
+
+it('offers the shared project owner when only CodeBuddy is visible', () => {
+  const html = renderToStaticMarkup(
+    <ServerEditor
+      busy={false}
+      server={null}
+      workspace={{ root: '/workspace/project', placementPaths: { claudeCode: '/workspace/project/.mcp.json' } }}
+      visibleApps={['codeBuddy']}
+      onCancel={() => {}}
+      onDraftChange={() => {}}
+      onSave={() => {}}
+      onSaveMany={() => {}}
+    />,
+  )
+  expect(html).toContain('CodeBuddy Code')
+  expect(html).toContain('Claude Code')
+  expect(html.match(/title=".mcp.json"/g)).toHaveLength(1)
+})

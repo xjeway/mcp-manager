@@ -19,6 +19,7 @@ export const SUPPORTED_APPS = [
   'kiloCode',
   'factoryDroid',
   'kimiCli',
+  'codeBuddy',
   'auggie',
   'zed',
   'mistralVibe',

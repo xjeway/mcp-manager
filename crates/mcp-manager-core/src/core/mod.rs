@@ -22,6 +22,7 @@ pub enum SupportedApp {
     KiloCode,
     FactoryDroid,
     KimiCli,
+    CodeBuddy,
     Auggie,
     Zed,
     MistralVibe,
@@ -32,7 +33,7 @@ pub enum SupportedApp {
 }
 
 impl SupportedApp {
-    pub const ALL: [SupportedApp; 25] = [
+    pub const ALL: [SupportedApp; 26] = [
         SupportedApp::Vscode,
         SupportedApp::Cursor,
         SupportedApp::ClaudeCode,
@@ -51,6 +52,7 @@ impl SupportedApp {
         SupportedApp::KiloCode,
         SupportedApp::FactoryDroid,
         SupportedApp::KimiCli,
+        SupportedApp::CodeBuddy,
         SupportedApp::Auggie,
         SupportedApp::Zed,
         SupportedApp::MistralVibe,
@@ -80,6 +82,7 @@ impl SupportedApp {
             SupportedApp::KiloCode => "kiloCode",
             SupportedApp::FactoryDroid => "factoryDroid",
             SupportedApp::KimiCli => "kimiCli",
+            SupportedApp::CodeBuddy => "codeBuddy",
             SupportedApp::Auggie => "auggie",
             SupportedApp::Zed => "zed",
             SupportedApp::MistralVibe => "mistralVibe",
@@ -113,6 +116,7 @@ impl SupportedApp {
             SupportedApp::KiloCode => "Kilo Code",
             SupportedApp::FactoryDroid => "Factory Droid",
             SupportedApp::KimiCli => "Kimi CLI",
+            SupportedApp::CodeBuddy => "CodeBuddy Code",
             SupportedApp::Auggie => "Auggie",
             SupportedApp::Zed => "Zed",
             SupportedApp::MistralVibe => "Mistral Vibe",
@@ -144,6 +148,7 @@ impl SupportedApp {
             SupportedApp::KiloCode => "kilo-code",
             SupportedApp::FactoryDroid => "factory-droid",
             SupportedApp::KimiCli => "kimi-cli",
+            SupportedApp::CodeBuddy => "codebuddy",
             SupportedApp::Auggie => "auggie",
             SupportedApp::Zed => "zed",
             SupportedApp::MistralVibe => "mistral-vibe",
@@ -422,6 +427,7 @@ pub fn empty_apps() -> HashMap<SupportedApp, bool> {
         (SupportedApp::KiloCode, false),
         (SupportedApp::FactoryDroid, false),
         (SupportedApp::KimiCli, false),
+        (SupportedApp::CodeBuddy, false),
         (SupportedApp::Auggie, false),
         (SupportedApp::Zed, false),
         (SupportedApp::MistralVibe, false),

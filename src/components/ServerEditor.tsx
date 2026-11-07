@@ -10,7 +10,7 @@ import { Tooltip } from './Tooltip'
 import { parseMcpJson } from '../services/jsonParser'
 import { openPath } from '../services/externalLinks'
 import type { MCPServer, SupportedApp, WorkspaceContext } from '../types/config'
-import { getProjectConfigurableApps } from '../view-models/clientCapabilities'
+import { getClientCapability, getProjectConfigurableApps } from '../view-models/clientCapabilities'
 import {
   createEmptyEditorDraft,
   editorDraftToServer,
@@ -144,7 +144,13 @@ export function ServerEditor({
   const [revealedHeaders, setRevealedHeaders] = useState<ReadonlySet<number>>(new Set())
   const visibleClients = getVisibleClients(visibleApps)
   const projectConfigurableApps = getProjectConfigurableApps()
-  const projectConfigurableClients = visibleClients.filter((client) => projectConfigurableApps.includes(client.id))
+  const projectApps = new Set(visibleApps)
+  for (const app of visibleApps) {
+    const owner = getClientCapability(app).projectViaApp
+    if (owner) projectApps.add(owner)
+  }
+  const projectConfigurableClients = getVisibleClients([...projectApps])
+    .filter((client) => projectConfigurableApps.includes(client.id))
   const hasWorkspace = workspace.root.trim() !== ''
   const workspaceName = workspace.root.split(/[\\/]/).filter(Boolean).pop() ?? workspace.root
   const relativeToWorkspace = (path: string) =>

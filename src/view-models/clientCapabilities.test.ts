@@ -49,3 +49,13 @@ describe('client capabilities', () => {
     expect(capability.projectViaApp).toBe('claudeCode')
   })
 })
+
+
+it('leaves CodeBuddy shared project configuration to Claude Code', () => {
+  const capability = getClientCapability('codeBuddy')
+  expect(capability.projectManagement).toBe('viaOtherClient')
+  expect(capability.projectViaApp).toBe('claudeCode')
+  expect(capability.configFormat).toBe('jsonc')
+  expect(capability.scopes.map((scope) => scope.id)).toEqual(['user'])
+  expect(getProjectConfigurableApps()).not.toContain('codeBuddy')
+})

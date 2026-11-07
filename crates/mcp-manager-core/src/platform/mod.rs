@@ -101,6 +101,22 @@ impl PlatformContext {
         candidates.into_iter().find(|path| path.exists())
     }
 
+    /// CodeBuddy reads and writes only its first existing user file. In
+    /// particular, an empty or malformed preferred file must not revive a
+    /// deprecated one. Never create a higher-priority file over an active legacy file.
+    pub fn codebuddy_config_path(&self) -> PathBuf {
+        let paths = [
+            self.home_dir.join(".codebuddy/.mcp.json"),
+            self.home_dir.join(".codebuddy/mcp.json"),
+            self.home_dir.join(".codebuddy.json"),
+        ];
+        paths
+            .iter()
+            .find(|path| path.exists())
+            .unwrap_or(&paths[0])
+            .clone()
+    }
+
     pub fn user_app_config_path(&self, app: SupportedApp) -> PathBuf {
         match app {
             SupportedApp::Vscode => match self.os {
@@ -159,6 +175,7 @@ impl PlatformContext {
             }
             SupportedApp::FactoryDroid => self.home_dir.join(".factory/mcp.json"),
             SupportedApp::KimiCli => self.home_dir.join(".kimi/mcp.json"),
+            SupportedApp::CodeBuddy => self.codebuddy_config_path(),
             SupportedApp::Auggie => self.home_dir.join(".augment/settings.json"),
             SupportedApp::Zed => match self.os {
                 PlatformOs::Windows => self.home_dir.join("AppData/Roaming/Zed/settings.json"),
@@ -261,6 +278,7 @@ impl PlatformContext {
             SupportedApp::KiloCode => (&["kilo", "kilocode"][..], &[][..], &[][..]),
             SupportedApp::FactoryDroid => (&["droid"][..], &[][..], &[][..]),
             SupportedApp::KimiCli => (&["kimi"][..], &[][..], &[][..]),
+            SupportedApp::CodeBuddy => (&["codebuddy"][..], &[][..], &[][..]),
             SupportedApp::Auggie => (&["auggie"][..], &[][..], &[][..]),
             SupportedApp::Zed => (
                 // Some Linux packages install the CLI as `zeditor`.
@@ -381,6 +399,7 @@ impl PlatformContext {
             | SupportedApp::KiloCode
             | SupportedApp::FactoryDroid
             | SupportedApp::KimiCli
+            | SupportedApp::CodeBuddy
             | SupportedApp::Auggie
             | SupportedApp::Zed
             | SupportedApp::MistralVibe
@@ -641,6 +660,7 @@ mod tests {
         std::fs::create_dir_all(&bin).expect("create bin");
         std::fs::write(bin.join("codex"), "").expect("write codex stub");
         std::fs::write(bin.join("auggie"), "").expect("write auggie stub");
+        std::fs::write(bin.join("codebuddy"), "").expect("write codebuddy stub");
         std::env::set_var("PATH", &bin);
         std::env::set_var("MCP_MANAGER_SKIP_GLOBAL_COMMAND_DIRS", "1");
 
@@ -654,6 +674,7 @@ mod tests {
 
         assert!(installed.contains(&SupportedApp::Codex));
         assert!(installed.contains(&SupportedApp::Auggie));
+        assert!(installed.contains(&SupportedApp::CodeBuddy));
     }
 
     #[test]

@@ -244,6 +244,24 @@ impl Snapshot {
             .collect()
     }
 
+    /// Checks a planned target against its captured bytes just before a batch write.
+    pub fn verify_path(&self, path: &Path) -> Result<(), String> {
+        let expected = self
+            .files
+            .iter()
+            .find(|(target, _)| target == path)
+            .ok_or_else(|| format!("unapproved target: {}", path.display()))?;
+        let current = match fs::read(path) {
+            Ok(bytes) => Some(bytes),
+            Err(error) if error.kind() == std::io::ErrorKind::NotFound => None,
+            Err(error) => return Err(error.to_string()),
+        };
+        if current != expected.1 {
+            return Err(format!("Client configuration changed before writing {}. Run the command again to review it.", path.display()));
+        }
+        Ok(())
+    }
+
     /// Puts every recorded file back, newest first, and reports each failure.
     pub fn restore(&self) -> Result<(), String> {
         let mut failures = self
@@ -420,6 +438,20 @@ pub(crate) fn carry_unmanaged_fields(old: &Value, new: &mut Value) {
     }
 }
 
+/// Carries JSON client fields, including CodeBuddy's unmodeled per-tool map.
+/// TOML/YAML clients keep their existing transport-field rules.
+pub(crate) fn carry_unmanaged_json_fields(old: &Value, new: &mut Value) {
+    carry_unmanaged_fields(old, new);
+    let (Some(old), Some(new)) = (old.as_object(), new.as_object_mut()) else {
+        return;
+    };
+    if is_local_entry(old.keys()) == is_local_entry(new.keys()) && !new.contains_key("tools") {
+        if let Some(tools) = old.get("tools").filter(|value| value.is_object()) {
+            new.insert("tools".into(), tools.clone());
+        }
+    }
+}
+
 fn apply_merge_json_object_entries(
     path: &Path,
     field: &str,
@@ -436,7 +468,7 @@ fn apply_merge_json_object_entries(
         field,
         new_entries,
         remove_keys.unwrap_or_default(),
-        carry_unmanaged_fields,
+        carry_unmanaged_json_fields,
     )
     .map_err(|error| unreadable(path, error))?;
     atomic_write(path, &updated)
@@ -582,12 +614,34 @@ pub fn apply_operation(path: &Path, item: &WriteOperation) -> Result<(), String>
 /// fails, every file already written by this batch is put back as it was
 /// (and files it created are removed), so clients never end up half-applied.
 pub fn apply_operations(artifacts: Vec<WriteOperation>) -> Result<Vec<String>, String> {
+    apply_operations_guarded(artifacts, None)
+}
+
+/// Rechecks the approved bytes before each write. This is optimistic concurrency;
+/// external clients do not participate in our lock and can still race after a check.
+pub fn apply_operations_checked(
+    artifacts: Vec<WriteOperation>,
+    expected: &Snapshot,
+) -> Result<Vec<String>, String> {
+    apply_operations_guarded(artifacts, Some(expected))
+}
+
+/// Shared batch rollback implementation with an optional per-target precondition.
+fn apply_operations_guarded(
+    artifacts: Vec<WriteOperation>,
+    expected: Option<&Snapshot>,
+) -> Result<Vec<String>, String> {
     let mut backups = Vec::new();
     let mut originals = Snapshot::default();
 
     for item in artifacts {
         let path = resolve_path(&item.path);
         let result = (|| {
+            // Check before capturing this file for rollback: a rejected external
+            // edit must not be overwritten when earlier writes are restored.
+            if let Some(expected) = expected {
+                expected.verify_path(&path)?;
+            }
             originals.capture(&path)?;
             if let Some(backup) = backup_file(&path)? {
                 backups.push(backup);
@@ -693,6 +747,54 @@ mod tests {
             Some(value) => std::env::set_var(HOME_ENV_VAR, value),
             None => std::env::remove_var(HOME_ENV_VAR),
         }
+    }
+
+    #[test]
+    fn preserves_tool_configuration_objects_without_preserving_managed_tool_lists() {
+        use serde_json::json;
+        let mut new = json!({"url":"https://new/mcp"});
+        super::carry_unmanaged_json_fields(
+            &json!({"url":"https://old/mcp","tools":{"search":{"defer_loading":true}}}),
+            &mut new,
+        );
+        assert_eq!(new["tools"], json!({"search":{"defer_loading":true}}));
+        let mut new = json!({"url":"https://new/mcp"});
+        super::carry_unmanaged_json_fields(
+            &json!({"url":"https://old/mcp","tools":["old"]}),
+            &mut new,
+        );
+        assert!(new.get("tools").is_none());
+        let mut new = json!({"url":"https://new/mcp","tools":["*"]});
+        super::carry_unmanaged_json_fields(
+            &json!({"url":"https://old/mcp","tools":{"search":{}}}),
+            &mut new,
+        );
+        assert_eq!(new["tools"], json!(["*"]));
+    }
+
+    #[test]
+    fn json_tool_maps_do_not_change_codex_toml_rewrites() {
+        use serde_json::json;
+        let old = json!({"url":"https://old/mcp", "tools":{"search":"old"}});
+        let mut written = json!({"url":"https://new/mcp"});
+        super::carry_unmanaged_fields(&old, &mut written);
+        assert!(written.get("tools").is_none());
+        let temp = tempfile::tempdir().unwrap();
+        let path = temp.path().join("config.toml");
+        fs::write(
+            &path,
+            "[mcp_servers.api]\nurl = 'https://old/mcp'\ntools = { search = 'old' }\n",
+        )
+        .unwrap();
+        super::apply_merge_toml_table_entries(
+            &path,
+            "mcp_servers",
+            &json!({"api":{"url":"https://new/mcp"}}).to_string(),
+            Some(&["api".into()]),
+        )
+        .unwrap();
+        let parsed: toml::Value = toml::from_str(&fs::read_to_string(path).unwrap()).unwrap();
+        assert!(parsed["mcp_servers"]["api"].get("tools").is_none());
     }
 
     #[test]

@@ -37,9 +37,14 @@ pub fn commit(session: &Session, change: Change, dry_run: bool) -> Outcome<bool>
         return Err(Failure::Error(lines.join("\n")));
     }
 
-    let changes = workflow::preview(&session.ctx, &change.after, Some(&change.before))
-        .into_iter()
+    // Capture before presenting the preview; confirmation cannot authorize a
+    // different active file or later edits to its contents.
+    let prepared = workflow::prepare(&session.ctx, &change.after, Some(&change.before))?;
+    let changes = prepared
+        .changes
+        .iter()
         .filter(|c| change.focus.contains(&c.server_id) || c.action != ChangeAction::Unchanged)
+        .cloned()
         .collect::<Vec<_>>();
     let has_writes = changes.iter().any(|c| c.action != ChangeAction::Unchanged);
     // Reported even when nothing is written: a server a client cannot take
@@ -100,9 +105,9 @@ pub fn commit(session: &Session, change: Change, dry_run: bool) -> Outcome<bool>
                         .to_string(),
                 );
             }
-            let files = workflow::snapshot(&session.ctx, &after, Some(&before))?;
+            let files = prepared.snapshot(&session.ctx)?;
             // apply undoes its own partial writes when it fails.
-            let applied = workflow::apply(&session.ctx, &after, Some(&before))?;
+            let applied = prepared.apply(&session.ctx)?;
             *current = after.clone();
             // Recorded while the lock is held, so no other change or rollback
             // can slip in between. A record that fails does not stop the
