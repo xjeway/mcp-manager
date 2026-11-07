@@ -43,8 +43,8 @@ pub fn commit(session: &Session, change: Change, dry_run: bool) -> Outcome<bool>
     let changes = prepared
         .changes
         .iter()
-        .cloned()
         .filter(|c| change.focus.contains(&c.server_id) || c.action != ChangeAction::Unchanged)
+        .cloned()
         .collect::<Vec<_>>();
     let has_writes = changes.iter().any(|c| c.action != ChangeAction::Unchanged);
     // Reported even when nothing is written: a server a client cannot take
