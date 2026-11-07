@@ -159,6 +159,7 @@ impl PlatformContext {
             }
             SupportedApp::FactoryDroid => self.home_dir.join(".factory/mcp.json"),
             SupportedApp::KimiCli => self.home_dir.join(".kimi/mcp.json"),
+            SupportedApp::Auggie => self.home_dir.join(".augment/settings.json"),
             SupportedApp::Zed => match self.os {
                 PlatformOs::Windows => self.home_dir.join("AppData/Roaming/Zed/settings.json"),
                 _ => self.home_dir.join(".config/zed/settings.json"),
@@ -260,6 +261,7 @@ impl PlatformContext {
             SupportedApp::KiloCode => (&["kilo", "kilocode"][..], &[][..], &[][..]),
             SupportedApp::FactoryDroid => (&["droid"][..], &[][..], &[][..]),
             SupportedApp::KimiCli => (&["kimi"][..], &[][..], &[][..]),
+            SupportedApp::Auggie => (&["auggie"][..], &[][..], &[][..]),
             SupportedApp::Zed => (
                 // Some Linux packages install the CLI as `zeditor`.
                 &["zed", "zeditor"][..],
@@ -379,6 +381,7 @@ impl PlatformContext {
             | SupportedApp::KiloCode
             | SupportedApp::FactoryDroid
             | SupportedApp::KimiCli
+            | SupportedApp::Auggie
             | SupportedApp::Zed
             | SupportedApp::MistralVibe
             | SupportedApp::Hermes
@@ -637,6 +640,7 @@ mod tests {
         std::fs::create_dir_all(&workspace).expect("create workspace");
         std::fs::create_dir_all(&bin).expect("create bin");
         std::fs::write(bin.join("codex"), "").expect("write codex stub");
+        std::fs::write(bin.join("auggie"), "").expect("write auggie stub");
         std::env::set_var("PATH", &bin);
         std::env::set_var("MCP_MANAGER_SKIP_GLOBAL_COMMAND_DIRS", "1");
 
@@ -649,6 +653,7 @@ mod tests {
         let installed = ctx.detect_installed_apps();
 
         assert!(installed.contains(&SupportedApp::Codex));
+        assert!(installed.contains(&SupportedApp::Auggie));
     }
 
     #[test]

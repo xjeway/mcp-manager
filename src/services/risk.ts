@@ -108,6 +108,7 @@ export function sharedProjectSecretWarnings(servers: MCPServer[], workspace: Wor
       if (!sharedScope) continue
       const path = placement.path ?? workspace.placementPaths[placement.app]
       if (!path || (placement.app === 'windsurf' && /(?:^|[/\\])mcp_config\.local\.json$/.test(path))) continue
+      if (placement.app === 'auggie' && /(?:^|[/\\])\.augment[/\\]settings\.local\.json$/.test(path)) continue
       const values = server.transport.type === 'stdio' ? server.command?.env : server.transport.headers
       for (const [key, value] of Object.entries(values ?? {})) {
         if (!isLiteralSecret(key, value)) continue

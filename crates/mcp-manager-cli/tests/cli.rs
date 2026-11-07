@@ -641,3 +641,48 @@ fn project_secret_warning_is_human_readable_and_redacted() {
     assert!(output.contains("${VAR}"));
     assert!(!output.contains("private-test-token"));
 }
+
+#[test]
+fn auggie_cli_writes_user_and_project_settings_in_place() {
+    let sandbox = Sandbox::new();
+    let user_path = sandbox.home.join(".augment/settings.json");
+    fs::create_dir_all(user_path.parent().unwrap()).unwrap();
+    fs::write(&user_path, "{\n// preserve this\n\"theme\":\"dark\",\"mcpServers\":{\"existing\":{\"command\":\"old\"}}\n}").unwrap();
+    sandbox.ok(&[
+        "add",
+        "context",
+        "-a",
+        "auggie",
+        "--global",
+        "-y",
+        "--",
+        "node",
+        "server.js",
+    ]);
+    let text = fs::read_to_string(&user_path).unwrap();
+    assert!(text.contains("// preserve this"));
+    assert!(text.contains("\"theme\":\"dark\""));
+    assert!(text.contains("\"existing\":{\"command\":\"old\"}"));
+    assert!(text.contains("server.js"));
+    assert!(!sandbox.project.join(".augment/settings.json").exists());
+
+    let report = sandbox.json(&[
+        "add",
+        "remote",
+        "--url",
+        "https://example.com/mcp",
+        "-a",
+        "auggie",
+        "--project",
+        "-y",
+        "--json",
+    ]);
+    assert_eq!(report["warnings"], serde_json::json!([]));
+    let project = sandbox.read_json(&sandbox.project.join(".augment/settings.json"));
+    assert_eq!(project["mcpServers"]["remote"]["type"], "http");
+    assert_eq!(
+        project["mcpServers"]["remote"]["url"],
+        "https://example.com/mcp"
+    );
+    assert!(project["mcpServers"]["remote"].get("transport").is_none());
+}

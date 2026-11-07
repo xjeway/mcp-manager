@@ -171,6 +171,13 @@ export const CLIENT_CAPABILITIES: Record<SupportedApp, ClientCapability> = {
     scopes: [projectScope(20), userScope(10)],
   },
   kimiCli: userOnly('kimiCli', 'json', 'mergeJsonField'),
+  auggie: {
+    app: 'auggie',
+    configFormat: 'jsonc',
+    mergePolicy: 'mergeJsonField',
+    projectManagement: 'direct',
+    scopes: [projectScope(20), userScope(10)],
+  },
   amp: {
     app: 'amp',
     configFormat: 'jsonc',

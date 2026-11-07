@@ -28,6 +28,7 @@ body:
       options:
         - Amp
         - Antigravity
+        - Auggie
         - Claude Code
         - Claude Desktop
         - Cline

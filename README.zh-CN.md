@@ -96,6 +96,7 @@ xattr -dr com.apple.quarantine "/Applications/MCP Manager.app"
   <a href="https://qoder.com"><kbd><img src="./public/logos/apps/qoder.svg" alt="Qoder logo" width="16" valign="middle" /> Qoder</kbd></a> &nbsp;
   <a href="https://kilo.ai"><kbd><img src="./public/logos/apps/kilocode.svg" alt="Kilo Code logo" width="16" valign="middle" /> Kilo Code</kbd></a> &nbsp;
   <a href="https://factory.ai"><kbd><img src="./public/logos/apps/factorydroid.svg" alt="Factory Droid logo" width="16" valign="middle" /> Factory Droid</kbd></a> &nbsp;
+  <a href="https://docs.augmentcode.com/cli/overview"><kbd><img src="./public/logos/apps/auggie.svg" alt="Auggie logo" width="16" valign="middle" /> Auggie</kbd></a> &nbsp;
   <a href="https://github.com/MoonshotAI/kimi-cli"><kbd><img src="./public/logos/apps/kimi.svg" alt="Kimi CLI logo" width="16" valign="middle" /> Kimi CLI</kbd></a> &nbsp;
   <a href="https://zed.dev"><kbd><img src="./public/logos/apps/zed.svg" alt="Zed logo" width="16" valign="middle" /> Zed</kbd></a> &nbsp;
   <a href="https://github.com/mistralai/mistral-vibe"><kbd><img src="./public/logos/apps/mistral.svg" alt="Mistral Vibe logo" width="16" valign="middle" /> Mistral Vibe</kbd></a> &nbsp;

@@ -1,0 +1,12 @@
+{
+  "theme": "dark",
+  "mcpServers": {
+    "remote": {
+      "type": "http",
+      "url": "https://mcp.example.com/mcp",
+      "headers": { "Authorization": "Bearer fixture-token", "X-Api-Key": "fixture-key" },
+      "timeout": 9000
+    },
+    "other": { "command": "node", "args": ["server.js"] }
+  }
+}

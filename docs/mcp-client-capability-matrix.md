@@ -34,6 +34,7 @@ storage path, merge behavior, and precedence.
 | Qoder | `~/.qoder/settings.json` | `.qoder/settings.json` (`.mcp.json` is also read but shared with Claude Code) | None | Direct project support |
 | Kilo Code | `~/.config/kilo/kilo.json` (or `kilo.jsonc`) | `kilo.json(c)`, `.kilo/kilo.json(c)` | None | Direct project support; same `mcp` schema as OpenCode. Kilo also reads `opencode.json`, which is left to the OpenCode adapter |
 | Factory Droid | `~/.factory/mcp.json` | `.factory/mcp.json` | Ancestor-folder `.factory/mcp.json` (not read) | Direct project support. Project files are committed, so keep tokens out of them |
+| Auggie (Augment CLI) | `~/.augment/settings.json` | `.augment/settings.json` | `.augment/settings.local.json` (private, local > project > user); organization-managed settings (read-only, not imported) | Direct project support. JSONC `mcpServers` edited in place; remote entries use `type: http` / `type: sse` and `headers`. Imported local entries are written back to their private file. New project entries use the shared file |
 | Kimi CLI | `~/.kimi/mcp.json` | Unsupported | None | User only; remote servers are written without `type` |
 | Zed | `~/.config/zed/settings.json` (Windows: `%APPDATA%\\Zed\\settings.json`) | `.zed/settings.json` | None | Direct project support. Servers live under `context_servers` in the editor settings file, which is edited in place. No `type` field; older nested `command: {path, args, env}` entries are read and rewritten flat. Extension-provided servers (only `settings`) are left alone |
 | Mistral Vibe | `~/.vibe/config.toml` | `.vibe/config.toml` (trusted folders only) | None | Direct project support. Servers are a `[[mcp_servers]]` list keyed by `name`, edited in place. Remote servers are written as `streamable-http` with headers in a static `auth` table; SSE servers are not written (Vibe has no SSE client) and the apply reports it. Vibe rejects unknown fields, so no `type` is written |
@@ -105,3 +106,12 @@ replaced.
   list each server twice.
 - Antigravity 2.0's shared config path comes from third-party sources; confirm
   it on a real install.
+
+## Auggie format verification (2026-11-07)
+
+The current [MCP guide](https://docs.augmentcode.com/cli/integrations) uses `type`
+(not the `transport` key described in issue #56) and supports HTTP/SSE headers.
+The [settings guide](https://docs.augmentcode.com/cli/settings) documents JSONC,
+user/project/local files and their precedence. This adapter follows those current
+examples. Managed organization settings and per-run `--mcp-config` overrides are
+not imported or modified.

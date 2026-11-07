@@ -1,5 +1,6 @@
 mod amp;
 mod antigravity;
+mod auggie;
 mod claude_code;
 mod claude_desktop;
 mod cline;
@@ -33,6 +34,7 @@ use std::collections::BTreeSet;
 
 pub use amp::AmpAdapter;
 pub use antigravity::AntigravityAdapter;
+pub use auggie::AuggieAdapter;
 pub use claude_code::ClaudeCodeAdapter;
 pub use claude_desktop::ClaudeDesktopAdapter;
 pub use cline::ClineAdapter;
@@ -110,6 +112,7 @@ pub fn workspace_scope_path(ctx: &PlatformContext, app: SupportedApp) -> Option<
         // Amp asks before it runs servers from workspace settings.
         SupportedApp::Amp => ".amp/settings.json",
         SupportedApp::Grok => ".grok/config.toml",
+        SupportedApp::Auggie => ".augment/settings.json",
         // Devin's shared, committed project file. Its gitignored
         // `.devin/mcp_config.local.json` is written only for servers imported
         // from there.
@@ -594,6 +597,13 @@ pub fn shared_project_secret_warnings(
             {
                 continue;
             }
+            if placement.app == SupportedApp::Auggie
+                && path
+                    .replace('\\', "/")
+                    .ends_with("/.augment/settings.local.json")
+            {
+                continue;
+            }
             if server.transport.kind == "sse" && !sse_supported(placement.app) {
                 continue;
             }
@@ -749,7 +759,14 @@ pub fn standard_mcp_servers_at(
             if profile.include_transport_type {
                 value.insert(
                     "type".to_string(),
-                    Value::String(standard_json_transport_type(&server.transport.kind).to_string()),
+                    Value::String(
+                        if app == SupportedApp::Auggie && server.transport.kind == "streamable-http"
+                        {
+                            "http".to_string()
+                        } else {
+                            standard_json_transport_type(&server.transport.kind).to_string()
+                        },
+                    ),
                 );
             }
 
@@ -848,6 +865,7 @@ pub fn adapters() -> Vec<Box<dyn AppAdapter>> {
         Box::new(KiloCodeAdapter),
         Box::new(FactoryDroidAdapter),
         Box::new(KimiCliAdapter),
+        Box::new(AuggieAdapter),
         Box::new(ZedAdapter),
         Box::new(MistralVibeAdapter),
         Box::new(HermesAdapter),
