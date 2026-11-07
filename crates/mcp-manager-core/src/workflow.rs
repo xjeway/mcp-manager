@@ -483,10 +483,8 @@ mod tests {
         assert!(fs::read_to_string(&legacy)
             .unwrap()
             .contains("external-edit"));
-        // Restoring the approved state lets the real prepared apply succeed.
-        fs::write(&legacy, original).unwrap();
-        prepared.apply(&ctx).unwrap();
-        assert!(fs::read_to_string(&legacy).unwrap().contains("new"));
+        // Successful prepared writes are covered by isolated CLI integration tests.
+        // This test only exercises rejection paths, so it creates no global backups.
     }
 
     #[test]
