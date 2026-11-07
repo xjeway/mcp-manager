@@ -46,6 +46,10 @@ pub fn commit(session: &Session, change: Change, dry_run: bool) -> Outcome<bool>
     // may be the reason its file does not change.
     let warnings = apply_warnings(&change.after)
         .into_iter()
+        .chain(mcp_manager_core::adapters::shared_project_secret_warnings(
+            &session.ctx,
+            &change.after,
+        ))
         .filter(|w| change.focus.contains(&w.server_id))
         .collect::<Vec<_>>();
 
@@ -184,6 +188,22 @@ fn describe_warning(warning: &ApplyWarning) -> String {
     let client = warning.app.display_name();
     let server = &warning.server_id;
     match warning.kind.as_str() {
+        "sharedProjectSecret" => {
+            let path = warning.path.as_deref().unwrap_or_default();
+            let key = warning.key.as_deref().unwrap_or_default();
+            let advice = match warning.app {
+                mcp_manager_core::core::SupportedApp::Windsurf => {
+                    "Use .devin/mcp_config.local.json for private values."
+                }
+                mcp_manager_core::core::SupportedApp::Grok
+                | mcp_manager_core::core::SupportedApp::ClaudeCode
+                | mcp_manager_core::core::SupportedApp::FactoryDroid => {
+                    "Use an environment reference such as ${VAR}."
+                }
+                _ => "Keep secrets in a private user configuration.",
+            };
+            format!("{client}: {server}: {path} will contain a literal value for {key} that may be a secret. Committing this file could expose it. {advice}")
+        }
         "sseUnsupported" => format!(
             "{client} has no SSE support, so the SSE server {server} was not written there. \
              Use the server's streamable HTTP endpoint instead, if it has one."

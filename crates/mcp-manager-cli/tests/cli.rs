@@ -552,3 +552,92 @@ fn reports_a_server_a_client_cannot_take() {
     assert_eq!(report["warnings"][0]["app"], "goose");
     assert_eq!(report["warnings"][0]["serverId"], "events");
 }
+
+#[test]
+fn project_secret_warning_is_nonblocking_and_redacted() {
+    let sandbox = Sandbox::new();
+    let report = sandbox.json(&[
+        "add",
+        "github",
+        "-a",
+        "claude-code",
+        "--project",
+        "--env",
+        "GITHUB_TOKEN=private-test-token",
+        "-y",
+        "--json",
+        "--",
+        "node",
+        "server.js",
+    ]);
+    assert_eq!(report["warnings"][0]["kind"], "sharedProjectSecret");
+    assert_eq!(report["warnings"][0]["key"], "GITHUB_TOKEN");
+    assert!(report["warnings"][0]["path"]
+        .as_str()
+        .unwrap()
+        .ends_with(".mcp.json"));
+    assert!(!report["warnings"]
+        .to_string()
+        .contains("private-test-token"));
+    let written = sandbox.read_json(&sandbox.project.join(".mcp.json"));
+    assert_eq!(
+        written["mcpServers"]["github"]["env"]["GITHUB_TOKEN"],
+        "private-test-token"
+    );
+
+    let reference = Sandbox::new();
+    let report = reference.json(&[
+        "add",
+        "github",
+        "-a",
+        "claude-code",
+        "--project",
+        "--env",
+        "GITHUB_TOKEN=${TOKEN}",
+        "-y",
+        "--json",
+        "--",
+        "node",
+        "server.js",
+    ]);
+    assert_eq!(report["warnings"], serde_json::json!([]));
+
+    let user = Sandbox::new();
+    let report = user.json(&[
+        "add",
+        "github",
+        "-a",
+        "claude-code",
+        "--global",
+        "--env",
+        "GITHUB_TOKEN=private-test-token",
+        "-y",
+        "--json",
+        "--",
+        "node",
+        "server.js",
+    ]);
+    assert_eq!(report["warnings"], serde_json::json!([]));
+}
+
+#[test]
+fn project_secret_warning_is_human_readable_and_redacted() {
+    let sandbox = Sandbox::new();
+    let output = sandbox.all_output(&[
+        "add",
+        "github",
+        "-a",
+        "claude-code",
+        "--project",
+        "--env",
+        "GITHUB_TOKEN=private-test-token",
+        "-y",
+        "--",
+        "node",
+        "server.js",
+    ]);
+    assert!(output.contains("GITHUB_TOKEN"));
+    assert!(output.contains("Committing this file could expose it"));
+    assert!(output.contains("${VAR}"));
+    assert!(!output.contains("private-test-token"));
+}

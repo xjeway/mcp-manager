@@ -1,4 +1,7 @@
-import type { ApplyRiskSummary, MCPServer } from '../types/config'
+import type { TFunction } from 'i18next'
+import { CLIENT_CAPABILITIES } from '../view-models/clientCapabilities'
+import { CLIENTS } from '../components/clientMeta'
+import type { ApplyRiskSummary, MCPServer, WorkspaceContext } from '../types/config'
 
 // Mirrors TransportSpec::sends_headers_insecurely / duplicate_header in
 // crates/mcp-manager-core/src/core/mod.rs.
@@ -85,4 +88,40 @@ export function evaluateApplyRisks(servers: MCPServer[]): ApplyRiskSummary {
   }
 
   return { warnings, blockingErrors }
+}
+
+/** Only sensitive keys; never include values in diagnostics. References can be embedded in e.g. Bearer headers. */
+export function isLiteralSecret(key: string, value: string): boolean {
+  return /(?:authorization|cookie|token|secret|password|passwd|api[_.-]?key|(?:^|[_.-])key$)/i.test(key)
+    && value.trim().length > 0
+    && !/\$\{[^{}]+\}|\{env:[^{}]+\}/.test(value)
+}
+
+export function sharedProjectSecretWarnings(servers: MCPServer[], workspace: WorkspaceContext, t: TFunction): string[] {
+  const warnings = new Set<string>()
+  for (const server of servers.filter((item) => item.enabled)) {
+    for (const placement of server.placements ?? []) {
+      if (!placement.enabled || placement.scope !== 'workspace') continue
+      const sharedScope = CLIENT_CAPABILITIES[placement.app].scopes.some(
+        (scope) => scope.placementScope === 'workspace' && scope.sharedWithTeam && scope.writable,
+      )
+      if (!sharedScope) continue
+      const path = placement.path ?? workspace.placementPaths[placement.app]
+      if (!path || (placement.app === 'windsurf' && /(?:^|[/\\])mcp_config\.local\.json$/.test(path))) continue
+      const values = server.transport.type === 'stdio' ? server.command?.env : server.transport.headers
+      for (const [key, value] of Object.entries(values ?? {})) {
+        if (!isLiteralSecret(key, value)) continue
+        const advice = placement.app === 'windsurf' ? t('secretAdviceDevin')
+          : ['grok', 'claudeCode', 'factoryDroid'].includes(placement.app) ? t('secretAdviceInterpolation') : t('secretAdvicePrivate')
+        warnings.add(t('sharedProjectSecretWarning', {
+          server: server.name || server.id,
+          client: CLIENTS.find((client) => client.id === placement.app)?.label ?? placement.app,
+          path,
+          key,
+          advice,
+        }))
+      }
+    }
+  }
+  return [...warnings]
 }

@@ -47,7 +47,7 @@ import { areConfigsEquivalent } from './services/configSync'
 import { openPath, openRepositoryLink } from './services/externalLinks'
 import { confirmDialog } from './services/nativeDialogs'
 import { mergeServerIntoConfig, shouldPromptForPendingChanges } from './services/pendingChanges'
-import { evaluateApplyRisks } from './services/risk'
+import { evaluateApplyRisks, sharedProjectSecretWarnings } from './services/risk'
 import { isDesktopRuntime } from './services/runtime'
 import { FALLBACK_APP_VERSION, loadAppVersion } from './services/appVersion'
 import {
@@ -562,6 +562,17 @@ function MainApp() {
         pushFeedback('error', error)
       }
       return false
+    }
+
+    const secretWarnings = sharedProjectSecretWarnings(nextConfig.servers, currentWorkspace, t)
+    if (secretWarnings.length > 0) {
+      const confirmed = await confirmDialog({
+        cancelLabel: t('cancel'),
+        kind: 'warning',
+        message: secretWarnings.join('\n\n'),
+        title: t('sharedProjectSecretTitle'),
+      })
+      if (!confirmed) return false
     }
 
     setActionState('saving')
