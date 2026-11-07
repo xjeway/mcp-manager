@@ -246,6 +246,7 @@ const zhCN: LocaleMessages = {
   sharedProjectSecretWarning: "{{server}} → {{client}}：{{path}} 将写入 {{key}} 的字面值，可能包含密钥。提交此文件可能泄露该值。{{advice}} 是否继续？",
   secretAdviceDevin: "请将私密值放入 .devin/mcp_config.local.json。",
   secretAdviceInterpolation: "请使用 ${VAR} 等环境变量引用。",
+  secretAdviceDollarInterpolation: "请使用 $VAR 等环境变量引用。",
   secretAdvicePrivate: "请将密钥保存在私有用户配置中。",
   applyWarningSseUnsupported: '{{client}} 不支持 SSE，SSE 服务器 {{server}} 未写入该客户端。如果该服务器提供 Streamable HTTP 地址，请改用该地址。',
   addArg: '添加参数',

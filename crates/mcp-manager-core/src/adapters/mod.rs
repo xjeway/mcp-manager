@@ -1,3 +1,4 @@
+mod agents;
 mod amp;
 mod antigravity;
 mod auggie;
@@ -33,6 +34,7 @@ use crate::platform::PlatformContext;
 use serde_json::{Map, Value};
 use std::collections::BTreeSet;
 
+pub use agents::AgentsAdapter;
 pub use amp::AmpAdapter;
 pub use antigravity::AntigravityAdapter;
 pub use auggie::AuggieAdapter;
@@ -114,6 +116,7 @@ pub fn workspace_scope_path(ctx: &PlatformContext, app: SupportedApp) -> Option<
         // Amp asks before it runs servers from workspace settings.
         SupportedApp::Amp => ".amp/settings.json",
         SupportedApp::Grok => ".grok/config.toml",
+        SupportedApp::Agents => ".agents/mcp.json",
         SupportedApp::Auggie => ".augment/settings.json",
         // Devin's shared, committed project file. Its gitignored
         // `.devin/mcp_config.local.json` is written only for servers imported
@@ -586,7 +589,7 @@ pub fn shared_project_secret_warnings(
         for placement in server
             .placements
             .iter()
-            .filter(|p| p.enabled && p.scope == PlacementScope::Workspace)
+            .filter(|p| p.enabled && p.managed && p.scope == PlacementScope::Workspace)
         {
             if workspace_scope_path(ctx, placement.app).is_none() {
                 continue;
@@ -622,7 +625,10 @@ pub fn shared_project_secret_warnings(
             };
             values.sort_by_key(|(key, _)| *key);
             for (key, value) in values {
-                if !is_literal_secret(key, value) {
+                if !is_literal_secret(key, value)
+                    || (placement.app == SupportedApp::Agents
+                        && agents_env_reference(value, server.transport.kind == "stdio"))
+                {
                     continue;
                 }
                 let warning = ApplyWarning {
@@ -639,6 +645,35 @@ pub fn shared_project_secret_warnings(
         }
     }
     warnings
+}
+
+/// Codebuff/Freebuff resolve whole `$VAR` stdio env values and uppercase
+/// `$VAR` tokens embedded in remote headers. Preserve them without expansion.
+fn agents_env_reference(value: &str, stdio: bool) -> bool {
+    let valid_name = |name: &str, uppercase: bool| {
+        !name.is_empty()
+            && name.chars().enumerate().all(|(index, ch)| {
+                ch == '_'
+                    || (if uppercase {
+                        ch.is_ascii_uppercase()
+                    } else {
+                        ch.is_ascii_alphabetic()
+                    })
+                    || (index > 0 && ch.is_ascii_digit())
+            })
+    };
+    if stdio {
+        return value
+            .strip_prefix('$')
+            .is_some_and(|name| valid_name(name, false));
+    }
+    value.split('$').skip(1).any(|tail| {
+        let name = tail
+            .split(|ch: char| !(ch == '_' || ch.is_ascii_uppercase() || ch.is_ascii_digit()))
+            .next()
+            .unwrap_or_default();
+        valid_name(name, true)
+    })
 }
 
 fn is_literal_secret(key: &str, value: &str) -> bool {
@@ -762,8 +797,10 @@ pub fn standard_mcp_servers_at(
                 value.insert(
                     "type".to_string(),
                     Value::String(
-                        if matches!(app, SupportedApp::Auggie | SupportedApp::CodeBuddy)
-                            && server.transport.kind == "streamable-http"
+                        if matches!(
+                            app,
+                            SupportedApp::Auggie | SupportedApp::CodeBuddy | SupportedApp::Agents
+                        ) && server.transport.kind == "streamable-http"
                         {
                             "http".to_string()
                         } else {
@@ -868,6 +905,7 @@ pub fn adapters() -> Vec<Box<dyn AppAdapter>> {
         Box::new(KiloCodeAdapter),
         Box::new(FactoryDroidAdapter),
         Box::new(KimiCliAdapter),
+        Box::new(AgentsAdapter),
         Box::new(CodeBuddyAdapter),
         Box::new(AuggieAdapter),
         Box::new(ZedAdapter),

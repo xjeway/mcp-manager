@@ -250,6 +250,7 @@ const jaJP: LocaleMessages = {
   sharedProjectSecretWarning: "{{server}} → {{client}}: {{path}} に {{key}} の直接の値を書き込みます。コミットすると機密情報が漏れる可能性があります。{{advice}} 続行しますか？",
   secretAdviceDevin: "機密値には .devin/mcp_config.local.json を使用してください。",
   secretAdviceInterpolation: "${VAR} などの環境変数参照を使用してください。",
+  secretAdviceDollarInterpolation: "$VAR などの環境変数参照を使用してください。",
   secretAdvicePrivate: "機密値は個人用設定に保存してください。",
   applyWarningSseUnsupported: '{{client}} は SSE に対応していないため、SSE サーバー {{server}} は書き込まれませんでした。サーバーに Streamable HTTP のエンドポイントがあれば、そちらを使用してください。',
   addArg: '引数を追加',

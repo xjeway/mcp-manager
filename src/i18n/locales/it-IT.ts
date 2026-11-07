@@ -250,6 +250,7 @@ const itIT: LocaleMessages = {
   sharedProjectSecretWarning: "{{server}} → {{client}}: {{path}} conterrà un valore diretto per {{key}}. Un commit potrebbe esporre un segreto. {{advice}} Continuare?",
   secretAdviceDevin: "Usa .devin/mcp_config.local.json per i valori privati.",
   secretAdviceInterpolation: "Usa un riferimento di ambiente come ${VAR}.",
+  secretAdviceDollarInterpolation: "Usa un riferimento di ambiente come $VAR.",
   secretAdvicePrivate: "Conserva i segreti in una configurazione utente privata.",
   applyWarningSseUnsupported: '{{client}} non supporta SSE, quindi il server SSE {{server}} non è stato scritto lì. Usa invece l’endpoint Streamable HTTP del server, se disponibile.',
   addArg: 'Aggiungi argomento',

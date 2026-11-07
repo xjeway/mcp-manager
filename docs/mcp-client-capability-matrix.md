@@ -36,6 +36,7 @@ storage path, merge behavior, and precedence.
 | Factory Droid | `~/.factory/mcp.json` | `.factory/mcp.json` | Ancestor-folder `.factory/mcp.json` (not read) | Direct project support. Project files are committed, so keep tokens out of them |
 | Auggie (Augment CLI) | `~/.augment/settings.json` | `.augment/settings.json` | `.augment/settings.local.json` (private, local > project > user); organization-managed settings (read-only, not imported) | Direct project support. JSONC `mcpServers` edited in place; remote entries use `type: http` / `type: sse` and `headers`. Imported local entries are written back to their private file. New project entries use the shared file |
 | CodeBuddy Code | First existing: `~/.codebuddy/.mcp.json`, `~/.codebuddy/mcp.json`, `~/.codebuddy.json`; default to the first path for new installs | `.mcp.json`, managed through Claude Code | Private local entries in `~/.codebuddy.json.projects[path]` and deprecated project `mcp.json` (not managed) | User only in direct controls; project via Claude Code. JSONC `mcpServers` edited in place. Read and write only the active user file; do not merge deprecated files. Remote entries use `type: http` / `type: sse` and `headers` |
+| Shared `.agents` (Codebuff / Freebuff) | `~/.agents/mcp.json` | `.agents/mcp.json` | Immediate parent's `.agents/mcp.json` (read-only import) | One shared-file target, with CLI aliases `codebuff` / `freebuff`. Global > parent > project for same-name servers, matching the upstream loader's actual merge order. HTTP/SSE use `type`, `url`, `headers`; `params` are retained. Parent files are never apply targets. Project secrets warn; supported `$VAR` references are retained without local expansion |
 | Kimi CLI | `~/.kimi/mcp.json` | Unsupported | None | User only; remote servers are written without `type` |
 | Zed | `~/.config/zed/settings.json` (Windows: `%APPDATA%\\Zed\\settings.json`) | `.zed/settings.json` | None | Direct project support. Servers live under `context_servers` in the editor settings file, which is edited in place. No `type` field; older nested `command: {path, args, env}` entries are read and rewritten flat. Extension-provided servers (only `settings`) are left alone |
 | Mistral Vibe | `~/.vibe/config.toml` | `.vibe/config.toml` (trusted folders only) | None | Direct project support. Servers are a `[[mcp_servers]]` list keyed by `name`, edited in place. Remote servers are written as `streamable-http` with headers in a static `auth` table; SSE servers are not written (Vibe has no SSE client) and the apply reports it. Vibe rejects unknown fields, so no `type` is written |
@@ -138,3 +139,24 @@ concurrency, not a lock shared with CodeBuddy: an unrelated client can still
 race between the last byte check and the atomic replacement. Frozen operations
 never redirect a write to a newly preferred file after validation. Configuration
 writes by external clients must be serialized with an apply for strict isolation.
+
+## Shared `.agents` verification (2026-11-08)
+
+The [Codebuff MCP guide](https://www.codebuff.com/docs/tips/mcp-servers) and the
+[SDK loader](https://github.com/CodebuffAI/freebuff/blob/e9ee7f66dd4a4e73116a7433aa050442aa3c9a98/sdk/src/agents/load-mcp-config.ts)
+confirm global, immediate-parent and current-project files. The loop reads
+project, parent, then home and replaces same-name definitions, so home wins
+(despite an inconsistent explanatory source comment). The loader uses strict
+JSON, not JSONC. This adapter rejects comments/trailing commas on import.
+
+Freebuff builds the same CLI via
+[its build script](https://github.com/CodebuffAI/freebuff/blob/e9ee7f66dd4a4e73116a7433aa050442aa3c9a98/freebuff/cli/build.ts),
+and the shared [agent registry](https://github.com/CodebuffAI/freebuff/blob/e9ee7f66dd4a4e73116a7433aa050442aa3c9a98/cli/src/utils/local-agent-registry.ts)
+loads MCP through that SDK. Repository files still require the client's own
+trust consent. MCP Manager reads data only and does not grant that consent.
+
+There is one `.agents` target rather than competing adapters for each reader.
+Parent entries are imported as unmanaged read-only placements so their priority
+is visible without modifying another repository. Applied writes are restricted
+to the current project's and user's file. ZCode fallback handling remains #59.
+Remote query parameters and other unmodeled fields survive managed rewrites.

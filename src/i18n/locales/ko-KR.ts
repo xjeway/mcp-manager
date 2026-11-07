@@ -250,6 +250,7 @@ const koKR: LocaleMessages = {
   sharedProjectSecretWarning: "{{server}} → {{client}}: {{path}}에 {{key}}의 값을 직접 기록합니다. 커밋하면 비밀 값이 노출될 수 있습니다. {{advice}} 계속할까요?",
   secretAdviceDevin: "비밀 값은 .devin/mcp_config.local.json에 저장하세요.",
   secretAdviceInterpolation: "${VAR} 같은 환경 변수 참조를 사용하세요.",
+  secretAdviceDollarInterpolation: "$VAR 같은 환경 변수 참조를 사용하세요.",
   secretAdvicePrivate: "비밀 값은 개인 사용자 설정에 저장하세요.",
   applyWarningSseUnsupported: '{{client}}은(는) SSE를 지원하지 않아 SSE 서버 {{server}}을(를) 기록하지 않았습니다. 서버에 Streamable HTTP 엔드포인트가 있다면 그 주소를 사용하세요.',
   addArg: '인수 추가',

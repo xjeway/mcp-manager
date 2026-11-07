@@ -197,6 +197,7 @@ fn describe_warning(warning: &ApplyWarning) -> String {
             let path = warning.path.as_deref().unwrap_or_default();
             let key = warning.key.as_deref().unwrap_or_default();
             let advice = match warning.app {
+                mcp_manager_core::core::SupportedApp::Agents => "Use a $VAR environment reference.",
                 mcp_manager_core::core::SupportedApp::Windsurf => {
                     "Use .devin/mcp_config.local.json for private values."
                 }

@@ -28,6 +28,7 @@ describe('evaluateApplyRisks', () => {
           kiloCode: false,
           factoryDroid: false,
           kimiCli: false,
+          agents: false,
           codeBuddy: false,
           auggie: false,
           zed: false,
@@ -149,5 +150,32 @@ describe('Auggie shared and private project configuration', () => {
     expect(sharedProjectSecretWarnings([shared], workspace, t)).toEqual(['sharedProjectSecretWarning'])
     const windowsPrivate = { ...server, placements: [{ ...server.placements![0], path: 'C:\\project\\.augment\\settings.local.json' }] }
     expect(sharedProjectSecretWarnings([windowsPrivate], workspace, t)).toEqual([])
+  })
+})
+
+describe('shared .agents configuration', () => {
+  const t = ((key: string) => key) as import('i18next').TFunction
+  const workspace = { root: '/project', placementPaths: { agents: '/project/.agents/mcp.json' } }
+  const make = (value: string): import('../types/config').MCPServer => ({
+    id: 'api', name: 'API', enabled: true, apps: { agents: false } as never,
+    transport: { type: 'http', url: 'https://example.com', headers: { Authorization: value } },
+    placements: [{ app: 'agents', scope: 'workspace', enabled: true, managed: true }],
+  })
+  it.each(['$TOKEN', 'Bearer $TOKEN'])('preserves supported remote environment references %s', (value) => {
+    expect(sharedProjectSecretWarnings([make(value)], workspace, t)).toEqual([])
+  })
+  it('warns for literals and exempts read-only parent sources', () => {
+    const server = make('literal-secret')
+    expect(sharedProjectSecretWarnings([server], workspace, t)).toEqual(['sharedProjectSecretWarning'])
+    server.placements![0].managed = false
+    expect(sharedProjectSecretWarnings([server], workspace, t)).toEqual([])
+  })
+  it('only treats whole stdio env values as dollar references', () => {
+    const server = make('')
+    server.transport = { type: 'stdio' }
+    server.command = { program: 'node', args: [], env: { API_KEY: '$api_key' } }
+    expect(sharedProjectSecretWarnings([server], workspace, t)).toEqual([])
+    server.command.env.API_KEY = 'literal $api_key'
+    expect(sharedProjectSecretWarnings([server], workspace, t)).toHaveLength(1)
   })
 })

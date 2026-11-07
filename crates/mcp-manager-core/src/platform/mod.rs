@@ -175,6 +175,7 @@ impl PlatformContext {
             }
             SupportedApp::FactoryDroid => self.home_dir.join(".factory/mcp.json"),
             SupportedApp::KimiCli => self.home_dir.join(".kimi/mcp.json"),
+            SupportedApp::Agents => self.home_dir.join(".agents/mcp.json"),
             SupportedApp::CodeBuddy => self.codebuddy_config_path(),
             SupportedApp::Auggie => self.home_dir.join(".augment/settings.json"),
             SupportedApp::Zed => match self.os {
@@ -278,6 +279,7 @@ impl PlatformContext {
             SupportedApp::KiloCode => (&["kilo", "kilocode"][..], &[][..], &[][..]),
             SupportedApp::FactoryDroid => (&["droid"][..], &[][..], &[][..]),
             SupportedApp::KimiCli => (&["kimi"][..], &[][..], &[][..]),
+            SupportedApp::Agents => (&["codebuff", "freebuff"][..], &[][..], &[][..]),
             SupportedApp::CodeBuddy => (&["codebuddy"][..], &[][..], &[][..]),
             SupportedApp::Auggie => (&["auggie"][..], &[][..], &[][..]),
             SupportedApp::Zed => (
@@ -399,6 +401,7 @@ impl PlatformContext {
             | SupportedApp::KiloCode
             | SupportedApp::FactoryDroid
             | SupportedApp::KimiCli
+            | SupportedApp::Agents
             | SupportedApp::CodeBuddy
             | SupportedApp::Auggie
             | SupportedApp::Zed
@@ -661,6 +664,7 @@ mod tests {
         std::fs::write(bin.join("codex"), "").expect("write codex stub");
         std::fs::write(bin.join("auggie"), "").expect("write auggie stub");
         std::fs::write(bin.join("codebuddy"), "").expect("write codebuddy stub");
+        std::fs::write(bin.join("codebuff"), "").expect("write codebuff stub");
         std::env::set_var("PATH", &bin);
         std::env::set_var("MCP_MANAGER_SKIP_GLOBAL_COMMAND_DIRS", "1");
 
@@ -675,6 +679,10 @@ mod tests {
         assert!(installed.contains(&SupportedApp::Codex));
         assert!(installed.contains(&SupportedApp::Auggie));
         assert!(installed.contains(&SupportedApp::CodeBuddy));
+        assert!(installed.contains(&SupportedApp::Agents));
+        std::fs::remove_file(bin.join("codebuff")).unwrap();
+        std::fs::write(bin.join("freebuff"), "").unwrap();
+        assert!(ctx.detect_installed_apps().contains(&SupportedApp::Agents));
     }
 
     #[test]

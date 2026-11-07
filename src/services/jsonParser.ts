@@ -22,6 +22,7 @@ function defaultApps(): MCPServer['apps'] {
     kiloCode: false,
     factoryDroid: false,
     kimiCli: false,
+    agents: false,
     codeBuddy: false,
     auggie: false,
     zed: false,

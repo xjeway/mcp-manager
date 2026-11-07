@@ -248,6 +248,7 @@ const enUS = {
   sharedProjectSecretWarning: "{{server}} → {{client}}: {{path}} will contain a literal value for {{key}} that may be a secret. Committing this file could expose it. {{advice}} Continue?",
   secretAdviceDevin: "Use .devin/mcp_config.local.json for private values.",
   secretAdviceInterpolation: "Use an environment reference such as ${VAR}.",
+  secretAdviceDollarInterpolation: "Use an environment reference such as $VAR.",
   secretAdvicePrivate: "Keep secrets in a private user configuration.",
   applyWarningSseUnsupported: '{{client}} has no SSE support, so the SSE server {{server}} was not written there. Use the server’s streamable HTTP endpoint instead, if it has one.',
   addArg: 'Add Arg',

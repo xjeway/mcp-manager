@@ -749,3 +749,62 @@ fn codebuddy_new_install_defaults_to_preferred_path_and_leaves_shared_project_fi
     assert!(!sandbox.home.join(".codebuddy/mcp.json").exists());
     assert!(!sandbox.home.join(".codebuddy.json").exists());
 }
+
+#[test]
+fn shared_agents_aliases_write_scoped_files_and_never_the_parent() {
+    let sandbox = Sandbox::new();
+    let parent = sandbox.project.parent().unwrap().join(".agents/mcp.json");
+    fs::create_dir_all(parent.parent().unwrap()).unwrap();
+    let parent_text = r#"{"mcpServers":{"parent-only":{"command":"do-not-edit"}}}"#;
+    fs::write(&parent, parent_text).unwrap();
+    sandbox.ok(&[
+        "add",
+        "global",
+        "-a",
+        "codebuff",
+        "--global",
+        "-y",
+        "--",
+        "node",
+        "global.js",
+    ]);
+    let user = sandbox.read_json(&sandbox.home.join(".agents/mcp.json"));
+    assert_eq!(user["mcpServers"]["global"]["command"], "node");
+    let report = sandbox.json(&[
+        "add",
+        "project",
+        "-a",
+        "freebuff",
+        "--project",
+        "--env",
+        "API_KEY=$TOKEN",
+        "-y",
+        "--json",
+        "--",
+        "node",
+        "project.js",
+    ]);
+    assert_eq!(report["warnings"], serde_json::json!([]));
+    let project = sandbox.read_json(&sandbox.project.join(".agents/mcp.json"));
+    assert_eq!(project["mcpServers"]["project"]["env"]["API_KEY"], "$TOKEN");
+    assert_eq!(fs::read_to_string(&parent).unwrap(), parent_text);
+    let report = sandbox.json(&[
+        "add",
+        "secret",
+        "-a",
+        "agents",
+        "--project",
+        "--env",
+        "API_KEY=literal-secret",
+        "-y",
+        "--json",
+        "--",
+        "node",
+        "secret.js",
+    ]);
+    assert_eq!(report["warnings"][0]["kind"], "sharedProjectSecret");
+    assert_eq!(report["warnings"][0]["app"], "agents");
+    assert_eq!(report["warnings"][0]["key"], "API_KEY");
+    assert!(!report["warnings"].to_string().contains("literal-secret"));
+    assert_eq!(fs::read_to_string(parent).unwrap(), parent_text);
+}
