@@ -414,7 +414,13 @@ pub(crate) fn carry_unmanaged_fields(old: &Value, new: &mut Value) {
     let has_auth = new.contains_key("auth");
     for (field, value) in old {
         let moved_into_auth = has_auth && API_KEY_FIELDS.contains(&field.as_str());
-        if !is_transport_field(field) && !moved_into_auth && !new.contains_key(field) {
+        // CodeBuddy's `tools` object contains per-tool overrides. It is not
+        // the managed array of tool names emitted for clients such as Copilot.
+        let tool_overrides = field == "tools" && value.is_object();
+        if (!is_transport_field(field) || tool_overrides)
+            && !moved_into_auth
+            && !new.contains_key(field)
+        {
             new.insert(field.clone(), value.clone());
         }
     }
@@ -693,6 +699,26 @@ mod tests {
             Some(value) => std::env::set_var(HOME_ENV_VAR, value),
             None => std::env::remove_var(HOME_ENV_VAR),
         }
+    }
+
+    #[test]
+    fn preserves_tool_configuration_objects_without_preserving_managed_tool_lists() {
+        use serde_json::json;
+        let mut new = json!({"url":"https://new/mcp"});
+        super::carry_unmanaged_fields(
+            &json!({"url":"https://old/mcp","tools":{"search":{"defer_loading":true}}}),
+            &mut new,
+        );
+        assert_eq!(new["tools"], json!({"search":{"defer_loading":true}}));
+        let mut new = json!({"url":"https://new/mcp"});
+        super::carry_unmanaged_fields(&json!({"url":"https://old/mcp","tools":["old"]}), &mut new);
+        assert!(new.get("tools").is_none());
+        let mut new = json!({"url":"https://new/mcp","tools":["*"]});
+        super::carry_unmanaged_fields(
+            &json!({"url":"https://old/mcp","tools":{"search":{}}}),
+            &mut new,
+        );
+        assert_eq!(new["tools"], json!(["*"]));
     }
 
     #[test]

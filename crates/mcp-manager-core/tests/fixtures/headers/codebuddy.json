@@ -1,0 +1,14 @@
+{
+  "mcpServers": {
+    "remote": {
+      "type": "http",
+      "url": "https://mcp.example.com/mcp",
+      "headers": { "Authorization": "Bearer fixture-token", "X-Api-Key": "fixture-key" },
+      "description": "Remote API",
+      "defer_loading": true,
+      "tools": { "search": { "defer_loading": false } }
+    },
+    "other": { "type": "stdio", "command": "node", "args": ["server.js"] }
+  },
+  "telemetry": false
+}

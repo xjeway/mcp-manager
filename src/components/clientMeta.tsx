@@ -122,6 +122,12 @@ export const CLIENTS: ClientMeta[] = [
     icon: <ClientLogo src="/logos/apps/auggie.svg" alt="Auggie" />,
   },
   {
+    id: 'codeBuddy',
+    label: 'CodeBuddy Code',
+    accent: 'client-codebuddy',
+    icon: <ClientLogo src="/logos/apps/codebuddy.svg" alt="CodeBuddy Code" />,
+  },
+  {
     id: 'kimiCli',
     label: 'Kimi CLI',
     accent: 'client-cursor',

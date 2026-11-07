@@ -97,6 +97,7 @@ Todos los clientes siguientes admiten tanto la **importación** (leer los servid
   <a href="https://kilo.ai"><kbd><img src="../../public/logos/apps/kilocode.svg" alt="Kilo Code logo" width="16" valign="middle" /> Kilo Code</kbd></a> &nbsp;
   <a href="https://factory.ai"><kbd><img src="../../public/logos/apps/factorydroid.svg" alt="Factory Droid logo" width="16" valign="middle" /> Factory Droid</kbd></a> &nbsp;
   <a href="https://docs.augmentcode.com/cli/overview"><kbd><img src="../../public/logos/apps/auggie.svg" alt="Auggie logo" width="16" valign="middle" /> Auggie</kbd></a> &nbsp;
+  <a href="https://www.codebuddy.ai/cli"><kbd><img src="../../public/logos/apps/codebuddy.svg" alt="CodeBuddy Code logo" width="16" valign="middle" /> CodeBuddy Code</kbd></a> &nbsp;
   <a href="https://github.com/MoonshotAI/kimi-cli"><kbd><img src="../../public/logos/apps/kimi.svg" alt="Kimi CLI logo" width="16" valign="middle" /> Kimi CLI</kbd></a> &nbsp;
   <a href="https://zed.dev"><kbd><img src="../../public/logos/apps/zed.svg" alt="Zed logo" width="16" valign="middle" /> Zed</kbd></a> &nbsp;
   <a href="https://github.com/mistralai/mistral-vibe"><kbd><img src="../../public/logos/apps/mistral.svg" alt="Mistral Vibe logo" width="16" valign="middle" /> Mistral Vibe</kbd></a> &nbsp;

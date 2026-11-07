@@ -4,6 +4,7 @@ mod auggie;
 mod claude_code;
 mod claude_desktop;
 mod cline;
+mod codebuddy;
 mod codex;
 mod cursor;
 mod factory_droid;
@@ -38,6 +39,7 @@ pub use auggie::AuggieAdapter;
 pub use claude_code::ClaudeCodeAdapter;
 pub use claude_desktop::ClaudeDesktopAdapter;
 pub use cline::ClineAdapter;
+pub use codebuddy::CodeBuddyAdapter;
 pub use codex::CodexAdapter;
 pub use cursor::CursorAdapter;
 pub use factory_droid::FactoryDroidAdapter;
@@ -760,7 +762,8 @@ pub fn standard_mcp_servers_at(
                 value.insert(
                     "type".to_string(),
                     Value::String(
-                        if app == SupportedApp::Auggie && server.transport.kind == "streamable-http"
+                        if matches!(app, SupportedApp::Auggie | SupportedApp::CodeBuddy)
+                            && server.transport.kind == "streamable-http"
                         {
                             "http".to_string()
                         } else {
@@ -865,6 +868,7 @@ pub fn adapters() -> Vec<Box<dyn AppAdapter>> {
         Box::new(KiloCodeAdapter),
         Box::new(FactoryDroidAdapter),
         Box::new(KimiCliAdapter),
+        Box::new(CodeBuddyAdapter),
         Box::new(AuggieAdapter),
         Box::new(ZedAdapter),
         Box::new(MistralVibeAdapter),

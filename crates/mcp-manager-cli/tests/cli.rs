@@ -686,3 +686,66 @@ fn auggie_cli_writes_user_and_project_settings_in_place() {
     );
     assert!(project["mcpServers"]["remote"].get("transport").is_none());
 }
+
+#[test]
+fn codebuddy_add_updates_only_the_active_user_file() {
+    for selected in 0..3 {
+        let sandbox = Sandbox::new();
+        let paths = [
+            ".codebuddy/.mcp.json",
+            ".codebuddy/mcp.json",
+            ".codebuddy.json",
+        ]
+        .map(|relative| sandbox.home.join(relative));
+        for (index, path) in paths.iter().enumerate().skip(selected) {
+            fs::create_dir_all(path.parent().unwrap()).unwrap();
+            fs::write(path, format!("{{\n// keep active file\n\"marker\":{index},\"projects\":{{\"private\":{{\"mcpServers\":{{\"local\":{{\"command\":\"private\"}}}}}}}},\"mcpServers\":{{\"old{index}\":{{\"command\":\"old\"}}}}\n}}")).unwrap();
+        }
+        let before: Vec<_> = paths.iter().map(|path| fs::read(path).ok()).collect();
+        sandbox.ok(&[
+            "add",
+            "new",
+            "-a",
+            "codebuddy",
+            "--global",
+            "-y",
+            "--",
+            "node",
+            "server.js",
+        ]);
+        for (index, path) in paths.iter().enumerate() {
+            if index == selected {
+                let written = fs::read_to_string(path).unwrap();
+                assert!(written.contains("// keep active file"));
+                assert!(written.contains("server.js"));
+                assert!(written.contains(&format!("old{selected}")));
+                assert!(written.contains("\"command\":\"private\""));
+            } else {
+                assert_eq!(fs::read(path).ok(), before[index]);
+            }
+        }
+    }
+}
+
+#[test]
+fn codebuddy_new_install_defaults_to_preferred_path_and_leaves_shared_project_file_to_claude() {
+    let sandbox = Sandbox::new();
+    let shared_path = sandbox.project.join(".mcp.json");
+    let shared = r#"{"mcpServers":{"shared":{"command":"keep"}}}"#;
+    fs::write(&shared_path, shared).unwrap();
+    sandbox.ok(&[
+        "add",
+        "api",
+        "--url",
+        "https://example.com/mcp",
+        "-a",
+        "codebuddy",
+        "--global",
+        "-y",
+    ]);
+    let user = sandbox.read_json(&sandbox.home.join(".codebuddy/.mcp.json"));
+    assert_eq!(user["mcpServers"]["api"]["type"], "http");
+    assert_eq!(fs::read_to_string(&shared_path).unwrap(), shared);
+    assert!(!sandbox.home.join(".codebuddy/mcp.json").exists());
+    assert!(!sandbox.home.join(".codebuddy.json").exists());
+}
