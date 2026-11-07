@@ -244,6 +244,24 @@ impl Snapshot {
             .collect()
     }
 
+    /// Checks a planned target against its captured bytes just before a batch write.
+    pub fn verify_path(&self, path: &Path) -> Result<(), String> {
+        let expected = self
+            .files
+            .iter()
+            .find(|(target, _)| target == path)
+            .ok_or_else(|| format!("unapproved target: {}", path.display()))?;
+        let current = match fs::read(path) {
+            Ok(bytes) => Some(bytes),
+            Err(error) if error.kind() == std::io::ErrorKind::NotFound => None,
+            Err(error) => return Err(error.to_string()),
+        };
+        if current != expected.1 {
+            return Err(format!("Client configuration changed before writing {}. Run the command again to review it.", path.display()));
+        }
+        Ok(())
+    }
+
     /// Puts every recorded file back, newest first, and reports each failure.
     pub fn restore(&self) -> Result<(), String> {
         let mut failures = self
@@ -596,12 +614,34 @@ pub fn apply_operation(path: &Path, item: &WriteOperation) -> Result<(), String>
 /// fails, every file already written by this batch is put back as it was
 /// (and files it created are removed), so clients never end up half-applied.
 pub fn apply_operations(artifacts: Vec<WriteOperation>) -> Result<Vec<String>, String> {
+    apply_operations_guarded(artifacts, None)
+}
+
+/// Rechecks the approved bytes before each write. This is optimistic concurrency;
+/// external clients do not participate in our lock and can still race after a check.
+pub fn apply_operations_checked(
+    artifacts: Vec<WriteOperation>,
+    expected: &Snapshot,
+) -> Result<Vec<String>, String> {
+    apply_operations_guarded(artifacts, Some(expected))
+}
+
+/// Shared batch rollback implementation with an optional per-target precondition.
+fn apply_operations_guarded(
+    artifacts: Vec<WriteOperation>,
+    expected: Option<&Snapshot>,
+) -> Result<Vec<String>, String> {
     let mut backups = Vec::new();
     let mut originals = Snapshot::default();
 
     for item in artifacts {
         let path = resolve_path(&item.path);
         let result = (|| {
+            // Check before capturing this file for rollback: a rejected external
+            // edit must not be overwritten when earlier writes are restored.
+            if let Some(expected) = expected {
+                expected.verify_path(&path)?;
+            }
             originals.capture(&path)?;
             if let Some(backup) = backup_file(&path)? {
                 backups.push(backup);

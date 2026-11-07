@@ -127,3 +127,14 @@ comments and client-specific server fields are retained when the active file is
 edited. Project `.mcp.json` has one writer, the Claude Code adapter; CodeBuddy
 users select Claude Code for shared project configuration. Deprecated project
 `mcp.json` and private local-scope entries are not imported by this adapter.
+
+### Concurrent client edits
+
+CLI confirmation binds a prepared apply to the previewed file paths and desired
+entries. Active-path and content changes detected before apply require a fresh
+preview. Approved file bytes are checked again before each batch write; a
+conflict aborts and rolls back earlier batch writes. This is optimistic
+concurrency, not a lock shared with CodeBuddy: an unrelated client can still
+race between the last byte check and the atomic replacement. Frozen operations
+never redirect a write to a newly preferred file after validation. Configuration
+writes by external clients must be serialized with an apply for strict isolation.

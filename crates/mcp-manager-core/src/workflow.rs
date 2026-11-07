@@ -142,7 +142,7 @@ pub fn apply(
     config: &MCPConfig,
     previous_config: Option<&MCPConfig>,
 ) -> Result<ApplyResult, String> {
-    apply_plan(ctx, config, plan(ctx, config, previous_config))
+    apply_plan(ctx, config, plan(ctx, config, previous_config), None)
 }
 
 /// Applies exactly these operations without resolving client paths again.
@@ -150,6 +150,7 @@ fn apply_plan(
     ctx: &PlatformContext,
     config: &MCPConfig,
     operations: Vec<WriteOperation>,
+    expected: Option<&Snapshot>,
 ) -> Result<ApplyResult, String> {
     for operation in &operations {
         let path = ctx.resolve_path(&operation.path);
@@ -161,7 +162,10 @@ fn apply_plan(
         }
     }
 
-    let backups = apply_operations(operations)?;
+    let backups = match expected {
+        Some(expected) => crate::storage::apply_operations_checked(operations, expected)?,
+        None => apply_operations(operations)?,
+    };
     Ok(ApplyResult {
         backups,
         warnings: crate::adapters::apply_warnings(config),
@@ -222,7 +226,17 @@ impl PreparedApply {
     /// Rechecks the targets and applies the frozen, previewed operations only.
     pub fn apply(&self, ctx: &PlatformContext) -> Result<ApplyResult, String> {
         self.validate(ctx)?;
-        apply_plan(ctx, &self.config, self.operations.clone())
+        self.apply_validated(ctx)
+    }
+
+    /// Keeps the final-validation/write boundary explicit for race regression tests.
+    fn apply_validated(&self, ctx: &PlatformContext) -> Result<ApplyResult, String> {
+        apply_plan(
+            ctx,
+            &self.config,
+            self.operations.clone(),
+            Some(&self.snapshot),
+        )
     }
 }
 
@@ -485,6 +499,44 @@ mod tests {
             .contains("external-edit"));
         // Successful prepared writes are covered by isolated CLI integration tests.
         // This test only exercises rejection paths, so it creates no global backups.
+    }
+
+    #[test]
+    fn prepared_write_detects_an_external_edit_after_its_final_validation() {
+        use crate::adapters::{AppAdapter, CodeBuddyAdapter};
+        let temp = tempdir().unwrap();
+        let ctx = PlatformContext {
+            os: PlatformOs::MacOS,
+            home_dir: temp.path().join("home"),
+            workspace_root: temp.path().join("project"),
+        };
+        let legacy = ctx.home_dir.join(".codebuddy/mcp.json");
+        fs::create_dir_all(legacy.parent().unwrap()).unwrap();
+        let original = r#"{"mcpServers":{"api":{"command":"old"}}}"#;
+        fs::write(&legacy, original).unwrap();
+        let mut server = CodeBuddyAdapter
+            .parse_source(&ctx, &legacy.to_string_lossy(), 20, original)
+            .servers
+            .remove(0)
+            .0;
+        server.command.as_mut().unwrap().program = "new".into();
+        let config = MCPConfig {
+            version: 1,
+            servers: vec![server],
+        };
+        let prepared = super::prepare(&ctx, &config, None).unwrap();
+        prepared.validate(&ctx).unwrap();
+        // Injection at the exact boundary between final validation and storage write.
+        let preferred = ctx.home_dir.join(".codebuddy/.mcp.json");
+        fs::write(&preferred, "{}").unwrap();
+        let edited = original.replace("old", "external-edit");
+        fs::write(&legacy, &edited).unwrap();
+        assert!(prepared
+            .apply_validated(&ctx)
+            .unwrap_err()
+            .contains("changed before writing"));
+        assert_eq!(fs::read_to_string(&legacy).unwrap(), edited);
+        assert_eq!(fs::read_to_string(&preferred).unwrap(), "{}");
     }
 
     #[test]
