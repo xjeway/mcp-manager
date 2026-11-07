@@ -52,6 +52,7 @@ body:
         - Qwen Code
         - VS Code
         - Devin (Desktop / CLI)
+        - ZCode
         - Zed
         - 其他 / Other
   - type: textarea

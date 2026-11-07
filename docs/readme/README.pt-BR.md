@@ -99,6 +99,7 @@ Todos os clientes abaixo oferecem suporte tanto a **importação** (ler os servi
   <a href="https://docs.augmentcode.com/cli/overview"><kbd><img src="../../public/logos/apps/auggie.svg" alt="Auggie logo" width="16" valign="middle" /> Auggie</kbd></a> &nbsp;
   <a href="https://www.codebuddy.ai/cli"><kbd><img src="../../public/logos/apps/codebuddy.svg" alt="CodeBuddy Code logo" width="16" valign="middle" /> CodeBuddy Code</kbd></a> &nbsp;
   <a href="https://www.codebuff.com/docs/tips/mcp-servers"><kbd><img src="../../public/logos/apps/agents.svg" alt="Shared .agents config" width="16" valign="middle" /> .agents (Codebuff / Freebuff)</kbd></a> &nbsp;
+  <a href="https://zcode.z.ai/en/docs"><kbd><img src="../../public/logos/apps/zcode.png" alt="ZCode logo" width="16" valign="middle" /> ZCode</kbd></a> &nbsp;
   <a href="https://github.com/MoonshotAI/kimi-cli"><kbd><img src="../../public/logos/apps/kimi.svg" alt="Kimi CLI logo" width="16" valign="middle" /> Kimi CLI</kbd></a> &nbsp;
   <a href="https://zed.dev"><kbd><img src="../../public/logos/apps/zed.svg" alt="Zed logo" width="16" valign="middle" /> Zed</kbd></a> &nbsp;
   <a href="https://github.com/mistralai/mistral-vibe"><kbd><img src="../../public/logos/apps/mistral.svg" alt="Mistral Vibe logo" width="16" valign="middle" /> Mistral Vibe</kbd></a> &nbsp;

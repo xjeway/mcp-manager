@@ -441,6 +441,14 @@ pub(crate) fn carry_unmanaged_fields(old: &Value, new: &mut Value) {
 /// Carries JSON client fields, including CodeBuddy's unmodeled per-tool map.
 /// TOML/YAML clients keep their existing transport-field rules.
 pub(crate) fn carry_unmanaged_json_fields(old: &Value, new: &mut Value) {
+    // ZCode's client-owned switch is independent of the transport kind.
+    if let (Some(enable), Some(new)) = (
+        old.get("enable").filter(|value| value.is_boolean()),
+        new.as_object_mut(),
+    ) {
+        new.entry("enable".to_string())
+            .or_insert_with(|| enable.clone());
+    }
     carry_unmanaged_fields(old, new);
     let (Some(old), Some(new)) = (old.as_object(), new.as_object_mut()) else {
         return;
@@ -467,6 +475,36 @@ fn apply_merge_json_object_entries(
         &existing,
         field,
         new_entries,
+        remove_keys.unwrap_or_default(),
+        carry_unmanaged_json_fields,
+    )
+    .map_err(|error| unreadable(path, error))?;
+    atomic_write(path, &updated)
+}
+
+/// Uses a JSON Pointer to distinguish nested paths from literal dotted client keys.
+fn apply_merge_json_object_path_entries(
+    path: &Path,
+    field: &str,
+    content: &str,
+    remove_keys: Option<&[String]>,
+) -> Result<(), String> {
+    let entries = merge_content(field, content)?;
+    let pointer = field
+        .strip_prefix('/')
+        .ok_or_else(|| "nested JSON field must be a JSON Pointer".to_string())?;
+    let keys = pointer
+        .split('/')
+        .map(|key| key.replace("~1", "/").replace("~0", "~"))
+        .collect::<Vec<_>>();
+    if keys.iter().any(String::is_empty) {
+        return Err("nested JSON field contains an empty segment".into());
+    }
+    let existing = read_existing(path)?;
+    let updated = jsonc::merge_object_entries_at_path(
+        &existing,
+        &keys,
+        &entries,
         remove_keys.unwrap_or_default(),
         carry_unmanaged_json_fields,
     )
@@ -581,6 +619,12 @@ pub fn apply_operation(path: &Path, item: &WriteOperation) -> Result<(), String>
     match item.mode.as_str() {
         "replace_json" => apply_replace_json(path, &item.content),
         "merge_json_field" => apply_merge_json_field(path, field("JSON")?, &item.content),
+        "merge_json_object_path_entries" => apply_merge_json_object_path_entries(
+            path,
+            field("JSON path")?,
+            &item.content,
+            item.remove_keys.as_deref(),
+        ),
         "merge_json_object_entries" => apply_merge_json_object_entries(
             path,
             field("JSON")?,

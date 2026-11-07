@@ -22,6 +22,7 @@ pub enum SupportedApp {
     KiloCode,
     FactoryDroid,
     KimiCli,
+    ZCode,
     Agents,
     CodeBuddy,
     Auggie,
@@ -34,7 +35,7 @@ pub enum SupportedApp {
 }
 
 impl SupportedApp {
-    pub const ALL: [SupportedApp; 27] = [
+    pub const ALL: [SupportedApp; 28] = [
         SupportedApp::Vscode,
         SupportedApp::Cursor,
         SupportedApp::ClaudeCode,
@@ -53,6 +54,7 @@ impl SupportedApp {
         SupportedApp::KiloCode,
         SupportedApp::FactoryDroid,
         SupportedApp::KimiCli,
+        SupportedApp::ZCode,
         SupportedApp::Agents,
         SupportedApp::CodeBuddy,
         SupportedApp::Auggie,
@@ -84,6 +86,7 @@ impl SupportedApp {
             SupportedApp::KiloCode => "kiloCode",
             SupportedApp::FactoryDroid => "factoryDroid",
             SupportedApp::KimiCli => "kimiCli",
+            SupportedApp::ZCode => "zCode",
             SupportedApp::Agents => "agents",
             SupportedApp::CodeBuddy => "codeBuddy",
             SupportedApp::Auggie => "auggie",
@@ -119,6 +122,7 @@ impl SupportedApp {
             SupportedApp::KiloCode => "Kilo Code",
             SupportedApp::FactoryDroid => "Factory Droid",
             SupportedApp::KimiCli => "Kimi CLI",
+            SupportedApp::ZCode => "ZCode",
             SupportedApp::Agents => ".agents (Codebuff / Freebuff)",
             SupportedApp::CodeBuddy => "CodeBuddy Code",
             SupportedApp::Auggie => "Auggie",
@@ -152,6 +156,7 @@ impl SupportedApp {
             SupportedApp::KiloCode => "kilo-code",
             SupportedApp::FactoryDroid => "factory-droid",
             SupportedApp::KimiCli => "kimi-cli",
+            SupportedApp::ZCode => "zcode",
             SupportedApp::Agents => "agents",
             SupportedApp::CodeBuddy => "codebuddy",
             SupportedApp::Auggie => "auggie",
@@ -433,6 +438,7 @@ pub fn empty_apps() -> HashMap<SupportedApp, bool> {
         (SupportedApp::KiloCode, false),
         (SupportedApp::FactoryDroid, false),
         (SupportedApp::KimiCli, false),
+        (SupportedApp::ZCode, false),
         (SupportedApp::Agents, false),
         (SupportedApp::CodeBuddy, false),
         (SupportedApp::Auggie, false),
@@ -497,23 +503,23 @@ pub fn merge_servers(current: Option<&MCPServer>, incoming: &MCPServer) -> MCPSe
         }
     }
 
-    // .agents files replace whole server definitions by scope. Do not borrow
-    // a lower-priority URL/headers into a winning stdio or header-free entry.
-    let uses_agents = |server: &MCPServer| {
-        server
-            .apps
-            .get(&SupportedApp::Agents)
-            .copied()
-            .unwrap_or(false)
-            || server
-                .placements
-                .iter()
-                .any(|p| p.app == SupportedApp::Agents && p.enabled)
+    // Native ZCode definitions beat shared Agents definitions; both are whole entries.
+    let rank = |server: &MCPServer| {
+        [SupportedApp::Agents, SupportedApp::ZCode]
+            .into_iter()
+            .enumerate()
+            .filter(|(_, app)| {
+                server.apps.get(app).copied().unwrap_or(false)
+                    || server.placements.iter().any(|p| p.app == *app && p.enabled)
+            })
+            .map(|(index, _)| index + 1)
+            .max()
+            .unwrap_or(0)
     };
-    if uses_agents(incoming) && !uses_agents(current) {
+    if rank(incoming) > rank(current) {
         merged.command = incoming.command.clone();
         merged.transport = incoming.transport.clone();
-    } else if !uses_agents(current) {
+    } else if rank(current) == 0 {
         if merged.command.is_none() && incoming.command.is_some() {
             merged.command = incoming.command.clone();
         }

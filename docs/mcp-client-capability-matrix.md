@@ -37,6 +37,7 @@ storage path, merge behavior, and precedence.
 | Auggie (Augment CLI) | `~/.augment/settings.json` | `.augment/settings.json` | `.augment/settings.local.json` (private, local > project > user); organization-managed settings (read-only, not imported) | Direct project support. JSONC `mcpServers` edited in place; remote entries use `type: http` / `type: sse` and `headers`. Imported local entries are written back to their private file. New project entries use the shared file |
 | CodeBuddy Code | First existing: `~/.codebuddy/.mcp.json`, `~/.codebuddy/mcp.json`, `~/.codebuddy.json`; default to the first path for new installs | `.mcp.json`, managed through Claude Code | Private local entries in `~/.codebuddy.json.projects[path]` and deprecated project `mcp.json` (not managed) | User only in direct controls; project via Claude Code. JSONC `mcpServers` edited in place. Read and write only the active user file; do not merge deprecated files. Remote entries use `type: http` / `type: sse` and `headers` |
 | Shared `.agents` (Codebuff / Freebuff) | `~/.agents/mcp.json` | `.agents/mcp.json` | Immediate parent's `.agents/mcp.json` (read-only import) | One shared-file target, with CLI aliases `codebuff` / `freebuff`. Global > parent > project for same-name servers, matching the upstream loader's actual merge order. HTTP/SSE use `type`, `url`, `headers`; `params` are retained. Parent files are never apply targets. Project secrets warn; supported `$VAR` references are retained without local expansion |
+| ZCode | `~/.zcode/cli/config.json` → `mcp.servers` | `.zcode/config.json` → `mcp.servers` | Same-scope `.agents/mcp.json` fallback, only when native definitions are empty | Direct project support with user > workspace precedence. Native files are edited only under the nested `mcp.servers` path. Fallbacks are imported but never written by this adapter; the first native write carries forward fallback entries so they are not silently shadowed. Client-owned `enable: false`, timeouts and OAuth settings survive rewrites |
 | Kimi CLI | `~/.kimi/mcp.json` | Unsupported | None | User only; remote servers are written without `type` |
 | Zed | `~/.config/zed/settings.json` (Windows: `%APPDATA%\\Zed\\settings.json`) | `.zed/settings.json` | None | Direct project support. Servers live under `context_servers` in the editor settings file, which is edited in place. No `type` field; older nested `command: {path, args, env}` entries are read and rewritten flat. Extension-provided servers (only `settings`) are left alone |
 | Mistral Vibe | `~/.vibe/config.toml` | `.vibe/config.toml` (trusted folders only) | None | Direct project support. Servers are a `[[mcp_servers]]` list keyed by `name`, edited in place. Remote servers are written as `streamable-http` with headers in a static `auth` table; SSE servers are not written (Vibe has no SSE client) and the apply reports it. Vibe rejects unknown fields, so no `type` is written |
@@ -160,3 +161,26 @@ Parent entries are imported as unmanaged read-only placements. Their paths and
 priority are not displayed in the dashboard; edit the parent file to change them. Applied writes are restricted
 to the current project's and user's file. ZCode fallback handling remains #59.
 Remote query parameters and other unmodeled fields survive managed rewrites.
+
+## ZCode verification (2026-11-08)
+
+The [official MCP guide](https://zcode.z.ai/en/docs/mcp-services) confirms native
+user/workspace paths and `mcp.servers`, HTTP/SSE and request headers, and the
+client-owned `enable` switch. User definitions override project definitions.
+Within one scope, a **nonempty native server map** suppresses `.agents`; an
+empty map or a config containing only unrelated settings does not.
+
+Import reads native definitions when present, otherwise same-scope `.agents`
+definitions. Apply always writes the native file, retaining fallback settings
+when it first creates native server definitions. The shared file remains owned
+by the `.agents` adapter. Native JSON path edits preserve hooks, permission
+settings, plugin toggles, sibling `mcp` fields and comments. Removing every
+native definition permits the client's fallback to load again; manage the
+shared target too when removing a service from every consumer.
+
+Project fallback migration requires importing all of its servers first (CLI:
+`--from <project>/.agents/mcp.json -a zcode --project`). This prevents raw,
+unreviewed fallback credentials from being copied into a new shared native file
+outside the normal server-level secret review. User-level migration remains
+private. The nested-write mode uses JSON Pointer `/mcp/servers`, so a literal
+key named `mcp.servers` or `amp.mcpServers` is never mistaken for nesting.

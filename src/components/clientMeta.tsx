@@ -134,6 +134,12 @@ export const CLIENTS: ClientMeta[] = [
     icon: <ClientLogo src="/logos/apps/agents.svg" alt="Shared .agents configuration" />,
   },
   {
+    id: 'zCode',
+    label: 'ZCode',
+    accent: 'client-zcode',
+    icon: <ClientLogo src="/logos/apps/zcode.png" alt="ZCode" />,
+  },
+  {
     id: 'kimiCli',
     label: 'Kimi CLI',
     accent: 'client-cursor',

@@ -24,6 +24,7 @@ mod qoder;
 mod qwen_code;
 mod vscode;
 mod windsurf;
+mod zcode;
 mod zed;
 
 use crate::core::{
@@ -60,6 +61,8 @@ pub use qoder::QoderAdapter;
 pub use qwen_code::QwenCodeAdapter;
 pub use vscode::VSCodeAdapter;
 pub use windsurf::WindsurfAdapter;
+pub(crate) use zcode::validate_project_fallback;
+pub use zcode::ZCodeAdapter;
 pub use zed::ZedAdapter;
 
 pub struct ParsedSources {
@@ -116,6 +119,7 @@ pub fn workspace_scope_path(ctx: &PlatformContext, app: SupportedApp) -> Option<
         // Amp asks before it runs servers from workspace settings.
         SupportedApp::Amp => ".amp/settings.json",
         SupportedApp::Grok => ".grok/config.toml",
+        SupportedApp::ZCode => ".zcode/config.json",
         SupportedApp::Agents => ".agents/mcp.json",
         SupportedApp::Auggie => ".augment/settings.json",
         // Devin's shared, committed project file. Its gitignored
@@ -877,7 +881,10 @@ pub fn standard_mcp_servers_at(
                     Value::String(
                         if matches!(
                             app,
-                            SupportedApp::Auggie | SupportedApp::CodeBuddy | SupportedApp::Agents
+                            SupportedApp::Auggie
+                                | SupportedApp::CodeBuddy
+                                | SupportedApp::Agents
+                                | SupportedApp::ZCode
                         ) && server.transport.kind == "streamable-http"
                         {
                             "http".to_string()
@@ -983,6 +990,7 @@ pub fn adapters() -> Vec<Box<dyn AppAdapter>> {
         Box::new(KiloCodeAdapter),
         Box::new(FactoryDroidAdapter),
         Box::new(KimiCliAdapter),
+        Box::new(ZCodeAdapter),
         Box::new(AgentsAdapter),
         Box::new(CodeBuddyAdapter),
         Box::new(AuggieAdapter),

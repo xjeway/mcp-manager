@@ -175,6 +175,7 @@ impl PlatformContext {
             }
             SupportedApp::FactoryDroid => self.home_dir.join(".factory/mcp.json"),
             SupportedApp::KimiCli => self.home_dir.join(".kimi/mcp.json"),
+            SupportedApp::ZCode => self.home_dir.join(".zcode/cli/config.json"),
             SupportedApp::Agents => self.home_dir.join(".agents/mcp.json"),
             SupportedApp::CodeBuddy => self.codebuddy_config_path(),
             SupportedApp::Auggie => self.home_dir.join(".augment/settings.json"),
@@ -279,6 +280,7 @@ impl PlatformContext {
             SupportedApp::KiloCode => (&["kilo", "kilocode"][..], &[][..], &[][..]),
             SupportedApp::FactoryDroid => (&["droid"][..], &[][..], &[][..]),
             SupportedApp::KimiCli => (&["kimi"][..], &[][..], &[][..]),
+            SupportedApp::ZCode => (&["zcode"][..], &["ZCode.app"][..], &[][..]),
             SupportedApp::Agents => (&["codebuff", "freebuff"][..], &[][..], &[][..]),
             SupportedApp::CodeBuddy => (&["codebuddy"][..], &[][..], &[][..]),
             SupportedApp::Auggie => (&["auggie"][..], &[][..], &[][..]),
@@ -401,6 +403,7 @@ impl PlatformContext {
             | SupportedApp::KiloCode
             | SupportedApp::FactoryDroid
             | SupportedApp::KimiCli
+            | SupportedApp::ZCode
             | SupportedApp::CodeBuddy
             | SupportedApp::Auggie
             | SupportedApp::Zed

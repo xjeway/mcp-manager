@@ -878,3 +878,45 @@ fn agents_retained_secret_warnings_include_servers_outside_the_command_focus() {
         "nonfocus-private"
     );
 }
+
+#[test]
+fn zcode_native_writes_preserve_fallbacks_and_project_nesting() {
+    let sandbox = Sandbox::new();
+    let fallback = sandbox.home.join(".agents/mcp.json");
+    fs::create_dir_all(fallback.parent().unwrap()).unwrap();
+    let fallback_text = r#"{"mcpServers":{"keep":{"command":"node","args":["keep.js"],"enable":false,"timeoutMs":9000}}}"#;
+    fs::write(&fallback, fallback_text).unwrap();
+    sandbox.ok(&[
+        "add",
+        "api",
+        "--url",
+        "https://example.com/mcp",
+        "-a",
+        "zcode",
+        "--global",
+        "-y",
+    ]);
+    let native = sandbox.read_json(&sandbox.home.join(".zcode/cli/config.json"));
+    assert_eq!(native["mcp"]["servers"]["api"]["type"], "http");
+    assert_eq!(native["mcp"]["servers"]["keep"]["enable"], false);
+    assert_eq!(native["mcp"]["servers"]["keep"]["timeoutMs"], 9000);
+    assert_eq!(fs::read_to_string(&fallback).unwrap(), fallback_text);
+    let report = sandbox.json(&[
+        "add",
+        "project",
+        "-a",
+        "zcode",
+        "--project",
+        "--env",
+        "API_KEY=literal-secret",
+        "-y",
+        "--json",
+        "--",
+        "node",
+        "project.js",
+    ]);
+    assert_eq!(report["warnings"][0]["kind"], "sharedProjectSecret");
+    let project = sandbox.read_json(&sandbox.project.join(".zcode/config.json"));
+    assert_eq!(project["mcp"]["servers"]["project"]["command"], "node");
+    assert!(project.get("mcpServers").is_none());
+}

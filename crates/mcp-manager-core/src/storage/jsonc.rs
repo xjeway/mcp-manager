@@ -429,6 +429,57 @@ pub fn merge_object_entries(
     Ok(apply_edits(text, edits))
 }
 
+/// Merges server entries under a nested key path without rewriting sibling settings.
+pub fn merge_object_entries_at_path(
+    text: &str,
+    path: &[String],
+    new_entries: &Map<String, Value>,
+    remove_keys: &[String],
+    carry_over: impl Fn(&Value, &mut Value) + Copy,
+) -> Result<String, String> {
+    let Some((key, rest)) = path.split_first() else {
+        return Err("empty JSON object path".into());
+    };
+    if rest.is_empty() {
+        return merge_object_entries(text, key, new_entries, remove_keys, carry_over);
+    }
+    let text = if text.trim().is_empty() { "{}" } else { text };
+    let root = root_object(text)?;
+    if let Some(member) = root.members.iter().rev().find(|member| &member.key == key) {
+        if text.as_bytes()[member.value_start] != b'{' {
+            return Err(format!("path segment {key} does not contain a JSON object"));
+        }
+        let updated = merge_object_entries_at_path(
+            &text[member.value_start..member.value_end],
+            rest,
+            new_entries,
+            remove_keys,
+            carry_over,
+        )?;
+        return Ok(apply_edits(
+            text,
+            vec![Edit {
+                start: member.value_start,
+                end: member.value_end,
+                text: updated,
+            }],
+        ));
+    }
+    if new_entries.is_empty() {
+        return Ok(text.to_string());
+    }
+    let mut value = Value::Object(new_entries.clone());
+    for segment in rest.iter().rev() {
+        value = serde_json::json!({segment: value});
+    }
+    Ok(append_members(
+        text,
+        &root,
+        &[(key.clone(), value)],
+        &indent_unit(text, &root),
+    ))
+}
+
 /// Appends members to the end of `object`.
 fn append_members(text: &str, object: &Object, members: &[(String, Value)], unit: &str) -> String {
     let (member_indent, close_indent) = member_and_close_indent(text, object, unit);

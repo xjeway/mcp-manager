@@ -31,6 +31,7 @@ describe('client capabilities', () => {
       'qwenCode',
       'vscode',
       'windsurf',
+      'zCode',
       'zed',
     ])
   })

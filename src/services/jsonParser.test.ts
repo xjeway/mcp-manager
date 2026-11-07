@@ -89,6 +89,7 @@ describe('parseMcpJson', () => {
       kiloCode: false,
       factoryDroid: false,
       kimiCli: false,
+      zCode: false,
       agents: false,
       codeBuddy: false,
       auggie: false,
