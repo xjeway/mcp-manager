@@ -142,8 +142,15 @@ pub fn apply(
     config: &MCPConfig,
     previous_config: Option<&MCPConfig>,
 ) -> Result<ApplyResult, String> {
-    let operations = plan(ctx, config, previous_config);
+    apply_plan(ctx, config, plan(ctx, config, previous_config))
+}
 
+/// Applies exactly these operations without resolving client paths again.
+fn apply_plan(
+    ctx: &PlatformContext,
+    config: &MCPConfig,
+    operations: Vec<WriteOperation>,
+) -> Result<ApplyResult, String> {
     for operation in &operations {
         let path = ctx.resolve_path(&operation.path);
         if !ctx.can_write(&path) {
@@ -184,10 +191,85 @@ pub struct PlannedChange {
     pub action: ChangeAction,
 }
 
+/// A single preview and its approved target files. Applying never replans it.
+pub struct PreparedApply {
+    operations: Vec<WriteOperation>,
+    snapshot: Snapshot,
+    config: MCPConfig,
+    previous: Option<MCPConfig>,
+    pub changes: Vec<PlannedChange>,
+}
+
+impl PreparedApply {
+    /// Rejects changed contents or active paths before any write is attempted.
+    pub fn validate(&self, ctx: &PlatformContext) -> Result<(), String> {
+        let current = snapshot(ctx, &self.config, self.previous.as_ref())?;
+        if self.snapshot.fingerprints()? != current.fingerprints()? {
+            return Err("Client configuration changed after the preview (contents or active path). Nothing was written; run the command again to review the new target.".into());
+        }
+        Ok(())
+    }
+
+    /// Captures rollback state for the frozen targets without resolving paths again.
+    pub fn snapshot(&self, ctx: &PlatformContext) -> Result<Snapshot, String> {
+        let mut snapshot = Snapshot::default();
+        for operation in &self.operations {
+            snapshot.capture(&ctx.resolve_path(&operation.path))?;
+        }
+        Ok(snapshot)
+    }
+
+    /// Rechecks the targets and applies the frozen, previewed operations only.
+    pub fn apply(&self, ctx: &PlatformContext) -> Result<ApplyResult, String> {
+        self.validate(ctx)?;
+        apply_plan(ctx, &self.config, self.operations.clone())
+    }
+}
+
+/// Prepares the preview, file fingerprints and writes from one resolved plan.
+pub fn prepare(
+    ctx: &PlatformContext,
+    config: &MCPConfig,
+    previous: Option<&MCPConfig>,
+) -> Result<PreparedApply, String> {
+    let by_app = plan_by_app(ctx, config, previous);
+    let operations = by_app
+        .iter()
+        .map(|(_, operation)| operation.clone())
+        .collect::<Vec<_>>();
+    let mut snapshot = Snapshot::default();
+    for operation in &operations {
+        snapshot.capture(&ctx.resolve_path(&operation.path))?;
+    }
+    let prepared = PreparedApply {
+        changes: preview_plan(ctx, &by_app, previous),
+        operations,
+        snapshot,
+        config: config.clone(),
+        previous: previous.cloned(),
+    };
+    // Fail conservatively if the file changed while the preview was read.
+    prepared.validate(ctx)?;
+    Ok(prepared)
+}
+
 /// What [`apply`] would do to each server in each client file, without writing.
 pub fn preview(
     ctx: &PlatformContext,
     config: &MCPConfig,
+    previous_config: Option<&MCPConfig>,
+) -> Vec<PlannedChange> {
+    preview_plan(
+        ctx,
+        &plan_by_app(ctx, config, previous_config),
+        previous_config,
+    )
+}
+
+/// Describes the supplied operations rather than re-resolving their paths.
+fn preview_plan(
+    ctx: &PlatformContext,
+    operations: &[(SupportedApp, WriteOperation)],
     previous_config: Option<&MCPConfig>,
 ) -> Vec<PlannedChange> {
     let previously_written = previous_config
@@ -195,7 +277,7 @@ pub fn preview(
         .unwrap_or_default();
 
     let mut changes = Vec::new();
-    for (app, operation) in plan_by_app(ctx, config, previous_config) {
+    for (app, operation) in operations {
         let Some(field) = operation.field.as_deref() else {
             continue;
         };
@@ -204,11 +286,11 @@ pub fn preview(
         }
 
         let desired = object_from_json(&operation.content);
-        let existing = existing_entries(ctx, &operation, field);
+        let existing = existing_entries(ctx, operation, field);
         let managed_before = previously_written
             .iter()
             .filter(|(previous_app, previous)| {
-                *previous_app == app
+                previous_app == app
                     && previous.path == operation.path
                     && previous.field == operation.field
             })
@@ -223,7 +305,7 @@ pub fn preview(
         let mut push = |server_id: &str, action| {
             changes.push(PlannedChange {
                 server_id: server_id.to_string(),
-                app,
+                app: *app,
                 scope,
                 path: operation.path.clone(),
                 action,
@@ -359,6 +441,52 @@ mod tests {
             home_dir: abs("/Users/test"),
             workspace_root: abs(workspace_root),
         }
+    }
+
+    #[test]
+    fn prepared_apply_rejects_changes_after_validation_without_touching_either_file() {
+        use crate::adapters::{AppAdapter, CodeBuddyAdapter};
+        let temp = tempdir().unwrap();
+        let ctx = PlatformContext {
+            os: PlatformOs::MacOS,
+            home_dir: temp.path().join("home"),
+            workspace_root: temp.path().join("project"),
+        };
+        let legacy = ctx.home_dir.join(".codebuddy/mcp.json");
+        fs::create_dir_all(legacy.parent().unwrap()).unwrap();
+        let original = r#"{"mcpServers":{"api":{"command":"old"}}}"#;
+        fs::write(&legacy, original).unwrap();
+        let mut server = CodeBuddyAdapter
+            .parse_source(&ctx, &legacy.to_string_lossy(), 20, original)
+            .servers
+            .remove(0)
+            .0;
+        server.command.as_mut().unwrap().program = "new".into();
+        let config = MCPConfig {
+            version: 1,
+            servers: vec![server],
+        };
+        let prepared = super::prepare(&ctx, &config, None).unwrap();
+        assert_eq!(prepared.changes[0].path, legacy.to_string_lossy());
+        prepared.validate(&ctx).unwrap();
+        // Simulates an external client changing the active path after validation.
+        let preferred = ctx.home_dir.join(".codebuddy/.mcp.json");
+        fs::write(&preferred, "{}").unwrap();
+        let rollback = prepared.snapshot(&ctx).unwrap();
+        assert_eq!(rollback.paths().collect::<Vec<_>>(), vec![legacy.as_path()]);
+        assert!(prepared.apply(&ctx).unwrap_err().contains("active path"));
+        assert_eq!(fs::read_to_string(&preferred).unwrap(), "{}");
+        assert_eq!(fs::read_to_string(&legacy).unwrap(), original);
+        fs::remove_file(preferred).unwrap();
+        fs::write(&legacy, original.replace("old", "external-edit")).unwrap();
+        assert!(prepared.apply(&ctx).is_err());
+        assert!(fs::read_to_string(&legacy)
+            .unwrap()
+            .contains("external-edit"));
+        // Restoring the approved state lets the real prepared apply succeed.
+        fs::write(&legacy, original).unwrap();
+        prepared.apply(&ctx).unwrap();
+        assert!(fs::read_to_string(&legacy).unwrap().contains("new"));
     }
 
     #[test]
