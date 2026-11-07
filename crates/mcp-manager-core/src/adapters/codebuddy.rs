@@ -3,13 +3,16 @@ use crate::core::{LocalConfigSource, MCPConfig, SupportedApp, WriteOperation};
 use crate::parser::{enable_servers_for_app_at, parse_mcp_json};
 use crate::platform::PlatformContext;
 
+/// User-scope CodeBuddy adapter; the shared project file has one Claude Code writer.
 pub struct CodeBuddyAdapter;
 
 impl AppAdapter for CodeBuddyAdapter {
+    /// Identifies the client for registry dispatch and configuration serialization.
     fn app(&self) -> SupportedApp {
         SupportedApp::CodeBuddy
     }
 
+    /// Reads only the first existing user file, matching CodeBuddy precedence.
     fn detect_sources(&self, ctx: &PlatformContext) -> Vec<(String, u32)> {
         // The shared project `.mcp.json` is handled by Claude Code, also for
         // CodeBuddy and Copilot. Never register a second writer for that file.
@@ -21,6 +24,7 @@ impl AppAdapter for CodeBuddyAdapter {
         )]
     }
 
+    /// Imports the selected JSONC file while leaving private project entries untouched.
     fn parse_source(
         &self,
         ctx: &PlatformContext,
@@ -52,6 +56,7 @@ impl AppAdapter for CodeBuddyAdapter {
         }
     }
 
+    /// Plans an in-place merge into the currently active user file.
     fn plan_apply(
         &self,
         ctx: &PlatformContext,
@@ -255,6 +260,46 @@ mod tests {
         assert!(written["projects"]["/private"]["mcpServers"]
             .get("private")
             .is_some());
+    }
+
+    #[test]
+    fn command_updates_preserve_comments_inside_managed_server_objects() {
+        let temp = tempfile::tempdir().unwrap();
+        let ctx = ctx(temp.path(), PlatformOs::MacOS);
+        let path = ctx.user_app_config_path(SupportedApp::CodeBuddy);
+        fs::create_dir_all(path.parent().unwrap()).unwrap();
+        let text = r#"{
+  "mcpServers": {
+    "local": {
+      "command": "old",
+      // This description explains the server.
+      "description": "Keep me", /* inline explanation */
+      "tools": {
+        // This tool is deliberately deferred.
+        "search": {"defer_loading": true}
+      }
+    }
+  }
+}"#;
+        fs::write(&path, text).unwrap();
+        let parsed = CodeBuddyAdapter.parse_source(&ctx, &path.to_string_lossy(), 20, text);
+        let mut server = parsed.servers.into_iter().next().unwrap().0;
+        server.command.as_mut().unwrap().program = "new".into();
+        let config = MCPConfig {
+            version: 1,
+            servers: vec![server],
+        };
+        for op in CodeBuddyAdapter.plan_apply(&ctx, &config, None) {
+            apply_operation(&path, &op).unwrap();
+        }
+        let written = fs::read_to_string(&path).unwrap();
+        assert!(written.contains("// This description explains the server."));
+        assert!(written.contains("/* inline explanation */"));
+        assert!(written.contains("// This tool is deliberately deferred."));
+        assert_eq!(
+            parse_jsonc(&written).unwrap()["mcpServers"]["local"]["command"],
+            "new"
+        );
     }
 
     #[test]

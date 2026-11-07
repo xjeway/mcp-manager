@@ -233,7 +233,7 @@ pub fn preview(
         for (id, value) in &desired {
             let action = match existing.get(id) {
                 None => ChangeAction::Add,
-                Some(current) if current == &with_kept_fields(current, value) => {
+                Some(current) if current == &with_kept_fields(current, value, &operation.mode) => {
                     ChangeAction::Unchanged
                 }
                 Some(_) if managed_before.contains(id) => ChangeAction::Update,
@@ -253,9 +253,13 @@ pub fn preview(
 
 /// `desired` as the apply will write it over `current`, which keeps the
 /// fields MCP Manager does not model.
-fn with_kept_fields(current: &Value, desired: &Value) -> Value {
+fn with_kept_fields(current: &Value, desired: &Value, mode: &str) -> Value {
     let mut written = desired.clone();
-    crate::storage::carry_unmanaged_fields(current, &mut written);
+    if mode == "merge_json_object_entries" {
+        crate::storage::carry_unmanaged_json_fields(current, &mut written);
+    } else {
+        crate::storage::carry_unmanaged_fields(current, &mut written);
+    }
     written
 }
 

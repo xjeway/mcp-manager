@@ -414,14 +414,22 @@ pub(crate) fn carry_unmanaged_fields(old: &Value, new: &mut Value) {
     let has_auth = new.contains_key("auth");
     for (field, value) in old {
         let moved_into_auth = has_auth && API_KEY_FIELDS.contains(&field.as_str());
-        // CodeBuddy's `tools` object contains per-tool overrides. It is not
-        // the managed array of tool names emitted for clients such as Copilot.
-        let tool_overrides = field == "tools" && value.is_object();
-        if (!is_transport_field(field) || tool_overrides)
-            && !moved_into_auth
-            && !new.contains_key(field)
-        {
+        if !is_transport_field(field) && !moved_into_auth && !new.contains_key(field) {
             new.insert(field.clone(), value.clone());
+        }
+    }
+}
+
+/// Carries JSON client fields, including CodeBuddy's unmodeled per-tool map.
+/// TOML/YAML clients keep their existing transport-field rules.
+pub(crate) fn carry_unmanaged_json_fields(old: &Value, new: &mut Value) {
+    carry_unmanaged_fields(old, new);
+    let (Some(old), Some(new)) = (old.as_object(), new.as_object_mut()) else {
+        return;
+    };
+    if is_local_entry(old.keys()) == is_local_entry(new.keys()) && !new.contains_key("tools") {
+        if let Some(tools) = old.get("tools").filter(|value| value.is_object()) {
+            new.insert("tools".into(), tools.clone());
         }
     }
 }
@@ -442,7 +450,7 @@ fn apply_merge_json_object_entries(
         field,
         new_entries,
         remove_keys.unwrap_or_default(),
-        carry_unmanaged_fields,
+        carry_unmanaged_json_fields,
     )
     .map_err(|error| unreadable(path, error))?;
     atomic_write(path, &updated)
@@ -705,20 +713,48 @@ mod tests {
     fn preserves_tool_configuration_objects_without_preserving_managed_tool_lists() {
         use serde_json::json;
         let mut new = json!({"url":"https://new/mcp"});
-        super::carry_unmanaged_fields(
+        super::carry_unmanaged_json_fields(
             &json!({"url":"https://old/mcp","tools":{"search":{"defer_loading":true}}}),
             &mut new,
         );
         assert_eq!(new["tools"], json!({"search":{"defer_loading":true}}));
         let mut new = json!({"url":"https://new/mcp"});
-        super::carry_unmanaged_fields(&json!({"url":"https://old/mcp","tools":["old"]}), &mut new);
+        super::carry_unmanaged_json_fields(
+            &json!({"url":"https://old/mcp","tools":["old"]}),
+            &mut new,
+        );
         assert!(new.get("tools").is_none());
         let mut new = json!({"url":"https://new/mcp","tools":["*"]});
-        super::carry_unmanaged_fields(
+        super::carry_unmanaged_json_fields(
             &json!({"url":"https://old/mcp","tools":{"search":{}}}),
             &mut new,
         );
         assert_eq!(new["tools"], json!(["*"]));
+    }
+
+    #[test]
+    fn json_tool_maps_do_not_change_codex_toml_rewrites() {
+        use serde_json::json;
+        let old = json!({"url":"https://old/mcp", "tools":{"search":"old"}});
+        let mut written = json!({"url":"https://new/mcp"});
+        super::carry_unmanaged_fields(&old, &mut written);
+        assert!(written.get("tools").is_none());
+        let temp = tempfile::tempdir().unwrap();
+        let path = temp.path().join("config.toml");
+        fs::write(
+            &path,
+            "[mcp_servers.api]\nurl = 'https://old/mcp'\ntools = { search = 'old' }\n",
+        )
+        .unwrap();
+        super::apply_merge_toml_table_entries(
+            &path,
+            "mcp_servers",
+            &json!({"api":{"url":"https://new/mcp"}}).to_string(),
+            Some(&["api".into()]),
+        )
+        .unwrap();
+        let parsed: toml::Value = toml::from_str(&fs::read_to_string(path).unwrap()).unwrap();
+        assert!(parsed["mcp_servers"]["api"].get("tools").is_none());
     }
 
     #[test]

@@ -37,6 +37,9 @@ pub fn commit(session: &Session, change: Change, dry_run: bool) -> Outcome<bool>
         return Err(Failure::Error(lines.join("\n")));
     }
 
+    // Capture before presenting the preview; confirmation cannot authorize a
+    // different active file or later edits to its contents.
+    let preview_files = workflow::snapshot(&session.ctx, &change.after, Some(&change.before))?;
     let changes = workflow::preview(&session.ctx, &change.after, Some(&change.before))
         .into_iter()
         .filter(|c| change.focus.contains(&c.server_id) || c.action != ChangeAction::Unchanged)
@@ -101,6 +104,7 @@ pub fn commit(session: &Session, change: Change, dry_run: bool) -> Outcome<bool>
                 );
             }
             let files = workflow::snapshot(&session.ctx, &after, Some(&before))?;
+            ensure_preview_unchanged(&preview_files, &files)?;
             // apply undoes its own partial writes when it fails.
             let applied = workflow::apply(&session.ctx, &after, Some(&before))?;
             *current = after.clone();
@@ -181,6 +185,17 @@ pub fn commit(session: &Session, change: Change, dry_run: bool) -> Outcome<bool>
 pub fn print_json(value: &impl Serialize) -> Outcome<()> {
     let text = serde_json::to_string_pretty(value).map_err(|e| e.to_string())?;
     println!("{text}");
+    Ok(())
+}
+
+/// Rejects any target-path or content change since the preview was prepared.
+fn ensure_preview_unchanged(
+    preview: &mcp_manager_core::storage::Snapshot,
+    current: &mcp_manager_core::storage::Snapshot,
+) -> Result<(), String> {
+    if preview.fingerprints()? != current.fingerprints()? {
+        return Err("Client configuration changed after the preview (contents or active path). Nothing was written; run the command again to review the new target.".into());
+    }
     Ok(())
 }
 
@@ -303,4 +318,48 @@ fn summary(session: &Session, changes: &[PlannedChange]) -> String {
         short_path(session, &backups.to_string_lossy())
     ));
     lines.join("\n")
+}
+
+#[cfg(test)]
+mod preview_guard_tests {
+    use super::ensure_preview_unchanged;
+    use mcp_manager_core::{
+        core::SupportedApp,
+        platform::{PlatformContext, PlatformOs},
+        storage::Snapshot,
+    };
+    use std::fs;
+
+    #[test]
+    fn rejects_a_new_preferred_codebuddy_path_or_modified_entries() {
+        let temp = tempfile::tempdir().unwrap();
+        let ctx = PlatformContext {
+            os: PlatformOs::MacOS,
+            home_dir: temp.path().join("home"),
+            workspace_root: temp.path().join("project"),
+        };
+        fs::create_dir_all(ctx.home_dir.join(".codebuddy")).unwrap();
+        let legacy = ctx.home_dir.join(".codebuddy/mcp.json");
+        fs::write(&legacy, r#"{"mcpServers":{"api":{"command":"old"}}}"#).unwrap();
+        let capture = || {
+            let mut snapshot = Snapshot::default();
+            snapshot
+                .capture(&ctx.user_app_config_path(SupportedApp::CodeBuddy))
+                .unwrap();
+            snapshot
+        };
+        let preview = capture();
+        assert!(ensure_preview_unchanged(&preview, &capture()).is_ok());
+        let preferred = ctx.home_dir.join(".codebuddy/.mcp.json");
+        fs::write(&preferred, "{}").unwrap();
+        assert!(ensure_preview_unchanged(&preview, &capture())
+            .unwrap_err()
+            .contains("active path"));
+        assert_eq!(fs::read_to_string(&preferred).unwrap(), "{}");
+        fs::remove_file(preferred).unwrap();
+        let changed = r#"{"mcpServers":{"api":{"command":"external-edit"}}}"#;
+        fs::write(&legacy, changed).unwrap();
+        assert!(ensure_preview_unchanged(&preview, &capture()).is_err());
+        assert_eq!(fs::read_to_string(legacy).unwrap(), changed);
+    }
 }

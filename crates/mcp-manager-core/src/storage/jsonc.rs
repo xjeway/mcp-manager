@@ -271,6 +271,24 @@ fn comma_after(text: &str, member: &Member) -> Result<Option<usize>, String> {
     Ok((text.as_bytes().get(next) == Some(&b',')).then_some(next))
 }
 
+/// Rewrites object fields recursively so retained settings keep their comments.
+/// Scalars and changed arrays are rendered as values; identical values stay byte-for-byte.
+fn rewrite_value(text: &str, value: &Value, indent: &str, unit: &str) -> Result<String, String> {
+    let old = crate::parser::parse_jsonc(text)?;
+    if &old == value {
+        return Ok(text.to_string());
+    }
+    if let (Some(old), Some(new)) = (old.as_object(), value.as_object()) {
+        let remove = old.keys().cloned().collect::<Vec<_>>();
+        let wrapper = format!("{{\"_\":{text}}}");
+        let rewritten = merge_object_entries(&wrapper, "_", new, &remove, |_, _| {})?;
+        let root = root_object(&rewritten)?;
+        let member = &root.members[0];
+        return Ok(rewritten[member.value_start..member.value_end].to_string());
+    }
+    Ok(render(value, indent, unit))
+}
+
 /// Replaces, removes and adds entries of the object stored under `field` in
 /// the root object, leaving the rest of `text` untouched.
 ///
@@ -326,7 +344,12 @@ pub fn merge_object_entries(
                 edits.push(Edit {
                     start: member.value_start,
                     end: member.value_end,
-                    text: render(&value, indent, &unit),
+                    text: rewrite_value(
+                        &text[member.value_start..member.value_end],
+                        &value,
+                        indent,
+                        &unit,
+                    )?,
                 });
                 continue;
             }
@@ -512,10 +535,10 @@ mod tests {
             json!({"managed": {"type": "local", "command": ["new"]}}),
             &["managed"],
         );
-        // Only the rewritten entry changes; it is printed fresh, keys sorted.
+        // Only the changed field is rendered; the entry's order and comma style survive.
         let expected = OPENCODE.replace(
-            "{\n      \"type\": \"local\",\n      \"command\": [\"old\"],\n    }",
-            "{\n      \"command\": [\n        \"new\"\n      ],\n      \"type\": \"local\"\n    }",
+            "\"command\": [\"old\"]",
+            "\"command\": [\n        \"new\"\n      ]",
         );
         assert_eq!(out, expected);
     }
