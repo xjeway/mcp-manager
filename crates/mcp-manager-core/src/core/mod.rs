@@ -370,6 +370,10 @@ pub struct ApplyWarning {
     pub kind: String,
     pub app: SupportedApp,
     pub server_id: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub path: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub key: Option<String>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

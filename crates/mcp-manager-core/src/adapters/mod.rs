@@ -554,6 +554,8 @@ pub fn apply_warnings(config: &MCPConfig) -> Vec<ApplyWarning> {
         kind: kind.to_string(),
         app,
         server_id: server.id.clone(),
+        path: None,
+        key: None,
     };
     let mut warnings = Vec::new();
     for server in config.servers.iter().filter(|server| server.enabled) {
@@ -566,6 +568,95 @@ pub fn apply_warnings(config: &MCPConfig) -> Vec<ApplyWarning> {
         }
     }
     warnings
+}
+
+/// Warn without exposing values. Explicit project placements are the only project writes;
+/// `apps` toggles alone target user configuration. Devin's local override is private.
+pub fn shared_project_secret_warnings(
+    ctx: &PlatformContext,
+    config: &MCPConfig,
+) -> Vec<ApplyWarning> {
+    let mut warnings = Vec::new();
+    for server in config.servers.iter().filter(|server| server.enabled) {
+        for placement in server
+            .placements
+            .iter()
+            .filter(|p| p.enabled && p.scope == PlacementScope::Workspace)
+        {
+            if workspace_scope_path(ctx, placement.app).is_none() {
+                continue;
+            }
+            let Some(path) = placement_path(ctx, placement.app, placement) else {
+                continue;
+            };
+            if placement.app == SupportedApp::Windsurf
+                && path.replace('\\', "/").ends_with("/mcp_config.local.json")
+            {
+                continue;
+            }
+            if server.transport.kind == "sse" && !sse_supported(placement.app) {
+                continue;
+            }
+            let mut values: Vec<_> = if server.transport.kind == "stdio" {
+                server
+                    .command
+                    .iter()
+                    .flat_map(|command| command.env.iter())
+                    .collect()
+            } else if http_headers_supported(placement.app) {
+                server.transport.headers.iter().collect()
+            } else {
+                Vec::new()
+            };
+            values.sort_by_key(|(key, _)| *key);
+            for (key, value) in values {
+                if !is_literal_secret(key, value) {
+                    continue;
+                }
+                let warning = ApplyWarning {
+                    kind: "sharedProjectSecret".into(),
+                    app: placement.app,
+                    server_id: server.id.clone(),
+                    path: Some(path.clone()),
+                    key: Some(key.clone()),
+                };
+                if !warnings.contains(&warning) {
+                    warnings.push(warning);
+                }
+            }
+        }
+    }
+    warnings
+}
+
+fn is_literal_secret(key: &str, value: &str) -> bool {
+    let key = key.to_ascii_lowercase();
+    let sensitive = [
+        "authorization",
+        "cookie",
+        "token",
+        "secret",
+        "password",
+        "passwd",
+        "apikey",
+        "api_key",
+        "api-key",
+        "api.key",
+    ]
+    .iter()
+    .any(|part| key.contains(part))
+        || key == "key"
+        || ["_key", "-key", ".key"]
+            .iter()
+            .any(|suffix| key.ends_with(suffix));
+    // Interpolation may be embedded in a prefix, e.g. `Bearer ${TOKEN}`.
+    let reference = ["${", "{env:"].iter().any(|prefix| {
+        value.split(prefix).skip(1).any(|tail| {
+            tail.split_once('}')
+                .is_some_and(|(name, _)| !name.is_empty() && !name.contains('{'))
+        })
+    });
+    sensitive && !value.trim().is_empty() && !reference
 }
 
 fn headers_value(server: &MCPServer) -> Option<Value> {
@@ -985,6 +1076,93 @@ mod tests {
     }
 
     #[test]
+    fn project_secret_warnings_respect_scope_and_references() {
+        let home = tempfile::tempdir().unwrap();
+        let ctx = crate::platform::PlatformContext {
+            os: crate::platform::PlatformOs::MacOS,
+            home_dir: home.path().to_path_buf(),
+            workspace_root: home.path().join("project"),
+        };
+        let mut server = remote("github", true, &[SupportedApp::ClaudeCode]);
+        assert!(
+            super::shared_project_secret_warnings(&ctx, &config(vec![server.clone()])).is_empty()
+        );
+        server.placements.push(ServerPlacement {
+            app: SupportedApp::ClaudeCode,
+            scope: PlacementScope::Workspace,
+            path: None,
+            enabled: true,
+            managed: true,
+        });
+        let warnings = super::shared_project_secret_warnings(&ctx, &config(vec![server.clone()]));
+        assert_eq!(warnings.len(), 1);
+        assert_eq!(warnings[0].key.as_deref(), Some("Authorization"));
+        assert!(warnings[0].path.as_ref().unwrap().ends_with(".mcp.json"));
+        assert!(!serde_json::to_string(&warnings)
+            .unwrap()
+            .contains("Bearer t"));
+        for value in [
+            "",
+            "  ",
+            "${TOKEN}",
+            "${env:TOKEN}",
+            "{env:TOKEN}",
+            "Bearer ${TOKEN}",
+        ] {
+            server
+                .transport
+                .headers
+                .insert("Authorization".into(), value.into());
+            assert!(
+                super::shared_project_secret_warnings(&ctx, &config(vec![server.clone()]))
+                    .is_empty()
+            );
+        }
+        server
+            .transport
+            .headers
+            .insert("Authorization".into(), "private".into());
+        server.placements[0].app = SupportedApp::Windsurf;
+        server.placements[0].path = Some(
+            ctx.workspace_file(".devin/mcp_config.local.json")
+                .to_string_lossy()
+                .into(),
+        );
+        assert!(
+            super::shared_project_secret_warnings(&ctx, &config(vec![server.clone()])).is_empty()
+        );
+        server.placements[0].path = None;
+        assert_eq!(
+            super::shared_project_secret_warnings(&ctx, &config(vec![server.clone()])).len(),
+            1
+        );
+        server.placements[0].enabled = false;
+        assert!(
+            super::shared_project_secret_warnings(&ctx, &config(vec![server.clone()])).is_empty()
+        );
+        server.placements[0].enabled = true;
+        server.enabled = false;
+        assert!(super::shared_project_secret_warnings(&ctx, &config(vec![server])).is_empty());
+    }
+
+    #[test]
+    fn literal_secret_detection_checks_keys_and_env() {
+        for key in [
+            "GITHUB_TOKEN",
+            "API_KEY",
+            "apiKey",
+            "PASSWORD",
+            "X-Key",
+            "Cookie",
+        ] {
+            assert!(super::is_literal_secret(key, "private"), "{key}");
+        }
+        for key in ["LOG_LEVEL", "PORT", "Accept"] {
+            assert!(!super::is_literal_secret(key, "debug"), "{key}");
+        }
+    }
+
+    #[test]
     fn headers_are_not_written_for_plain_http_remote_hosts() {
         let mut leaky = remote("leaky", true, &[SupportedApp::Vscode]);
         leaky.transport.url = Some("http://mcp.example.com/mcp".to_string());
@@ -1008,6 +1186,8 @@ mod tests {
                 kind: "httpHeadersUnsupported".to_string(),
                 app: SupportedApp::ClaudeDesktop,
                 server_id: "linear".to_string(),
+                path: None,
+                key: None,
             }]
         );
         let json = serde_json::to_value(&warnings[0]).unwrap();
