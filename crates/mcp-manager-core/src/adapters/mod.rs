@@ -73,8 +73,11 @@ pub(crate) use rovo_dev::validate_rovo_context;
 pub use rovo_dev::RovoDevAdapter;
 pub use vscode::VSCodeAdapter;
 pub use windsurf::WindsurfAdapter;
-pub(crate) use zcode::validate_project_fallback;
 pub use zcode::ZCodeAdapter;
+pub(crate) use zcode::{
+    fallback_input_paths as zcode_fallback_input_paths,
+    plan_with_fallback as plan_zcode_with_fallback, validate_project_fallback,
+};
 pub use zed::ZedAdapter;
 
 pub struct ParsedSources {

@@ -118,6 +118,32 @@ pub(crate) fn validate_mimo_context(
         });
     if targeted {
         effective(ctx, None)?;
+        if let Some(previous) = previous {
+            for server in config.servers.iter().filter(|server| {
+                server.enabled
+                    && server.placements.iter().any(|p| {
+                        p.app == SupportedApp::MiMoCode
+                            && p.scope == PlacementScope::Workspace
+                            && p.enabled
+                            && p.managed
+                    })
+            }) {
+                let managed_before = previous
+                    .servers
+                    .iter()
+                    .find(|old| old.id == server.id)
+                    .is_some_and(|old| {
+                        old.placements.iter().any(|p| {
+                            p.app == SupportedApp::MiMoCode
+                                && p.scope == PlacementScope::Workspace
+                                && p.managed
+                        })
+                    });
+                if managed_before && project_entry(ctx, &server.id).is_none() {
+                    return Err(format!("MiMo project entry {} no longer exists. Re-import before saving it; private user values were not copied.",server.id));
+                }
+            }
+        }
     }
     Ok(())
 }
@@ -138,20 +164,25 @@ fn native_models(servers: Vec<MCPServer>, path: &str, ctx: &PlatformContext) -> 
             server
         })
         .collect();
-    opencode_mcp_servers_at(
-        &MCPConfig {
-            version: 1,
-            servers,
-        },
-        SupportedApp::MiMoCode,
-        path,
-        ctx,
-    )
+    let config = MCPConfig {
+        version: 1,
+        servers,
+    };
+    let mut native = opencode_mcp_servers_at(&config, SupportedApp::MiMoCode, path, ctx);
+    for server in &config.servers {
+        if server.transport.kind != "stdio" && !server.transport.headers.is_empty() {
+            if let Some(entry) = native.get_mut(&server.id) {
+                entry["headers"] =
+                    serde_json::to_value(&server.transport.headers).expect("headers");
+            }
+        }
+    }
+    native
 }
 
 /// Apply only user-edited modeled fields to a layer's own definition.
 /// Unchanged private values from another layer must never be materialized here.
-fn patch_changes(layer: &mut Value, baseline: &Value, desired: &Value) {
+fn patch_changes(layer: &mut Value, baseline: &Value, desired: &Value, server_level: bool) {
     let (Some(baseline), Some(desired)) = (baseline.as_object(), desired.as_object()) else {
         *layer = desired.clone();
         return;
@@ -162,7 +193,7 @@ fn patch_changes(layer: &mut Value, baseline: &Value, desired: &Value) {
     let layer = layer.as_object_mut().expect("layer object");
     let keys: std::collections::BTreeSet<_> = baseline.keys().chain(desired.keys()).collect();
     for key in keys {
-        if key == "enabled" || baseline.get(key) == desired.get(key) {
+        if (server_level && key == "enabled") || baseline.get(key) == desired.get(key) {
             continue;
         }
         match desired.get(key) {
@@ -173,6 +204,7 @@ fn patch_changes(layer: &mut Value, baseline: &Value, desired: &Value) {
                         .or_insert_with(|| serde_json::json!({})),
                     &baseline[key],
                     value,
+                    false,
                 );
             }
             Some(value) => {
@@ -278,9 +310,31 @@ fn layer_entries(
                         desired["enabled"] = enabled;
                     }
                 } else {
-                    patch_changes(&mut layer, base, desired);
+                    patch_changes(&mut layer, base, desired, true);
                     *desired = layer;
                 }
+            }
+            let transport = crate::core::TransportSpec {
+                kind: if desired.get("type").and_then(Value::as_str) == Some("local") {
+                    "stdio".into()
+                } else {
+                    "http".into()
+                },
+                url: desired
+                    .get("url")
+                    .and_then(Value::as_str)
+                    .map(str::to_string),
+                headers: desired
+                    .get("headers")
+                    .cloned()
+                    .and_then(|headers| serde_json::from_value(headers).ok())
+                    .unwrap_or_default(),
+            };
+            if transport.sends_headers_insecurely() {
+                desired
+                    .as_object_mut()
+                    .expect("entry object")
+                    .remove("headers");
             }
         }
     }
@@ -770,5 +824,105 @@ mod tests {
         }
         let value = parse_jsonc(&fs::read_to_string(&path).unwrap()).unwrap();
         assert_eq!(value["mcp"]["fixture-new"]["command"], json!(["desired"]));
+    }
+    #[test]
+    fn a_deleted_managed_project_entry_is_not_recreated_from_private_home() {
+        let temp = tempfile::tempdir().unwrap();
+        let ctx = ctx(temp.path());
+        let project = ctx.workspace_file("mimocode.jsonc");
+        let home = ctx.home_dir.join(".mimocode/mimocode.jsonc");
+        let public = r#"{"mcp":{"fixture-stale":{"type":"local","command":["project"]}}}"#;
+        let private = r#"{"mcp":{"fixture-stale":{"type":"local","command":["home"],"environment":{"TOKEN":"private"}}}}"#;
+        write(&project, public);
+        write(&home, private);
+        let mut detected = vec![];
+        for (path, priority, content) in [(&project, 13, public), (&home, 5, private)] {
+            detected.extend(
+                MiMoCodeAdapter
+                    .parse_source(&ctx, path.to_str().unwrap(), priority, content)
+                    .servers
+                    .into_iter()
+                    .map(|(server, priority)| DetectedServer { server, priority }),
+            );
+        }
+        let previous = build_import_result(vec![], detected, vec![], vec![]).config;
+        write(&project, "{}");
+        assert!(crate::workflow::prepare(&ctx, &previous, Some(&previous)).is_err());
+        assert_eq!(fs::read_to_string(project).unwrap(), "{}");
+        assert_eq!(fs::read_to_string(home).unwrap(), private);
+    }
+
+    #[test]
+    fn zcode_precedence_is_not_hidden_by_mimo_layer_precedence() {
+        let mut current =
+            parse_mcp_json(r#"{"mcpServers":{"same":{"url":"https://generic.example/mcp"}}}"#)
+                .servers
+                .remove(0);
+        current.apps.insert(SupportedApp::MiMoCode, true);
+        let mut incoming = parse_mcp_json(r#"{"mcpServers":{"same":{"command":"native-zcode"}}}"#)
+            .servers
+            .remove(0);
+        incoming.apps.insert(SupportedApp::MiMoCode, true);
+        incoming.apps.insert(SupportedApp::ZCode, true);
+        let merged = crate::core::merge_servers(Some(&current), &incoming);
+        assert_eq!(merged.transport.kind, "stdio");
+        assert_eq!(merged.command.unwrap().program, "native-zcode");
+    }
+
+    #[test]
+    fn nested_enabled_values_are_data_and_insecure_headers_are_never_restored() {
+        let temp = tempfile::tempdir().unwrap();
+        let ctx = ctx(temp.path());
+        let path = ctx.home_dir.join(".mimocode/mimocode.jsonc");
+        let content = r#"{"mcp":{
+            "fixture-env":{"type":"local","command":["node"],"enabled":false,"environment":{"enabled":"old"}},
+            "fixture-header":{"type":"remote","url":"https://example.com/mcp","enabled":false,"headers":{"enabled":"old","Other":"keep"}},
+            "fixture-unsafe":{"type":"remote","url":"http://remote.example/mcp","headers":{"Authorization":"must-remove"}}
+        }}"#;
+        write(&path, content);
+        let parsed = MiMoCodeAdapter.parse_source(&ctx, path.to_str().unwrap(), 5, content);
+        let previous = MCPConfig {
+            version: 1,
+            servers: parsed
+                .servers
+                .into_iter()
+                .map(|(server, _)| server)
+                .collect(),
+        };
+        let mut next = previous.clone();
+        next.servers
+            .iter_mut()
+            .find(|server| server.id == "fixture-env")
+            .unwrap()
+            .command
+            .as_mut()
+            .unwrap()
+            .env
+            .insert("enabled".into(), "new".into());
+        next.servers
+            .iter_mut()
+            .find(|server| server.id == "fixture-header")
+            .unwrap()
+            .transport
+            .headers
+            .remove("enabled");
+        next.servers
+            .iter_mut()
+            .find(|server| server.id == "fixture-unsafe")
+            .unwrap()
+            .transport
+            .headers
+            .clear();
+        for operation in MiMoCodeAdapter.plan_apply(&ctx, &next, Some(&previous)) {
+            apply_operation(Path::new(&operation.path), &operation).unwrap();
+        }
+        let value = parse_jsonc(&fs::read_to_string(path).unwrap()).unwrap();
+        assert_eq!(value["mcp"]["fixture-env"]["enabled"], false);
+        assert_eq!(value["mcp"]["fixture-env"]["environment"]["enabled"], "new");
+        assert!(value["mcp"]["fixture-header"]["headers"]
+            .get("enabled")
+            .is_none());
+        assert_eq!(value["mcp"]["fixture-header"]["headers"]["Other"], "keep");
+        assert!(value["mcp"]["fixture-unsafe"].get("headers").is_none());
     }
 }

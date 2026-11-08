@@ -12,10 +12,14 @@ pub struct CommandCodeAdapter;
 /// Normalize the documented transport key before using the common MCP parser.
 fn normalize(content: &str) -> Result<String, String> {
     let mut value: Value = serde_json::from_str(content).map_err(|error| error.to_string())?;
-    let entries = value
-        .get_mut("mcpServers")
-        .and_then(Value::as_object_mut)
-        .ok_or("Command Code configuration requires an mcpServers object")?;
+    let root = value
+        .as_object_mut()
+        .ok_or("Command Code configuration must be an object")?;
+    let entries = root
+        .entry("mcpServers")
+        .or_insert_with(|| serde_json::json!({}))
+        .as_object_mut()
+        .ok_or("Command Code mcpServers must be an object")?;
     for (id, entry) in entries {
         let transport = entry
             .get("transport")
@@ -344,6 +348,18 @@ mod tests {
             assert!(crate::workflow::prepare(&ctx, &config, None).is_err());
             assert!(crate::workflow::apply(&ctx, &config, None).is_err());
             assert_eq!(fs::read_to_string(&path).unwrap(), text);
+        }
+    }
+    #[test]
+    fn missing_server_section_is_empty_but_present_non_objects_are_rejected() {
+        let normalized = normalize(r#"{"settings":{"keep":true}}"#).unwrap();
+        assert!(parse_mcp_json(&normalized).servers.is_empty());
+        for content in [
+            r#"{"mcpServers":null}"#,
+            r#"{"mcpServers":[]}"#,
+            r#"{"mcpServers":"bad"}"#,
+        ] {
+            assert!(normalize(content).is_err());
         }
     }
 }

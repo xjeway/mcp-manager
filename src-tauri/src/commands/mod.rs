@@ -262,18 +262,23 @@ pub fn apply_config(
     expected_mimo_project_path: Option<String>,
 ) -> Result<ApplyResult, String> {
     let ctx = PlatformContext::current();
-    if let Some(expected) = expected_mimo_project_path {
-        if ctx.mimo_project_path().to_string_lossy() != expected {
-            return Err("MiMo project configuration priority changed. Refresh the project selection before applying.".into());
-        }
-    }
     match previous_config {
         // Recorded, so it can be undone with `rollback_last_change`. Refused
         // if servers.yaml changed since the caller saved `config`.
-        Some(previous) => {
-            history::apply_recorded(&ctx, &config, &previous, expected_fingerprint.as_deref())
-        }
-        None => workflow::apply(&ctx, &config, None),
+        Some(previous) => history::apply_recorded_with_mimo_project_path(
+            &ctx,
+            &config,
+            &previous,
+            expected_fingerprint.as_deref(),
+            expected_mimo_project_path.as_deref(),
+        ),
+        None => workflow::prepare_with_mimo_project_path(
+            &ctx,
+            &config,
+            None,
+            expected_mimo_project_path.as_deref(),
+        )?
+        .apply(&ctx),
     }
 }
 

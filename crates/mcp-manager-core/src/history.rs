@@ -169,6 +169,17 @@ pub fn apply_recorded(
     previous_config: &MCPConfig,
     expected_fingerprint: Option<&str>,
 ) -> Result<ApplyResult, String> {
+    apply_recorded_with_mimo_project_path(ctx, config, previous_config, expected_fingerprint, None)
+}
+
+/// Record the exact frozen plan associated with a validated editor project alias.
+pub fn apply_recorded_with_mimo_project_path(
+    ctx: &PlatformContext,
+    config: &MCPConfig,
+    previous_config: &MCPConfig,
+    expected_fingerprint: Option<&str>,
+    expected_mimo_path: Option<&str>,
+) -> Result<ApplyResult, String> {
     let config_path = store::config_path(ctx);
     store::with_lock(&config_path, || {
         if let Some(expected) = expected_fingerprint {
@@ -180,8 +191,14 @@ pub fn apply_recorded(
                 ));
             }
         }
-        let snapshot = workflow::snapshot(ctx, config, Some(previous_config))?;
-        let mut result = workflow::apply(ctx, config, Some(previous_config))?;
+        let prepared = workflow::prepare_with_mimo_project_path(
+            ctx,
+            config,
+            Some(previous_config),
+            expected_mimo_path,
+        )?;
+        let snapshot = prepared.snapshot(ctx)?;
+        let mut result = prepared.apply(ctx)?;
         // The change is applied, so failing to record it is not an error: it
         // only costs the undo, which the caller is told about through
         // `history_error`.

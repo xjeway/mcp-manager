@@ -102,6 +102,99 @@ pub(crate) fn retained_project_entries(ctx: &PlatformContext, path: &str, id: &s
     entries
 }
 
+/// The map ZCode will see after any planned write to its shared Agents fallback.
+fn projected_fallback(
+    ctx: &PlatformContext,
+    native: &str,
+    planned: &[(SupportedApp, WriteOperation)],
+) -> Option<Map<String, Value>> {
+    let path = fallback_for(ctx, native);
+    let mut entries = match fs::read_to_string(&path) {
+        Ok(content) => parse_jsonc(&content)
+            .ok()?
+            .get("mcpServers")?
+            .as_object()?
+            .clone(),
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => Map::new(),
+        Err(_) => return None,
+    };
+    for (_, operation) in planned.iter().filter(|(app, op)| {
+        *app == SupportedApp::Agents
+            && std::path::Path::new(&op.path) == std::path::Path::new(&path)
+            && op.field.as_deref() == Some("mcpServers")
+    }) {
+        let desired: Map<String, Value> = serde_json::from_str(&operation.content).ok()?;
+        for id in operation.remove_keys.iter().flatten() {
+            if !desired.contains_key(id) {
+                entries.remove(id);
+            }
+        }
+        for (id, mut value) in desired {
+            if let Some(old) = entries.get(&id) {
+                crate::storage::carry_unmanaged_json_fields(old, &mut value);
+            }
+            entries.insert(id, value);
+        }
+    }
+    Some(entries)
+}
+
+/// Read dependencies for only the native scopes actually being planned.
+pub(crate) fn fallback_input_paths(
+    ctx: &PlatformContext,
+    planned: &[(SupportedApp, WriteOperation)],
+) -> Vec<String> {
+    planned
+        .iter()
+        .filter(|(app, op)| {
+            *app == SupportedApp::ZCode
+                && native_servers(&op.path).is_ok_and(|servers| servers.is_empty())
+        })
+        .map(|(_, operation)| fallback_for(ctx, &operation.path))
+        .collect()
+}
+
+/// Rebuild native migration using the same batch's projected fallback map.
+pub(crate) fn plan_with_fallback(
+    ctx: &PlatformContext,
+    config: &MCPConfig,
+    previous: Option<&MCPConfig>,
+    planned: &[(SupportedApp, WriteOperation)],
+) -> Vec<WriteOperation> {
+    let mut operations =
+        managed_json_field_writes(ctx, "/mcp/servers", SupportedApp::ZCode, config, previous);
+    let user = ctx
+        .user_app_config_path(SupportedApp::ZCode)
+        .to_string_lossy()
+        .to_string();
+    let project = crate::adapters::workspace_scope_path(ctx, SupportedApp::ZCode);
+    operations.retain(|op| op.path == user || project.as_deref() == Some(op.path.as_str()));
+    for operation in &mut operations {
+        operation.mode = "merge_json_object_path_entries".into();
+        if !native_servers(&operation.path).is_ok_and(|servers| servers.is_empty()) {
+            continue;
+        }
+        let Some(fallback) = projected_fallback(ctx, &operation.path, planned) else {
+            continue;
+        };
+        let mut desired: Map<String, Value> =
+            serde_json::from_str(&operation.content).expect("planned server map");
+        for (id, old) in &fallback {
+            if let Some(new) = desired.get_mut(id) {
+                crate::storage::carry_unmanaged_json_fields(old, new);
+            } else if !operation
+                .remove_keys
+                .as_ref()
+                .is_some_and(|keys| keys.contains(id))
+            {
+                desired.insert(id.clone(), old.clone());
+            }
+        }
+        operation.content = serde_json::to_string(&desired).expect("fallback migration map");
+    }
+    operations
+}
+
 impl AppAdapter for ZCodeAdapter {
     /// Registry and serialized id.
     fn app(&self) -> SupportedApp {
@@ -200,45 +293,7 @@ impl AppAdapter for ZCodeAdapter {
         config: &MCPConfig,
         previous: Option<&MCPConfig>,
     ) -> Vec<WriteOperation> {
-        let mut operations =
-            managed_json_field_writes(ctx, "/mcp/servers", self.app(), config, previous);
-        let user = ctx
-            .user_app_config_path(self.app())
-            .to_string_lossy()
-            .to_string();
-        let project = crate::adapters::workspace_scope_path(ctx, self.app());
-        operations.retain(|op| op.path == user || project.as_deref() == Some(op.path.as_str()));
-        for operation in &mut operations {
-            operation.mode = "merge_json_object_path_entries".into();
-            if !native_servers(&operation.path).is_ok_and(|servers| servers.is_empty()) {
-                continue;
-            }
-            let fallback = fallback_for(ctx, &operation.path);
-            let Ok(content) = fs::read_to_string(fallback) else {
-                continue;
-            };
-            let Ok(root) = parse_jsonc(&content) else {
-                continue;
-            };
-            let Some(fallback) = root.get("mcpServers").and_then(Value::as_object) else {
-                continue;
-            };
-            let mut desired: Map<String, Value> =
-                serde_json::from_str(&operation.content).expect("planned server map");
-            for (id, old) in fallback {
-                if let Some(new) = desired.get_mut(id) {
-                    crate::storage::carry_unmanaged_json_fields(old, new);
-                } else if !operation
-                    .remove_keys
-                    .as_ref()
-                    .is_some_and(|keys| keys.contains(id))
-                {
-                    desired.insert(id.clone(), old.clone());
-                }
-            }
-            operation.content = serde_json::to_string(&desired).expect("fallback migration map");
-        }
-        operations
+        plan_with_fallback(ctx, config, previous, &[])
     }
 }
 

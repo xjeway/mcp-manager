@@ -348,6 +348,7 @@ export async function applyConfig(
   config: MCPConfig,
   previousConfig: MCPConfig = config,
   workspace?: WorkspaceContext,
+  previousWorkspace: WorkspaceContext | undefined = workspace,
 ): Promise<ApplyResult> {
   if (!isDesktopRuntime()) {
     window.localStorage.setItem(BROWSER_CONFIG_KEY, JSON.stringify(config))
@@ -362,7 +363,12 @@ export async function applyConfig(
       config,
       previousConfig,
       expectedFingerprint: loadedFingerprint,
-      expectedMimoProjectPath: config.servers.some((server) => server.placements?.some((placement) => placement.app === 'miMoCode' && placement.scope === 'workspace' && placement.enabled)) ? workspace?.placementPaths.miMoCode : undefined,
+      expectedMimoProjectPath: (() => {
+        const isProject = (placement: import('../types/config').ServerPlacement) => placement.app === 'miMoCode' && placement.scope === 'workspace'
+        const removing = previousConfig.servers.some((server) => server.enabled && server.placements?.some((placement) => isProject(placement) && placement.enabled && !config.servers.some((next) => next.id === server.id && next.enabled && next.placements?.some((item) => isProject(item) && item.path === placement.path && item.enabled))))
+        const involved = [...config.servers, ...previousConfig.servers].some((server) => server.placements?.some(isProject))
+        return involved ? (removing ? previousWorkspace : workspace)?.placementPaths.miMoCode : undefined
+      })(),
     })
   } catch (error) {
     if (String(error).startsWith(CONFLICT_ERROR)) {

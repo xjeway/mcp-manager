@@ -272,9 +272,10 @@ describe('MiMo editor project path refresh', () => {
     expect(refreshMiMoProjectPaths(config, cached, fresh, [])).toEqual(config)
     expect(refreshMiMoProjectPaths(config, cached, { ...fresh, root: '/other' }, ['server-1'])).toBe(config)
   })
-  it('requires re-import before disabling a stale selection', () => {
+  it('preserves disabled state when refreshing an already disabled selection', () => {
     const config = make()
     config.servers[0].placements![0].enabled = false
-    expect(() => refreshMiMoProjectPaths(config, cached, fresh, ['server-1'])).toThrow('priority changed')
+    const next = refreshMiMoProjectPaths(config, cached, fresh, ['server-1'])
+    expect(next.servers[0].placements?.map((placement) => placement.enabled)).toEqual([false, false])
   })
 })

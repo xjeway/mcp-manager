@@ -570,7 +570,6 @@ function MainApp() {
         if (editedServerIds.length > 0) {
           workspaceForSave = await getCurrentWorkspace()
           nextConfig = refreshMiMoProjectPaths(nextConfig, currentWorkspace, workspaceForSave, editedServerIds)
-          setCurrentWorkspace(workspaceForSave)
         }
       } catch (error) {
         pushFeedback('error', String(error))
@@ -593,7 +592,7 @@ function MainApp() {
       try {
         for (const warning of await projectSecretWarnings(nextConfig)) {
           const message = t('sharedProjectSecretWarning', {
-            server: nextConfig.servers.find((server) => server.id === warning.serverId)?.name ?? warning.serverId,
+            server: nextConfig.servers.find((server) => server.id === warning.serverId)?.name || warning.serverId,
             client: CLIENTS.find((client) => client.id === warning.app)?.label ?? warning.app, path: warning.path, key: warning.key,
             advice: t(warning.app === 'agents' ? 'secretAdviceDollarInterpolation' : warning.app === 'windsurf' ? 'secretAdviceDevin' : ['grok', 'claudeCode', 'factoryDroid'].includes(warning.app) ? 'secretAdviceInterpolation' : 'secretAdvicePrivate'),
           })
@@ -616,13 +615,14 @@ function MainApp() {
       setActionState('saving')
       try {
         const result = await saveAndSyncConfig({
-          applyConfig: (next, previous) => applyConfig(next, previous, workspaceForSave),
+          applyConfig: (next, previous) => applyConfig(next, previous, workspaceForSave, currentWorkspace),
           nextConfig,
           previousConfig: config,
           saveConfig,
           workspace: workspaceForSave,
         })
         setConfig(nextConfig)
+        setCurrentWorkspace(workspaceForSave)
         void refreshRollbackDepth()
         for (const message of applyWarningMessages(result, nextConfig.servers, t)) {
           pushFeedback('warning', message)

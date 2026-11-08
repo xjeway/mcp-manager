@@ -164,7 +164,6 @@ export function refreshMiMoProjectPaths(config: MCPConfig, cached: WorkspaceCont
     if (!ids.has(server.id)) return server
     const placement = server.placements?.find((item) => item.app === 'miMoCode' && item.scope === 'workspace' && item.path === oldPath)
     if (!placement) return server
-    if (!placement.enabled) throw new Error('MiMo project configuration priority changed. Import the current configuration before disabling it.')
     if (server.placements?.some((item) => item.app === 'miMoCode' && item.path === path && item.enabled)) return server
     return { ...server, placements: [...(server.placements ?? []), { ...placement, path, managed: true }] }
   }) }

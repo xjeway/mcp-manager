@@ -206,8 +206,10 @@ retain explicit managed placements so removal covers every imported layer.
 Project imports exclude the private home overlay. Writes preserve each layer's
 own raw values and apply only edited modeled fields; unchanged private values
 are never materialized into project files. Editor saves refresh a changed project
-alias while retaining managed lower layers, and stale disable operations require
-re-import instead of silently leaving a newly active definition enabled. MiMo's MCP-add command
+alias while retaining managed lower layers. The bound alias is checked throughout
+the transaction, including removal/disable of the last project placement; canceled
+saves retain the old baseline, and already-disabled placements retain their state.
+A removed managed project entry is not recreated from private home configuration. MiMo's MCP-add command
 currently checks JSON before JSONC despite its comment; the manager follows the
 actual load precedence so a write cannot be hidden by an existing JSONC file.
 
@@ -284,8 +286,12 @@ disabling them. Prepared writes reject a changed target path or invalid YAML
 before writing; JSON updates retain unrelated entries and same-transport metadata.
 
 Prepared writes fingerprint read-only source dependencies separately from rollback
-files, including ZCode fallback input and MiMo layers. These inputs are rechecked
+files, including only the ZCode fallback scopes actually used and the MiMo layers
+needed for reconciliation. Unrelated project configs are not read for global-only
+writes. Same-batch Agents updates are projected into first-write ZCode migration.
+These inputs are rechecked
 at validation and before each write. Batch writes to one target compare against
-the batch's last version, preserving genuine external edits while rolling back
-other files on failure. Retained project parameters/environment values are included
+the exact bytes committed by the batch, never a reread that could bless an external
+revision. Rollback restores only still-owned versions and preserves external edits
+even when failure occurred in a different dependency. Retained project parameters/environment values are included
 in redacted secret warnings before CLI or desktop confirmation.

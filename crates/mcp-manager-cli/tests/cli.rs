@@ -1240,3 +1240,50 @@ fn zcode_migration_reports_retained_parameter_secrets_before_writing() {
         "retained-migration-secret"
     );
 }
+
+#[test]
+fn zcode_first_write_uses_same_batch_agents_updates() {
+    let sandbox = Sandbox::new();
+    let fallback = sandbox.home.join(".agents/mcp.json");
+    fs::create_dir_all(fallback.parent().unwrap()).unwrap();
+    fs::write(
+        &fallback,
+        r#"{"mcpServers":{"agents-only":{"command":"old","timeout":7}}}"#,
+    )
+    .unwrap();
+    let config = serde_json::json!({"version":1,"servers":[{"id":"agents-only","name":"agents-only","enabled":true,"transport":{"type":"stdio"},"command":{"program":"new","args":[],"env":{}},"apps":{"agents":true}}]});
+    let store = sandbox.servers_yaml();
+    fs::create_dir_all(store.parent().unwrap()).unwrap();
+    fs::write(&store, config.to_string()).unwrap();
+    sandbox.ok(&[
+        "add", "native", "-a", "zcode", "--global", "-y", "--", "node",
+    ]);
+    assert_eq!(
+        sandbox.read_json(&fallback)["mcpServers"]["agents-only"]["command"],
+        "new"
+    );
+    let native = sandbox.read_json(&sandbox.home.join(".zcode/cli/config.json"));
+    assert_eq!(native["mcp"]["servers"]["agents-only"]["command"], "new");
+    assert_eq!(native["mcp"]["servers"]["agents-only"]["timeout"], 7);
+}
+
+#[test]
+fn command_code_initializes_a_missing_server_section_without_losing_settings() {
+    let sandbox = Sandbox::new();
+    let path = sandbox.home.join(".commandcode/mcp.json");
+    fs::create_dir_all(path.parent().unwrap()).unwrap();
+    fs::write(&path, r#"{"settings":{"keep":true}}"#).unwrap();
+    sandbox.ok(&[
+        "add",
+        "api",
+        "-a",
+        "command-code",
+        "--global",
+        "--url",
+        "https://example.com/mcp",
+        "-y",
+    ]);
+    let value = sandbox.read_json(&path);
+    assert_eq!(value["settings"]["keep"], true);
+    assert_eq!(value["mcpServers"]["api"]["transport"], "http");
+}

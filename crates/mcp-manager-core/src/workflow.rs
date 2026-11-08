@@ -2,7 +2,7 @@
 //! preview a new config, and apply it. The app's commands and the CLI both call
 //! these, so they behave the same.
 
-use crate::adapters::{adapters, scope_for_path, workspace_scope_path};
+use crate::adapters::{adapters, scope_for_path, workspace_scope_path, AppAdapter};
 use crate::core::{
     build_import_result, ApplyResult, DetectedServer, ImportResult, LocalConfigSource, MCPConfig,
     PlacementScope, SupportedApp, WriteOperation,
@@ -15,6 +15,7 @@ use serde::Serialize;
 use serde_json::{Map, Value};
 use std::collections::{BTreeSet, HashMap};
 use std::fs;
+use std::path::{Path, PathBuf};
 
 /// Reads the unified `servers.yaml` and every client's config files.
 pub fn import_detected(ctx: &PlatformContext) -> Result<ImportResult, String> {
@@ -110,7 +111,7 @@ fn plan_by_app(
     config: &MCPConfig,
     previous_config: Option<&MCPConfig>,
 ) -> Vec<(SupportedApp, WriteOperation)> {
-    adapters()
+    let mut operations: Vec<_> = adapters()
         .into_iter()
         .flat_map(|adapter| {
             let app = adapter.app();
@@ -119,7 +120,18 @@ fn plan_by_app(
                 .into_iter()
                 .map(move |operation| (app, operation))
         })
-        .collect()
+        .collect();
+    let native =
+        crate::adapters::plan_zcode_with_fallback(ctx, config, previous_config, &operations);
+    let mut native = native.into_iter();
+    for (app, operation) in &mut operations {
+        if *app == SupportedApp::ZCode {
+            if let Some(reconciled) = native.next() {
+                *operation = reconciled;
+            }
+        }
+    }
+    operations
 }
 
 /// Every client file [`apply`] would write, as it is now, so a caller can put
@@ -211,6 +223,7 @@ fn apply_plan(
     operations: Vec<WriteOperation>,
     expected: &Snapshot,
     inputs: &Snapshot,
+    bound_mimo_path: Option<&Path>,
 ) -> Result<ApplyResult, String> {
     for operation in &operations {
         let path = ctx.resolve_path(&operation.path);
@@ -223,7 +236,9 @@ fn apply_plan(
     }
 
     let backups =
-        crate::storage::apply_operations_checked_with_inputs(operations, expected, inputs)?;
+        crate::storage::apply_operations_checked_with_inputs(operations, expected, inputs, || {
+            validate_mimo_binding(ctx, bound_mimo_path)
+        })?;
     Ok(ApplyResult {
         backups,
         warnings: crate::adapters::apply_warnings(config),
@@ -258,6 +273,7 @@ pub struct PreparedApply {
     operations: Vec<WriteOperation>,
     snapshot: Snapshot,
     inputs: Snapshot,
+    bound_mimo_path: Option<PathBuf>,
     config: MCPConfig,
     previous: Option<MCPConfig>,
     pub changes: Vec<PlannedChange>,
@@ -266,6 +282,7 @@ pub struct PreparedApply {
 impl PreparedApply {
     /// Rejects changed contents or active paths before any write is attempted.
     pub fn validate(&self, ctx: &PlatformContext) -> Result<(), String> {
+        validate_mimo_binding(ctx, self.bound_mimo_path.as_deref())?;
         validate_inherited_agents(ctx, &self.config, self.previous.as_ref())?;
         crate::adapters::validate_command_context(ctx, &self.config, self.previous.as_ref())?;
         let inputs = planning_inputs(ctx, &self.config, self.previous.as_ref())?;
@@ -303,6 +320,7 @@ impl PreparedApply {
             self.operations.clone(),
             &self.snapshot,
             &self.inputs,
+            self.bound_mimo_path.as_deref(),
         )
     }
 }
@@ -314,32 +332,58 @@ fn planning_inputs(
     previous: Option<&MCPConfig>,
 ) -> Result<Snapshot, String> {
     let mut inputs = Snapshot::default();
-    for adapter in crate::adapters::adapters() {
-        let app = adapter.app();
-        let targeted = std::iter::once(config)
-            .chain(previous)
-            .flat_map(|config| &config.servers)
-            .any(|server| {
-                server.apps.get(&app).copied().unwrap_or(false)
-                    || server.placements.iter().any(|p| p.app == app && p.managed)
-            });
-        if !targeted {
-            continue;
-        }
-        for (path, _) in adapter.detect_sources(ctx) {
+    let footprint = plan_by_app(ctx, config, previous);
+    for (_, operation) in &footprint {
+        inputs.capture(&ctx.resolve_path(&operation.path))?;
+    }
+    for path in crate::adapters::zcode_fallback_input_paths(ctx, &footprint) {
+        inputs.capture(&ctx.resolve_path(&path))?;
+    }
+    if footprint
+        .iter()
+        .any(|(app, _)| *app == SupportedApp::MiMoCode)
+    {
+        for (path, _) in crate::adapters::MiMoCodeAdapter.detect_sources(ctx) {
             inputs.capture(&ctx.resolve_path(&path))?;
         }
-        if app == SupportedApp::ZCode {
-            inputs.capture(&ctx.home_dir.join(".agents/mcp.json"))?;
-            if ctx.has_workspace() {
-                inputs.capture(&ctx.workspace_file(".agents/mcp.json"))?;
-            }
-        }
-        if app == SupportedApp::RovoDev {
-            inputs.capture(&ctx.home_dir.join(".rovodev/config.yml"))?;
-        }
+    }
+    if footprint
+        .iter()
+        .any(|(app, _)| *app == SupportedApp::RovoDev)
+    {
+        inputs.capture(&ctx.home_dir.join(".rovodev/config.yml"))?;
     }
     Ok(inputs)
+}
+
+/// A validated primary alias is part of the approved context, not a later lookup.
+fn validate_mimo_binding(ctx: &PlatformContext, path: Option<&Path>) -> Result<(), String> {
+    if let Some(path) = path {
+        if !ctx.has_workspace() || ctx.mimo_project_path() != path {
+            return Err("MiMo project configuration priority changed. Refresh the project selection before applying.".into());
+        }
+    }
+    Ok(())
+}
+
+/// Freeze implicit project placements to the same alias validated for this transaction.
+fn bind_mimo_placements(config: &MCPConfig, path: Option<&Path>) -> MCPConfig {
+    let mut config = config.clone();
+    if let Some(path) = path {
+        for placement in config
+            .servers
+            .iter_mut()
+            .flat_map(|server| &mut server.placements)
+            .filter(|placement| {
+                placement.app == SupportedApp::MiMoCode
+                    && placement.scope == PlacementScope::Workspace
+                    && placement.path.is_none()
+            })
+        {
+            placement.path = Some(path.to_string_lossy().to_string());
+        }
+    }
+    config
 }
 
 /// Prepares the preview, file fingerprints and writes from one resolved plan.
@@ -348,6 +392,35 @@ pub fn prepare(
     config: &MCPConfig,
     previous: Option<&MCPConfig>,
 ) -> Result<PreparedApply, String> {
+    prepare_with_mimo_project_path(ctx, config, previous, None)
+}
+
+/// Prepare one bound project selection for native commands and the history transaction.
+pub fn prepare_with_mimo_project_path(
+    ctx: &PlatformContext,
+    config: &MCPConfig,
+    previous: Option<&MCPConfig>,
+    expected: Option<&str>,
+) -> Result<PreparedApply, String> {
+    let implicit = std::iter::once(config)
+        .chain(previous)
+        .flat_map(|config| &config.servers)
+        .flat_map(|server| &server.placements)
+        .any(|placement| {
+            placement.app == SupportedApp::MiMoCode
+                && placement.scope == PlacementScope::Workspace
+                && placement.managed
+                && placement.path.is_none()
+        });
+    let bound_mimo_path = expected
+        .map(PathBuf::from)
+        .or_else(|| (implicit && ctx.has_workspace()).then(|| ctx.mimo_project_path()));
+    validate_mimo_binding(ctx, bound_mimo_path.as_deref())?;
+    let bound_config = bind_mimo_placements(config, bound_mimo_path.as_deref());
+    let bound_previous =
+        previous.map(|previous| bind_mimo_placements(previous, bound_mimo_path.as_deref()));
+    let config = &bound_config;
+    let previous = bound_previous.as_ref();
     validate_inherited_agents(ctx, config, previous)?;
     crate::adapters::validate_command_context(ctx, config, previous)?;
     crate::adapters::validate_mimo_context(ctx, config, previous)?;
@@ -369,6 +442,7 @@ pub fn prepare(
         operations,
         snapshot,
         inputs,
+        bound_mimo_path,
         config: config.clone(),
         previous: previous.cloned(),
     };
@@ -921,5 +995,123 @@ mod tests {
         assert!(prepared.apply_validated(&ctx).is_err());
         assert_eq!(fs::read_to_string(&fallback).unwrap(), external);
         assert!(!ctx.user_app_config_path(SupportedApp::ZCode).exists());
+    }
+    #[test]
+    fn global_cursor_apply_does_not_capture_an_unrelated_unreadable_project_source() {
+        let temp = tempdir().unwrap();
+        let ctx = PlatformContext {
+            os: PlatformOs::MacOS,
+            home_dir: temp.path().join("home"),
+            workspace_root: temp.path().join("project"),
+        };
+        fs::create_dir_all(ctx.workspace_file(".cursor/mcp.json")).unwrap();
+        let mut server =
+            crate::parser::parse_mcp_json(r#"{"mcpServers":{"global":{"command":"node"}}}"#)
+                .servers
+                .remove(0);
+        server.apps.insert(SupportedApp::Cursor, true);
+        let prepared = super::prepare(
+            &ctx,
+            &MCPConfig {
+                version: 1,
+                servers: vec![server],
+            },
+            None,
+        )
+        .unwrap();
+        assert!(prepared
+            .inputs
+            .paths()
+            .all(|path| path != ctx.workspace_file(".cursor/mcp.json")));
+    }
+
+    #[test]
+    fn implicit_mimo_placements_use_the_bound_alias_and_reject_a_later_priority_change() {
+        let temp = tempdir().unwrap();
+        let ctx = PlatformContext {
+            os: PlatformOs::MacOS,
+            home_dir: temp.path().join("home"),
+            workspace_root: temp.path().join("project"),
+        };
+        let mut server =
+            crate::parser::parse_mcp_json(r#"{"mcpServers":{"fixture-bound":{"command":"node"}}}"#)
+                .servers
+                .remove(0);
+        server.placements.push(crate::core::ServerPlacement {
+            app: SupportedApp::MiMoCode,
+            scope: PlacementScope::Workspace,
+            path: None,
+            enabled: true,
+            managed: true,
+        });
+        let config = MCPConfig {
+            version: 1,
+            servers: vec![server],
+        };
+        let previous = MCPConfig {
+            version: 1,
+            servers: vec![],
+        };
+        let expected = ctx.mimo_project_path();
+        let prepared = super::prepare_with_mimo_project_path(
+            &ctx,
+            &config,
+            Some(&previous),
+            Some(expected.to_str().unwrap()),
+        )
+        .unwrap();
+        assert_eq!(
+            prepared.config.servers[0].placements[0].path.as_deref(),
+            Some(expected.to_str().unwrap())
+        );
+        assert!(prepared
+            .operations
+            .iter()
+            .any(|operation| std::path::Path::new(&operation.path) == expected));
+        let higher = ctx.workspace_file(".mimocode/mimocode.jsonc");
+        fs::create_dir_all(higher.parent().unwrap()).unwrap();
+        fs::write(&higher, "{}").unwrap();
+        assert!(prepared.apply_validated(&ctx).is_err());
+        assert!(!expected.exists());
+        assert_eq!(fs::read_to_string(higher).unwrap(), "{}");
+    }
+    #[test]
+    fn a_targeted_fallback_is_checked_before_the_first_dependent_native_write() {
+        let temp = tempdir().unwrap();
+        let ctx = PlatformContext {
+            os: PlatformOs::MacOS,
+            home_dir: temp.path().join("home"),
+            workspace_root: temp.path().join("project"),
+        };
+        let fallback = ctx.home_dir.join(".agents/mcp.json");
+        fs::create_dir_all(fallback.parent().unwrap()).unwrap();
+        fs::write(&fallback, r#"{"mcpServers":{"agents":{"command":"old"}}}"#).unwrap();
+        let mut servers = crate::parser::parse_mcp_json(
+            r#"{"mcpServers":{"agents":{"command":"new"},"native":{"command":"node"}}}"#,
+        )
+        .servers;
+        servers
+            .iter_mut()
+            .find(|server| server.id == "agents")
+            .unwrap()
+            .apps
+            .insert(SupportedApp::Agents, true);
+        servers
+            .iter_mut()
+            .find(|server| server.id == "native")
+            .unwrap()
+            .apps
+            .insert(SupportedApp::ZCode, true);
+        let config = MCPConfig {
+            version: 1,
+            servers,
+        };
+        let prepared = super::prepare(&ctx, &config, None).unwrap();
+        prepared.validate(&ctx).unwrap();
+        let external = r#"{"mcpServers":{"agents":{"command":"external"}}}"#;
+        fs::write(&fallback, external).unwrap();
+        assert!(prepared.apply_validated(&ctx).is_err());
+        assert!(!ctx.user_app_config_path(SupportedApp::ZCode).exists());
+        assert_eq!(fs::read_to_string(fallback).unwrap(), external);
     }
 }
