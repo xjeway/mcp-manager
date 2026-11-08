@@ -266,3 +266,25 @@ describe('MiMo apply path binding', () => {
     expect(invokeMock.mock.calls[0][1]).toMatchObject({ expectedMimoProjectPath: fresh.placementPaths.miMoCode })
   })
 })
+
+describe('explicit desktop project context', () => {
+  it('passes the same selection to discovery, warnings, save and native apply', async () => {
+    const service=await freshService();invokeMock.mockReset();invokeMock.mockResolvedValue({root:'/project',placementPaths:{}})
+    const workspace={root:'/project',placementPaths:{}}
+    await service.getCurrentWorkspace('/project')
+    await service.importDetectedConfigs(workspace)
+    await service.detectInstalledApps(workspace)
+    await service.projectSecretWarnings(EMPTY,workspace)
+    await service.saveConfig(EMPTY,workspace)
+    await service.applyConfig(EMPTY,EMPTY,workspace)
+    expect(invokeMock.mock.calls.map(([command]) => command)).toEqual(['current_workspace', 'import_detected_configs', 'detect_installed_apps', 'project_secret_warnings', 'save_yaml_config', 'apply_config'])
+    for(const [command,args] of invokeMock.mock.calls) {
+      expect(args,command).toMatchObject({workspaceRoot:'/project'})
+    }
+  })
+  it('sends an explicit empty root instead of silently falling back to startup cwd', async () => {
+    const service=await freshService();invokeMock.mockReset();invokeMock.mockResolvedValue({root:'',placementPaths:{}})
+    await service.getCurrentWorkspace('')
+    expect(invokeMock).toHaveBeenCalledWith('current_workspace',{workspaceRoot:''})
+  })
+})

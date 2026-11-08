@@ -1,4 +1,11 @@
 const enUS = {
+  projectSelection: "Project scope",
+  projectComputer: "My computer",
+  projectChoose: "Choose project…",
+  projectRecent: "Recent projects",
+  projectUnavailable: "Project unavailable",
+  projectSelectionFailed: "Could not select the project: {{error}}",
+  rollbackGlobal: "Undo last change (all projects)",
   title: 'MCP Manager',
   add: 'Add Server',
   appScope: 'Client Scope',

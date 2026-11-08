@@ -184,6 +184,44 @@ pub fn apply_recorded_with_mimo_project_path(
     expected_fingerprint: Option<&str>,
     expected_mimo_path: Option<&str>,
 ) -> Result<ApplyResult, String> {
+    apply_recorded_inner(
+        ctx,
+        config,
+        previous_config,
+        expected_fingerprint,
+        expected_mimo_path,
+        false,
+    )
+}
+
+/// Apply only user and selected-project files, recording the complete shared-store change for undo.
+pub fn apply_recorded_in_project(
+    ctx: &PlatformContext,
+    config: &MCPConfig,
+    previous_config: &MCPConfig,
+    expected_fingerprint: Option<&str>,
+    expected_mimo_path: Option<&str>,
+) -> Result<ApplyResult, String> {
+    crate::project::validate_foreign_placements(ctx, previous_config, config)?;
+    apply_recorded_inner(
+        ctx,
+        config,
+        previous_config,
+        expected_fingerprint,
+        expected_mimo_path,
+        true,
+    )
+}
+
+/// Keep snapshots and history from one transaction, with optional desktop project isolation.
+fn apply_recorded_inner(
+    ctx: &PlatformContext,
+    config: &MCPConfig,
+    previous_config: &MCPConfig,
+    expected_fingerprint: Option<&str>,
+    expected_mimo_path: Option<&str>,
+    project_only: bool,
+) -> Result<ApplyResult, String> {
     let config_path = store::config_path(ctx);
     store::with_lock(&config_path, || {
         if let Some(expected) = expected_fingerprint {
@@ -195,12 +233,20 @@ pub fn apply_recorded_with_mimo_project_path(
                 ));
             }
         }
+        let scoped = project_only.then(|| crate::project::scoped_config(ctx, config));
+        let scoped_previous =
+            project_only.then(|| crate::project::scoped_config(ctx, previous_config));
         let prepared = workflow::prepare_with_mimo_project_path(
             ctx,
-            config,
-            Some(previous_config),
+            scoped.as_ref().unwrap_or(config),
+            Some(scoped_previous.as_ref().unwrap_or(previous_config)),
             expected_mimo_path,
         )?;
+        let prepared = if project_only {
+            prepared.bind_project_root(ctx)?
+        } else {
+            prepared
+        };
         let snapshot = prepared.snapshot(ctx)?;
         let mut result = prepared.apply(ctx)?;
         // The change is applied, so failing to record it is not an error: it

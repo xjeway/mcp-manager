@@ -3,6 +3,13 @@ import type { LocaleMessages } from './en-US'
 // Counts are phrased as "Label: {{count}}" where possible so that Russian
 // plural forms do not need separate _one/_few/_many keys.
 const ruRU: LocaleMessages = {
+  projectSelection: "Область проекта",
+  projectComputer: "Мой компьютер",
+  projectChoose: "Выбрать проект…",
+  projectRecent: "Недавние проекты",
+  projectUnavailable: "Проект недоступен",
+  projectSelectionFailed: "Не удалось выбрать проект: {{error}}",
+  rollbackGlobal: "Отменить последнее изменение (все проекты)",
   title: 'MCP Manager',
   add: 'Добавить сервер',
   appScope: 'Область клиента',

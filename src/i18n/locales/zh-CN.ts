@@ -1,6 +1,13 @@
 import type { LocaleMessages } from './en-US'
 
 const zhCN: LocaleMessages = {
+  projectSelection: "项目范围",
+  projectComputer: "我的电脑",
+  projectChoose: "选择项目…",
+  projectRecent: "最近项目",
+  projectUnavailable: "项目不可用",
+  projectSelectionFailed: "无法选择项目：{{error}}",
+  rollbackGlobal: "撤销上次更改（所有项目）",
   title: 'MCP Manager',
   add: '添加 Server',
   appScope: '客户端范围',

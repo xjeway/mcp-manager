@@ -25,6 +25,7 @@ interface DashboardProps {
   onBatchSetApp: (serverIds: string[], app: SupportedApp, enabled: boolean) => void
   onCopyCommand: (serverId: string) => void
   /** Status of an update that is downloading or waiting for a restart. */
+  projectSelector?: ReactNode
   updateIndicator?: ReactNode
 }
 
@@ -78,6 +79,7 @@ export function Dashboard({
   onSyncLocalConfig,
   onOpenSettings,
   updateIndicator,
+  projectSelector,
   onDelete,
   onEdit,
   onRollback,
@@ -154,6 +156,7 @@ export function Dashboard({
           </div>
 
           <div className="header-controls" data-tauri-no-drag>
+            {projectSelector}
             {updateIndicator}
             <button type="button" className="icon-button toolbar-icon" onClick={onOpenSettings} aria-label={t('settings')}>
               <Settings size={14} />
@@ -171,13 +174,13 @@ export function Dashboard({
               </button>
             </Tooltip>
 
-            <Tooltip content={t('rollback')}>
+            <Tooltip content={t('rollbackGlobal')}>
               <button
                 type="button"
                 className="icon-button toolbar-icon"
                 onClick={onRollback}
                 disabled={!canRollback || busy !== 'idle' && busy !== 'rolling-back'}
-                aria-label={t('rollback')}
+                aria-label={t('rollbackGlobal')}
               >
                 {busy === 'rolling-back' ? <BusyIcon spinning /> : <RotateCcw size={14} />}
               </button>

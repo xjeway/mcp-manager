@@ -1,6 +1,13 @@
 import type { LocaleMessages } from './en-US'
 
 const frFR: LocaleMessages = {
+  projectSelection: "Portée du projet",
+  projectComputer: "Mon ordinateur",
+  projectChoose: "Choisir un projet…",
+  projectRecent: "Projets récents",
+  projectUnavailable: "Projet indisponible",
+  projectSelectionFailed: "Impossible de sélectionner le projet : {{error}}",
+  rollbackGlobal: "Annuler la dernière modification (tous les projets)",
   title: 'MCP Manager',
   add: 'Ajouter un serveur',
   appScope: 'Portée du client',

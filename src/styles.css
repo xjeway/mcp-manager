@@ -3385,3 +3385,21 @@ p.marketplace-note.is-warning svg {
   padding: 4px 2px;
   font-size: 0.74rem;
 }
+
+.project-selector {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+  color: var(--text-muted);
+}
+
+.project-select {
+  max-width: 200px;
+  text-overflow: ellipsis;
+}
+
+.project-selection-error {
+  font-size: 0.75rem;
+  color: var(--danger, #b54c4c);
+}

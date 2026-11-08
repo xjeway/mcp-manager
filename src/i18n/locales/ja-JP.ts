@@ -1,6 +1,13 @@
 import type { LocaleMessages } from './en-US'
 
 const jaJP: LocaleMessages = {
+  projectSelection: "プロジェクトの範囲",
+  projectComputer: "このコンピューター",
+  projectChoose: "プロジェクトを選択…",
+  projectRecent: "最近のプロジェクト",
+  projectUnavailable: "プロジェクトを利用できません",
+  projectSelectionFailed: "プロジェクトを選択できません：{{error}}",
+  rollbackGlobal: "最後の変更を元に戻す（全プロジェクト）",
   title: 'MCP Manager',
   add: 'サーバーを追加',
   appScope: 'クライアントの範囲',

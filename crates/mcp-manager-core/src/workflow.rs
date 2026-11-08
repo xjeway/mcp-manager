@@ -225,10 +225,15 @@ fn apply_plan(
     expected: &Snapshot,
     inputs: &Snapshot,
     bound_mimo_path: Option<&Path>,
+    required_workspace: Option<&Path>,
 ) -> Result<ApplyResult, String> {
+    validate_required_workspace(required_workspace)?;
     for operation in &operations {
         let path = ctx.resolve_path(&operation.path);
-        if !ctx.can_write(&path) {
+        // can_write creates parent directories. For pinned desktop projects,
+        // defer permission errors to the guarded write rather than creating
+        // directories during a permission probe.
+        if required_workspace.is_none() && !ctx.can_write(&path) {
             let error = format!("permission denied for {}", path.to_string_lossy());
             if crate::security::is_high_risk_condition(&error) {
                 return Err(error);
@@ -238,6 +243,7 @@ fn apply_plan(
 
     let committed =
         crate::storage::apply_operations_checked_with_inputs(operations, expected, inputs, || {
+            validate_required_workspace(required_workspace)?;
             validate_mimo_binding(ctx, bound_mimo_path)
         })?;
     Ok(ApplyResult {
@@ -272,6 +278,7 @@ pub struct PlannedChange {
 
 /// A single preview and its approved target files. Applying never replans it.
 pub struct PreparedApply {
+    required_workspace: Option<PathBuf>,
     operations: Vec<WriteOperation>,
     snapshot: Snapshot,
     inputs: Snapshot,
@@ -282,8 +289,22 @@ pub struct PreparedApply {
 }
 
 impl PreparedApply {
+    /// Desktop selections remain pinned and available through the final write boundary.
+    pub fn bind_project_root(mut self, ctx: &PlatformContext) -> Result<Self, String> {
+        if ctx.has_workspace() {
+            self.required_workspace = Some(
+                ctx.workspace_root
+                    .canonicalize()
+                    .map_err(|error| format!("Project directory is unavailable: {error}"))?,
+            );
+        }
+        validate_required_workspace(self.required_workspace.as_deref())?;
+        Ok(self)
+    }
+
     /// Rejects changed contents or active paths before any write is attempted.
     pub fn validate(&self, ctx: &PlatformContext) -> Result<(), String> {
+        validate_required_workspace(self.required_workspace.as_deref())?;
         self.inputs.verify_bindings()?;
         self.snapshot.verify_bindings()?;
         validate_mimo_binding(ctx, self.bound_mimo_path.as_deref())?;
@@ -325,6 +346,7 @@ impl PreparedApply {
             &self.snapshot,
             &self.inputs,
             self.bound_mimo_path.as_deref(),
+            self.required_workspace.as_deref(),
         )
     }
 }
@@ -378,6 +400,16 @@ fn planning_inputs(
         inputs.capture(&ctx.home_dir.join(".rovodev/config.yml"))?;
     }
     Ok(inputs)
+}
+
+/// A missing selected directory must not be recreated implicitly by client writes.
+fn validate_required_workspace(root: Option<&Path>) -> Result<(), String> {
+    if let Some(root) = root {
+        if !root.is_dir() || root.canonicalize().ok().as_deref() != Some(root) {
+            return Err("Project directory changed or is unavailable. Select the project again before applying.".into());
+        }
+    }
+    Ok(())
 }
 
 /// A validated primary alias is part of the approved context, not a later lookup.
@@ -476,6 +508,7 @@ fn prepare_with_capture_hook(
         snapshot.capture(&ctx.resolve_path(&operation.path))?;
     }
     let prepared = PreparedApply {
+        required_workspace: None,
         changes: preview_plan(ctx, &by_app, previous),
         operations,
         snapshot,
@@ -657,6 +690,8 @@ fn existing_entries(
 #[derive(Debug, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct WorkspaceInfo {
+    /// Existing saved placement aliases belonging to this context, including read-only inheritance.
+    pub context_paths: Vec<String>,
     /// Empty when there is no current project.
     pub root: String,
     /// Project-level config file per app that supports one.
@@ -666,12 +701,14 @@ pub struct WorkspaceInfo {
 pub fn workspace_info(ctx: &PlatformContext) -> WorkspaceInfo {
     if !ctx.has_workspace() {
         return WorkspaceInfo {
+            context_paths: vec![],
             root: String::new(),
             placement_paths: HashMap::new(),
         };
     }
 
     WorkspaceInfo {
+        context_paths: vec![],
         root: ctx.workspace_root.to_string_lossy().to_string(),
         placement_paths: SupportedApp::ALL
             .into_iter()
@@ -682,6 +719,42 @@ pub fn workspace_info(ctx: &PlatformContext) -> WorkspaceInfo {
 
 #[cfg(test)]
 mod tests {
+    #[test]
+    fn disappearing_bound_project_is_not_recreated_at_the_write_boundary() {
+        let temp = tempfile::tempdir().unwrap();
+        let project = temp.path().join("repo");
+        std::fs::create_dir(&project).unwrap();
+        let ctx = crate::platform::PlatformContext {
+            os: crate::platform::PlatformOs::MacOS,
+            home_dir: temp.path().join("home"),
+            workspace_root: project.clone(),
+        };
+        let mut servers =
+            crate::parser::parse_mcp_json(r#"{"mcpServers":{"bound":{"command":"node"}}}"#).servers;
+        servers[0].placements.push(crate::core::ServerPlacement {
+            app: crate::core::SupportedApp::Cursor,
+            scope: crate::core::PlacementScope::Workspace,
+            path: Some(project.join(".cursor/mcp.json").to_string_lossy().into()),
+            enabled: true,
+            managed: true,
+        });
+        let config = crate::core::MCPConfig {
+            version: 1,
+            servers,
+        };
+        let prepared = super::prepare(&ctx, &config, None)
+            .unwrap()
+            .bind_project_root(&ctx)
+            .unwrap();
+        prepared.validate(&ctx).unwrap();
+        std::fs::remove_dir(&project).unwrap();
+        assert!(prepared
+            .apply_validated(&ctx)
+            .unwrap_err()
+            .contains("Project directory"));
+        assert!(!project.exists());
+    }
+
     use super::{preview, workspace_info, ChangeAction};
     use crate::core::{
         empty_apps, CommandSpec, MCPConfig, MCPServer, PlacementScope, SupportedApp, TransportSpec,

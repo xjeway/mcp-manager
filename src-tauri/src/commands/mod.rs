@@ -19,6 +19,55 @@ pub use marketplace::{
 const REPOSITORY_URL: &str = "https://github.com/xjeway/mcp-manager";
 const RELEASES_URL: &str = "https://github.com/xjeway/mcp-manager/releases";
 
+/// Resolve one explicit desktop selection without changing process-global cwd.
+fn project_context(root: Option<&str>) -> Result<PlatformContext, String> {
+    project_context_from(PlatformContext::current(), root, false)
+}
+
+/// Shared-store compensation may restore its prior revision even if the project was removed.
+fn project_context_from(
+    mut ctx: PlatformContext,
+    root: Option<&str>,
+    allow_missing: bool,
+) -> Result<PlatformContext, String> {
+    let Some(root) = root else {
+        return Ok(ctx);
+    };
+    if root.is_empty() {
+        ctx.workspace_root = PathBuf::new();
+        return Ok(ctx);
+    }
+    let path = Path::new(root);
+    if !path.is_absolute() {
+        return Err("Choose an absolute project directory.".into());
+    }
+    let path = match path.canonicalize() {
+        Ok(path) => path,
+        Err(error)
+            if allow_missing
+                && error.kind() == ErrorKind::NotFound
+                && !path.components().any(|c| {
+                    matches!(
+                        c,
+                        std::path::Component::ParentDir | std::path::Component::CurDir
+                    )
+                }) =>
+        {
+            path.to_path_buf()
+        }
+        Err(error) => return Err(format!("Project directory is unavailable: {error}")),
+    };
+    if (path.exists() || !allow_missing) && !path.is_dir() {
+        return Err("Choose a project directory, not a file.".into());
+    }
+    ctx.workspace_root = path;
+    let home = ctx.home_dir.canonicalize().unwrap_or(ctx.home_dir.clone());
+    if home.starts_with(&ctx.workspace_root) {
+        return Err("Choose a project folder inside your home directory or another project location, not the home directory or its parent.".into());
+    }
+    Ok(ctx)
+}
+
 #[tauri::command]
 pub fn load_yaml_config(relative_path: String) -> Result<StoredText, String> {
     store::read_text(&resolve_relative_path(&relative_path))
@@ -32,11 +81,15 @@ pub fn save_yaml_config(
     relative_path: String,
     content: String,
     expected_fingerprint: Option<String>,
+    workspace_root: Option<String>,
 ) -> Result<String, String> {
-    let ctx = PlatformContext::current();
+    let ctx = project_context_from(PlatformContext::current(), workspace_root.as_deref(), true)?;
     if resolve_relative_path(&relative_path) == store::config_path(&ctx) {
         let next: MCPConfig = mcp_manager_core::parser::parse_yaml_config(&content)?;
-        workflow::validate_inherited_agents(&ctx, &next, None)?;
+        let previous = store::load(&ctx)?;
+        mcp_manager_core::project::validate_foreign_placements(&ctx, &previous, &next)?;
+        let scoped = mcp_manager_core::project::scoped_config(&ctx, &next);
+        workflow::validate_inherited_agents(&ctx, &scoped, None)?;
     }
     store::write_text_checked(
         &resolve_relative_path(&relative_path),
@@ -229,13 +282,13 @@ pub fn open_releases_link() -> Result<(), String> {
 }
 
 #[tauri::command]
-pub fn import_detected_configs() -> Result<ImportResult, String> {
-    workflow::import_detected(&PlatformContext::current())
+pub fn import_detected_configs(workspace_root: Option<String>) -> Result<ImportResult, String> {
+    workflow::import_detected(&project_context(workspace_root.as_deref())?)
 }
 
 #[tauri::command]
-pub fn detect_installed_apps() -> Result<Vec<String>, String> {
-    let ctx = PlatformContext::current();
+pub fn detect_installed_apps(workspace_root: Option<String>) -> Result<Vec<String>, String> {
+    let ctx = project_context(workspace_root.as_deref())?;
     Ok(ctx
         .detect_installed_apps()
         .into_iter()
@@ -244,14 +297,45 @@ pub fn detect_installed_apps() -> Result<Vec<String>, String> {
 }
 
 #[tauri::command]
-pub fn current_workspace() -> Result<WorkspaceInfo, String> {
-    Ok(workflow::workspace_info(&PlatformContext::current()))
+pub fn current_workspace(workspace_root: Option<String>) -> Result<WorkspaceInfo, String> {
+    let ctx = project_context(workspace_root.as_deref())?;
+    let mut info = workflow::workspace_info(&ctx);
+    info.context_paths = mcp_manager_core::core::SupportedApp::ALL
+        .into_iter()
+        .flat_map(|app| mcp_manager_core::project::project_paths(&ctx, app))
+        .map(|path| path.to_string_lossy().into_owned())
+        .collect();
+    // An unreadable store is handled by load_yaml_config; context discovery itself is read-only.
+    if let Ok(config) = store::load(&ctx) {
+        info.context_paths.extend(
+            config
+                .servers
+                .iter()
+                .flat_map(|s| &s.placements)
+                .filter(|p| {
+                    p.scope == mcp_manager_core::core::PlacementScope::Workspace
+                        && mcp_manager_core::project::placement_in_context(&ctx, p)
+                })
+                .filter_map(|p| p.path.clone())
+                .collect::<Vec<_>>(),
+        );
+        info.context_paths.sort();
+        info.context_paths.dedup();
+    }
+    Ok(info)
 }
 
 /// Preflight includes retained client fields absent from the editable server model.
 #[tauri::command]
-pub fn project_secret_warnings(config: MCPConfig) -> Vec<mcp_manager_core::core::ApplyWarning> {
-    mcp_manager_core::adapters::shared_project_secret_warnings(&PlatformContext::current(), &config)
+pub fn project_secret_warnings(
+    config: MCPConfig,
+    workspace_root: Option<String>,
+) -> Result<Vec<mcp_manager_core::core::ApplyWarning>, String> {
+    let ctx = project_context(workspace_root.as_deref())?;
+    let config = mcp_manager_core::project::scoped_config(&ctx, &config);
+    Ok(mcp_manager_core::adapters::shared_project_secret_warnings(
+        &ctx, &config,
+    ))
 }
 
 #[tauri::command]
@@ -261,12 +345,13 @@ pub fn apply_config(
     previous_config: Option<MCPConfig>,
     expected_fingerprint: Option<String>,
     expected_mimo_project_path: Option<String>,
+    workspace_root: Option<String>,
 ) -> Result<ApplyResult, String> {
-    let ctx = PlatformContext::current();
+    let ctx = project_context(workspace_root.as_deref())?;
     match previous_config {
         // Recorded, so it can be undone with `rollback_last_change`. Refused
         // if servers.yaml changed since the caller saved `config`.
-        Some(previous) => history::apply_recorded_with_mimo_project_path(
+        Some(previous) => history::apply_recorded_in_project(
             &ctx,
             &config,
             &previous,
@@ -275,10 +360,11 @@ pub fn apply_config(
         ),
         None => workflow::prepare_with_mimo_project_path(
             &ctx,
-            &config,
+            &mcp_manager_core::project::scoped_config(&ctx, &config),
             None,
             expected_mimo_project_path.as_deref(),
         )?
+        .bind_project_root(&ctx)?
         .apply(&ctx),
     }
 }
@@ -304,6 +390,37 @@ pub fn restart_app(app: tauri::AppHandle) -> Result<(), String> {
 
 #[cfg(test)]
 mod tests {
+    #[test]
+    fn explicit_project_selection_is_canonical_and_never_changes_process_cwd() {
+        let temp = tempfile::tempdir().unwrap();
+        let home = temp.path().join("home");
+        let project = home.join("repo");
+        std::fs::create_dir_all(&project).unwrap();
+        let ctx = mcp_manager_core::platform::PlatformContext {
+            os: mcp_manager_core::platform::PlatformOs::MacOS,
+            home_dir: home.clone(),
+            workspace_root: temp.path().join("startup"),
+        };
+        let cwd = std::env::current_dir().unwrap();
+        let selected = super::project_context_from(ctx.clone(), project.to_str(), false).unwrap();
+        assert_eq!(selected.workspace_root, project.canonicalize().unwrap());
+        assert_eq!(std::env::current_dir().unwrap(), cwd);
+        assert!(super::project_context_from(ctx.clone(), home.to_str(), false).is_err());
+        assert!(super::project_context_from(ctx.clone(), Some("relative/path"), false).is_err());
+        let file = project.join("file");
+        std::fs::write(&file, "").unwrap();
+        assert!(super::project_context_from(ctx.clone(), file.to_str(), false).is_err());
+        assert!(!super::project_context_from(ctx.clone(), Some(""), false)
+            .unwrap()
+            .has_workspace());
+        std::fs::remove_dir_all(&project).unwrap();
+        assert!(super::project_context_from(ctx.clone(), project.to_str(), false).is_err());
+        assert!(
+            super::project_context_from(ctx, project.to_str(), true).is_ok(),
+            "a failed apply can still compensate the shared store"
+        );
+    }
+
     use super::{nearest_existing_path, reset_with_backup};
     use mcp_manager_core::store;
     use std::fs;
