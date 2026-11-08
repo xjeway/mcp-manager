@@ -808,3 +808,31 @@ fn shared_agents_aliases_write_scoped_files_and_never_the_parent() {
     assert!(!report["warnings"].to_string().contains("literal-secret"));
     assert_eq!(fs::read_to_string(parent).unwrap(), parent_text);
 }
+
+#[test]
+fn inherited_agents_removal_is_rejected_before_the_shared_store_is_saved() {
+    let sandbox = Sandbox::new();
+    let parent = sandbox.project.parent().unwrap().join(".agents/mcp.json");
+    fs::create_dir_all(parent.parent().unwrap()).unwrap();
+    let parent_text = r#"{"mcpServers":{"inherited":{"command":"keep"}}}"#;
+    fs::write(&parent, parent_text).unwrap();
+    let config = serde_json::json!({"version":1,"servers":[{
+        "id":"inherited","name":"inherited","enabled":true,
+        "transport":{"type":"stdio"},"command":{"program":"keep","args":[],"env":{}},"apps":{},
+        "placements":[{"app":"agents","scope":"workspace","path":parent,"enabled":true,"managed":false}]
+    }]});
+    let store = sandbox.servers_yaml();
+    fs::create_dir_all(store.parent().unwrap()).unwrap();
+    let before = config.to_string();
+    fs::write(&store, &before).unwrap();
+    for args in [
+        vec!["remove", "inherited", "-y"],
+        vec!["remove", "inherited", "-a", "agents", "-y"],
+    ] {
+        let output = sandbox.run(&args);
+        assert!(!output.status.success());
+        assert!(String::from_utf8_lossy(&output.stderr).contains("inherited"));
+        assert_eq!(fs::read_to_string(&store).unwrap(), before);
+        assert_eq!(fs::read_to_string(&parent).unwrap(), parent_text);
+    }
+}

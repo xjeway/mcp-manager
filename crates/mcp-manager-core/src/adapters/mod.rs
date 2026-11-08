@@ -678,6 +678,13 @@ fn collect_agents_param_warnings(
     warnings: &mut Vec<ApplyWarning>,
 ) {
     match value {
+        Value::Number(number) => collect_agents_param_warnings(
+            &Value::String(number.to_string()),
+            key,
+            server,
+            path,
+            warnings,
+        ),
         Value::Object(fields) => {
             for (name, value) in fields {
                 collect_agents_param_warnings(
@@ -1316,13 +1323,17 @@ mod tests {
         std::fs::create_dir_all(path.parent().unwrap()).unwrap();
         std::fs::write(
             &path,
-            r#"{"mcpServers":{"api":{"params":{"api_key":"retained-private","token":"$TOKEN"}}}}"#,
+            r#"{"mcpServers":{"api":{"params":{"api_key":"retained-private","token":"$TOKEN","password":123456}}}}"#,
         )
         .unwrap();
         let warnings = super::shared_project_secret_warnings(&ctx, &config(vec![server]));
         assert!(warnings
             .iter()
             .any(|w| w.key.as_deref() == Some("params.api_key")));
+        assert!(warnings
+            .iter()
+            .any(|w| w.key.as_deref() == Some("params.password")));
+        assert!(!serde_json::to_string(&warnings).unwrap().contains("123456"));
         assert!(!warnings
             .iter()
             .any(|w| w.key.as_deref() == Some("params.token")));

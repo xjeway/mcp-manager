@@ -510,7 +510,10 @@ pub fn merge_servers(current: Option<&MCPServer>, incoming: &MCPServer) -> MCPSe
                 .iter()
                 .any(|p| p.app == SupportedApp::Agents && p.enabled)
     };
-    if !uses_agents(current) {
+    if uses_agents(incoming) && !uses_agents(current) {
+        merged.command = incoming.command.clone();
+        merged.transport = incoming.transport.clone();
+    } else if !uses_agents(current) {
         if merged.command.is_none() && incoming.command.is_some() {
             merged.command = incoming.command.clone();
         }

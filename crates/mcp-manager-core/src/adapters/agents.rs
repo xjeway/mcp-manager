@@ -176,6 +176,54 @@ mod tests {
         assert_eq!(merged.transport.kind, "stdio");
         assert!(merged.transport.url.is_none());
         assert_eq!(merged.command.unwrap().program, "global");
+        let merged = crate::core::merge_servers(Some(&incoming), current);
+        assert_eq!(merged.transport.kind, "stdio");
+        assert!(merged.transport.url.is_none());
+        assert_eq!(merged.command.unwrap().program, "global");
+    }
+
+    #[test]
+    fn inherited_removal_is_rejected_in_core_apply_for_the_active_workspace_only() {
+        let temp = tempfile::tempdir().unwrap();
+        let ctx = ctx(temp.path());
+        let parent = ctx
+            .workspace_root
+            .parent()
+            .unwrap()
+            .join(".agents/mcp.json");
+        let parsed = AgentsAdapter.parse_source(
+            &ctx,
+            parent.to_str().unwrap(),
+            15,
+            r#"{"mcpServers":{"parent":{"command":"keep"}}}"#,
+        );
+        let previous = MCPConfig {
+            version: 1,
+            servers: parsed
+                .servers
+                .into_iter()
+                .map(|(server, _)| server)
+                .collect(),
+        };
+        let removed = MCPConfig {
+            version: 1,
+            servers: vec![],
+        };
+        assert!(crate::workflow::prepare(&ctx, &removed, Some(&previous)).is_err());
+        assert!(crate::workflow::apply(&ctx, &removed, Some(&previous)).is_err());
+        let other = PlatformContext {
+            workspace_root: temp.path().join("other/project"),
+            ..ctx.clone()
+        };
+        assert!(
+            crate::workflow::validate_inherited_agents(&other, &removed, Some(&previous)).is_ok()
+        );
+        crate::store::update(&ctx, |config| {
+            *config = previous.clone();
+            Ok(())
+        })
+        .unwrap();
+        assert!(crate::workflow::validate_inherited_agents(&ctx, &removed, None).is_err());
     }
 
     #[test]

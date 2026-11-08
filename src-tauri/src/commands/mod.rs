@@ -33,6 +33,11 @@ pub fn save_yaml_config(
     content: String,
     expected_fingerprint: Option<String>,
 ) -> Result<String, String> {
+    let ctx = PlatformContext::current();
+    if resolve_relative_path(&relative_path) == store::config_path(&ctx) {
+        let next: MCPConfig = mcp_manager_core::parser::parse_yaml_config(&content)?;
+        workflow::validate_inherited_agents(&ctx, &next, None)?;
+    }
     store::write_text_checked(
         &resolve_relative_path(&relative_path),
         &content,
