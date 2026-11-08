@@ -136,7 +136,7 @@ impl SupportedApp {
             SupportedApp::FactoryDroid => "Factory Droid",
             SupportedApp::KimiCli => "Kimi CLI",
             SupportedApp::ZCode => "ZCode",
-            SupportedApp::Agents => ".agents (Codebuff / Freebuff)",
+            SupportedApp::Agents => "Codebuff / Freebuff",
             SupportedApp::MiMoCode => "MiMo Code",
             SupportedApp::CommandCode => "Command Code",
             SupportedApp::MuseCode => "Muse Code",

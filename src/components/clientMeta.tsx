@@ -10,6 +10,7 @@ export interface ClientMeta {
   icon: ReactNode
   id: SupportedApp
   label: string
+  compactLabel?: string
 }
 
 export const CLIENTS: ClientMeta[] = [
@@ -141,9 +142,10 @@ export const CLIENTS: ClientMeta[] = [
   },
   {
     id: 'agents',
-    label: '.agents (Codebuff / Freebuff)',
+    label: 'Codebuff / Freebuff',
+    compactLabel: 'Codebuff',
     accent: 'client-agents',
-    icon: <ClientLogo src="/logos/apps/agents.svg" alt="Shared .agents configuration" />,
+    icon: <ClientLogo src="/logos/apps/codebuff.webp" alt="Codebuff / Freebuff" />,
   },
   {
     id: 'zCode',

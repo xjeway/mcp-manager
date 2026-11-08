@@ -21,6 +21,7 @@ export interface FeedbackItem {
 }
 
 export interface WorkspaceStatViewModel {
+  compactLabel?: string
   accent: string
   count: number
   icon: ReactNode
