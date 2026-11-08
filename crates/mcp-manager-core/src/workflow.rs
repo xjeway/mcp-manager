@@ -235,12 +235,13 @@ fn apply_plan(
         }
     }
 
-    let backups =
+    let committed =
         crate::storage::apply_operations_checked_with_inputs(operations, expected, inputs, || {
             validate_mimo_binding(ctx, bound_mimo_path)
         })?;
     Ok(ApplyResult {
-        backups,
+        backups: committed.backups,
+        committed_files: committed.files,
         warnings: crate::adapters::apply_warnings(config),
         history_error: None,
     })
@@ -335,6 +336,18 @@ fn planning_inputs(
     let footprint = plan_by_app(ctx, config, previous);
     for (_, operation) in &footprint {
         inputs.capture(&ctx.resolve_path(&operation.path))?;
+    }
+    if footprint
+        .iter()
+        .any(|(app, _)| *app == SupportedApp::CodeBuddy)
+    {
+        for path in [
+            ".codebuddy/.mcp.json",
+            ".codebuddy/mcp.json",
+            ".codebuddy.json",
+        ] {
+            inputs.capture(&ctx.home_dir.join(path))?;
+        }
     }
     for path in crate::adapters::zcode_fallback_input_paths(ctx, &footprint) {
         inputs.capture(&ctx.resolve_path(&path))?;
@@ -537,11 +550,19 @@ fn with_kept_fields(current: &Value, desired: &Value, mode: &str) -> Value {
     let mut written = desired.clone();
     if matches!(
         mode,
-        "merge_json_object_entries" | "merge_json_object_path_entries" | "merge_muse_mcp_entries"
+        "merge_json_object_entries"
+            | "merge_mimo_entries"
+            | "merge_json_object_path_entries"
+            | "merge_muse_mcp_entries"
     ) {
         crate::storage::carry_unmanaged_json_fields(current, &mut written);
     } else {
         crate::storage::carry_unmanaged_fields(current, &mut written);
+    }
+    if mode == "merge_mimo_entries" {
+        if let Some(enabled) = desired.get("enabled") {
+            written["enabled"] = enabled.clone();
+        }
     }
     written
 }
@@ -550,6 +571,7 @@ fn is_entry_merge(mode: &str) -> bool {
     matches!(
         mode,
         "merge_json_object_entries"
+            | "merge_mimo_entries"
             | "merge_json_object_path_entries"
             | "merge_muse_mcp_entries"
             | "merge_toml_table_entries"
@@ -682,7 +704,10 @@ mod tests {
         let preferred = ctx.home_dir.join(".codebuddy/.mcp.json");
         fs::write(&preferred, "{}").unwrap();
         let rollback = prepared.snapshot(&ctx).unwrap();
-        assert_eq!(rollback.paths().collect::<Vec<_>>(), vec![legacy.as_path()]);
+        assert_eq!(
+            rollback.paths().collect::<Vec<_>>(),
+            vec![legacy.canonicalize().unwrap().as_path()]
+        );
         assert!(prepared.apply(&ctx).unwrap_err().contains("active path"));
         assert_eq!(fs::read_to_string(&preferred).unwrap(), "{}");
         assert_eq!(fs::read_to_string(&legacy).unwrap(), original);
@@ -724,8 +749,7 @@ mod tests {
         // Injection at the exact boundary between final validation and storage write.
         let preferred = ctx.home_dir.join(".codebuddy/.mcp.json");
         fs::write(&preferred, "{}").unwrap();
-        let edited = original.replace("old", "external-edit");
-        fs::write(&legacy, &edited).unwrap();
+        let edited = original.to_string();
         assert!(prepared
             .apply_validated(&ctx)
             .unwrap_err()

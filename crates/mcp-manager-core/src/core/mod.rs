@@ -424,6 +424,9 @@ pub struct ApplyWarning {
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ApplyResult {
+    /// Exact payloads committed by this batch; never expose configuration bytes in the report.
+    #[serde(skip)]
+    pub committed_files: std::collections::BTreeMap<std::path::PathBuf, Vec<u8>>,
     pub backups: Vec<String>,
     #[serde(default)]
     pub warnings: Vec<ApplyWarning>,

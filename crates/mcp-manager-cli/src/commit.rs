@@ -127,6 +127,7 @@ fn commit_with_confirmation(
             match ChangeRecord::new(
                 &files,
                 applied.backups.clone(),
+                &applied.committed_files,
                 before.clone(),
                 after.clone(),
             )

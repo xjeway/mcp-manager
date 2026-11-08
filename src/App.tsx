@@ -567,9 +567,9 @@ function MainApp() {
     try {
       let workspaceForSave = currentWorkspace
       try {
-        if (editedServerIds.length > 0) {
+        if (editedServerIds.length > 0 || nextConfig.servers.some((server) => server.placements?.some((placement) => placement.app === 'miMoCode' && placement.scope === 'workspace' && placement.managed !== false))) {
           workspaceForSave = await getCurrentWorkspace()
-          nextConfig = refreshMiMoProjectPaths(nextConfig, currentWorkspace, workspaceForSave, editedServerIds)
+          nextConfig = refreshMiMoProjectPaths(nextConfig, currentWorkspace, workspaceForSave, nextConfig.servers.map((server) => server.id))
         }
       } catch (error) {
         pushFeedback('error', String(error))

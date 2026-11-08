@@ -162,9 +162,9 @@ export function refreshMiMoProjectPaths(config: MCPConfig, cached: WorkspaceCont
   const ids = new Set(editedIds)
   return { ...config, servers: config.servers.map((server) => {
     if (!ids.has(server.id)) return server
-    const placement = server.placements?.find((item) => item.app === 'miMoCode' && item.scope === 'workspace' && item.path === oldPath)
+    const placement = server.placements?.find((item) => item.app === 'miMoCode' && item.scope === 'workspace' && item.path === oldPath && item.managed !== false)
     if (!placement) return server
-    if (server.placements?.some((item) => item.app === 'miMoCode' && item.path === path && item.enabled)) return server
+    if (server.placements?.some((item) => item.app === 'miMoCode' && item.path === path)) return server
     return { ...server, placements: [...(server.placements ?? []), { ...placement, path, managed: true }] }
   }) }
 }

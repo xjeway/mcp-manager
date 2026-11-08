@@ -49,11 +49,12 @@ pub struct ChangeRecord {
 }
 
 impl ChangeRecord {
-    /// Call after the change was applied. `snapshot` is what
-    /// [`workflow::snapshot`] took before it.
+    /// Record pre-apply snapshot fingerprints and exact committed payloads.
+    /// No client file is reread, so external edits cannot become an owned revision.
     pub fn new(
         snapshot: &Snapshot,
         backups: Vec<String>,
+        committed: &std::collections::BTreeMap<PathBuf, Vec<u8>>,
         previous_config: MCPConfig,
         applied_config: MCPConfig,
     ) -> Result<Self, String> {
@@ -62,7 +63,9 @@ impl ChangeRecord {
             .into_iter()
             .map(|(path, before)| {
                 Ok(FileChange {
-                    after: store::fingerprint(&path)?,
+                    after: store::fingerprint_of_bytes(committed.get(&path).ok_or_else(|| {
+                        format!("Missing committed payload for {}", path.display())
+                    })?)?,
                     path: path.to_string_lossy().to_string(),
                     before,
                 })
@@ -205,6 +208,7 @@ pub fn apply_recorded_with_mimo_project_path(
         let recorded = ChangeRecord::new(
             &snapshot,
             result.backups.clone(),
+            &result.committed_files,
             previous_config.clone(),
             config.clone(),
         )
@@ -367,12 +371,38 @@ pub fn rollback_last(ctx: &PlatformContext) -> Result<RollbackReport, String> {
 
 #[cfg(test)]
 mod tests {
-    use super::{apply_recorded, depth, path};
+    use super::{apply_recorded, depth, path, ChangeRecord};
     use crate::core::MCPConfig;
     use crate::platform::{PlatformContext, PlatformOs};
+    use crate::storage::Snapshot;
     use crate::store;
     use std::fs;
     use tempfile::tempdir;
+
+    #[test]
+    fn history_uses_committed_payload_even_if_external_edit_arrives_before_recording() {
+        let temp = tempfile::tempdir().unwrap();
+        let path = temp.path().join("client.json");
+        fs::write(&path, "{}").unwrap();
+        let mut snapshot = Snapshot::default();
+        snapshot.capture(&path).unwrap();
+        let committed = snapshot
+            .paths()
+            .map(|p| (p.to_path_buf(), b"{\"batch\":true}".to_vec()))
+            .collect();
+        fs::write(&path, r#"{"external":true}"#).unwrap();
+        let empty = MCPConfig {
+            version: 1,
+            servers: vec![],
+        };
+        let record =
+            ChangeRecord::new(&snapshot, vec![], &committed, empty.clone(), empty).unwrap();
+        assert_ne!(record.files[0].after, store::fingerprint(&path).unwrap());
+        assert_eq!(
+            record.files[0].after,
+            store::fingerprint_of_bytes(b"{\"batch\":true}").unwrap()
+        );
+    }
 
     fn ctx(root: &std::path::Path) -> PlatformContext {
         PlatformContext {

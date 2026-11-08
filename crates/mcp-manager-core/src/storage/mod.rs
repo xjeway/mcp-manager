@@ -20,6 +20,25 @@ pub fn resolve_path(path: &str) -> PathBuf {
     PlatformContext::current().resolve_path(path)
 }
 
+/// Canonicalize existing prefixes so aliases share one batch ownership key.
+pub(crate) fn target_identity(path: &Path) -> PathBuf {
+    if let Ok(path) = path.canonicalize() {
+        return path;
+    }
+    match (path.parent(), path.file_name()) {
+        (Some(parent), Some(name)) if parent != path && !parent.as_os_str().is_empty() => {
+            target_identity(parent).join(name)
+        }
+        _ => path.to_path_buf(),
+    }
+}
+
+#[derive(Debug)]
+pub struct BatchCommit {
+    pub backups: Vec<String>,
+    pub files: std::collections::BTreeMap<PathBuf, Vec<u8>>,
+}
+
 pub fn resolve_relative_path(relative_path: &str) -> PathBuf {
     let candidate = PathBuf::from(relative_path);
     if candidate.is_absolute() {
@@ -188,6 +207,8 @@ pub struct Snapshot {
 impl Snapshot {
     /// Records `path` unless it is already recorded, so the first state wins.
     pub fn capture(&mut self, path: &Path) -> Result<(), String> {
+        let identity = target_identity(path);
+        let path = identity.as_path();
         if self.files.iter().any(|(seen, _)| seen == path) {
             return Ok(());
         }
@@ -246,6 +267,8 @@ impl Snapshot {
 
     /// Checks a planned target against its captured bytes just before a batch write.
     pub fn verify_path(&self, path: &Path) -> Result<(), String> {
+        let identity = target_identity(path);
+        let path = identity.as_path();
         let expected = self
             .files
             .iter()
@@ -260,6 +283,45 @@ impl Snapshot {
             return Err(format!("Client configuration changed before writing {}. Run the command again to review it.", path.display()));
         }
         Ok(())
+    }
+
+    /// Compare ownership immediately before restoring each individual file.
+    /// As with forward writes, uncooperative writers may still race the final atomic replacement.
+    pub fn restore_owned(
+        &self,
+        written: &std::collections::BTreeMap<PathBuf, Vec<u8>>,
+    ) -> Result<(), String> {
+        self.restore_owned_with(written, |_| {})
+    }
+
+    fn restore_owned_with(
+        &self,
+        written: &std::collections::BTreeMap<PathBuf, Vec<u8>>,
+        mut before: impl FnMut(&Path),
+    ) -> Result<(), String> {
+        let mut failures = Vec::new();
+        for (path, original) in self.files.iter().rev() {
+            before(path);
+            if !written
+                .get(path)
+                .is_some_and(|bytes| fs::read(path).is_ok_and(|current| current == *bytes))
+            {
+                continue;
+            }
+            let result = match original {
+                Some(content) => atomic_write_bytes(path, content),
+                None => fs::remove_file(path).map_err(|e| e.to_string()),
+            };
+            if let Err(error) = result {
+                failures.push(format!("{}: {error}", path.display()));
+            }
+        }
+        remove_empty_dirs(&self.new_dirs);
+        if failures.is_empty() {
+            Ok(())
+        } else {
+            Err(failures.join("; "))
+        }
     }
 
     /// Puts every recorded file back, newest first, and reports each failure.
@@ -329,7 +391,17 @@ fn json_value_to_toml(value: &Value) -> Result<toml::Value, String> {
 
 /// Return the exact committed payload, without rereading a possibly externally edited target.
 fn commit_text(path: &Path, content: &str) -> Result<Vec<u8>, String> {
+    commit_text_with(path, content, || {})
+}
+
+/// Explicit post-commit seam for deterministic concurrency tests.
+fn commit_text_with(
+    path: &Path,
+    content: &str,
+    after_commit: impl FnOnce(),
+) -> Result<Vec<u8>, String> {
     atomic_write(path, content)?;
+    after_commit();
     Ok(content.as_bytes().to_vec())
 }
 
@@ -471,6 +543,7 @@ fn apply_merge_json_object_entries(
     field: &str,
     content: &str,
     remove_keys: Option<&[String]>,
+    native_enabled: bool,
 ) -> Result<Vec<u8>, String> {
     let field_value: Value = serde_json::from_str(content).map_err(|e| e.to_string())?;
     let Some(new_entries) = field_value.as_object() else {
@@ -482,7 +555,15 @@ fn apply_merge_json_object_entries(
         field,
         new_entries,
         remove_keys.unwrap_or_default(),
-        carry_unmanaged_json_fields,
+        |old, new| {
+            let enabled = native_enabled
+                .then(|| new.get("enabled").cloned())
+                .flatten();
+            carry_unmanaged_json_fields(old, new);
+            if let Some(enabled) = enabled {
+                new["enabled"] = enabled;
+            }
+        },
     )
     .map_err(|error| unreadable(path, error))?;
     commit_text(path, &updated)
@@ -668,11 +749,12 @@ fn apply_operation_committed(path: &Path, item: &WriteOperation) -> Result<Vec<u
             &item.content,
             item.remove_keys.as_deref(),
         ),
-        "merge_json_object_entries" => apply_merge_json_object_entries(
+        "merge_json_object_entries" | "merge_mimo_entries" => apply_merge_json_object_entries(
             path,
             field("JSON")?,
             &item.content,
             item.remove_keys.as_deref(),
+            item.mode == "merge_mimo_entries",
         ),
         "merge_toml_field" => apply_merge_toml_field(path, field("TOML")?, &item.content),
         "merge_toml_table_entries" => apply_merge_toml_table_entries(
@@ -719,7 +801,7 @@ pub fn apply_operations_checked_with_inputs(
     expected: &Snapshot,
     inputs: &Snapshot,
     mut check_context: impl FnMut() -> Result<(), String>,
-) -> Result<Vec<String>, String> {
+) -> Result<BatchCommit, String> {
     apply_operations_guarded_with(artifacts, Some(expected), |_, _| {
         check_context()?;
         for path in inputs
@@ -737,7 +819,7 @@ fn apply_operations_guarded(
     artifacts: Vec<WriteOperation>,
     expected: Option<&Snapshot>,
 ) -> Result<Vec<String>, String> {
-    apply_operations_guarded_with(artifacts, expected, |_, _| Ok(()))
+    apply_operations_guarded_with(artifacts, expected, |_, _| Ok(())).map(|commit| commit.backups)
 }
 
 /// A batch owns its prior writes, while an edit between operations remains external.
@@ -745,12 +827,12 @@ fn apply_operations_guarded_with(
     artifacts: Vec<WriteOperation>,
     expected: Option<&Snapshot>,
     mut before: impl FnMut(usize, &Path) -> Result<(), String>,
-) -> Result<Vec<String>, String> {
+) -> Result<BatchCommit, String> {
     let mut backups = Vec::new();
     let mut originals = Snapshot::default();
     let mut written = std::collections::BTreeMap::<PathBuf, Vec<u8>>::new();
     for (index, item) in artifacts.into_iter().enumerate() {
-        let path = resolve_path(&item.path);
+        let path = target_identity(&resolve_path(&item.path));
         let result = (|| {
             before(index, &path)?;
             if let Some(expected) = expected {
@@ -781,12 +863,7 @@ fn apply_operations_guarded_with(
         })();
         if let Err(error) = result {
             // Restore only versions still owned by this batch, even if failure was elsewhere.
-            originals.files.retain(|(path, _)| {
-                written
-                    .get(path)
-                    .is_some_and(|bytes| fs::read(path).is_ok_and(|current| current == *bytes))
-            });
-            return Err(match originals.restore() {
+            return Err(match originals.restore_owned(&written) {
                 Ok(()) => error,
                 Err(restore_error) => format!(
                     "{error}; restoring the files written before it also failed: {restore_error}"
@@ -794,7 +871,10 @@ fn apply_operations_guarded_with(
             });
         }
     }
-    Ok(backups)
+    Ok(BatchCommit {
+        backups,
+        files: written,
+    })
 }
 
 /// The file a backup made by [`backup_file`] was taken of.
@@ -1436,6 +1516,67 @@ mod tests {
     }
 
     #[test]
+    fn rollback_checks_ownership_at_each_restore_instead_of_a_batch_filter() {
+        let temp = tempfile::tempdir().unwrap();
+        let a = temp.path().join("a");
+        let b = temp.path().join("b");
+        fs::write(&a, "original-a").unwrap();
+        fs::write(&b, "original-b").unwrap();
+        let mut snapshot = super::Snapshot::default();
+        snapshot.capture(&a).unwrap();
+        snapshot.capture(&b).unwrap();
+        fs::write(&a, "owned").unwrap();
+        fs::write(&b, "owned").unwrap();
+        let written = snapshot
+            .paths()
+            .map(|p| (p.to_path_buf(), b"owned".to_vec()))
+            .collect();
+        snapshot
+            .restore_owned_with(&written, |path| {
+                if path.ends_with("a") {
+                    fs::write(path, "external").unwrap();
+                }
+            })
+            .unwrap();
+        assert_eq!(fs::read_to_string(a).unwrap(), "external");
+        assert_eq!(fs::read_to_string(b).unwrap(), "original-b");
+    }
+
+    #[test]
+    fn aliases_share_a_single_checked_target() {
+        let _guard = env_lock().lock().unwrap();
+        let temp = tempfile::tempdir().unwrap();
+        let home = temp.path().join("home");
+        fs::create_dir_all(&home).unwrap();
+        let runtime = set_test_runtime(&home, temp.path());
+        let path = temp.path().join("client.json");
+        fs::write(&path, "{}").unwrap();
+        fs::create_dir(temp.path().join("nested")).unwrap();
+        let alias = temp.path().join("nested/../client.json");
+        let mut snapshot = super::Snapshot::default();
+        snapshot.capture(&path).unwrap();
+        snapshot.capture(&alias).unwrap();
+        let op = |path: &Path, field: &str| WriteOperation {
+            path: path.to_string_lossy().into(),
+            mode: "merge_json_field".into(),
+            field: Some(field.into()),
+            content: "true".into(),
+            remove_keys: None,
+        };
+        let result = super::apply_operations_checked(
+            vec![op(&path, "first"), op(&alias, "second")],
+            &snapshot,
+        );
+        restore_test_runtime(runtime.0, runtime.1);
+        assert!(result.is_ok(), "{result:?}");
+        assert_eq!(snapshot.paths().count(), 1);
+        let value: serde_json::Value =
+            serde_json::from_str(&fs::read_to_string(path).unwrap()).unwrap();
+        assert_eq!(value["first"], true);
+        assert_eq!(value["second"], true);
+    }
+
+    #[test]
     fn operation_returns_the_payload_it_committed_not_a_later_external_revision() {
         let temp = tempfile::tempdir().unwrap();
         let path = temp.path().join("config.json");
@@ -1446,8 +1587,10 @@ mod tests {
             remove_keys: None,
             content: r#"{"owned":true}"#.into(),
         };
-        let committed = super::apply_operation_committed(&path, &operation).unwrap();
-        fs::write(&path, r#"{"external":true}"#).unwrap();
+        let committed = super::commit_text_with(&path, &operation.content, || {
+            fs::write(&path, r#"{"external":true}"#).unwrap();
+        })
+        .unwrap();
         let value: serde_json::Value = serde_json::from_slice(&committed).unwrap();
         assert_eq!(value["owned"], true);
         assert_ne!(committed, fs::read(path).unwrap());

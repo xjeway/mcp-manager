@@ -295,3 +295,5 @@ the exact bytes committed by the batch, never a reread that could bless an exter
 revision. Rollback restores only still-owned versions and preserves external edits
 even when failure occurred in a different dependency. Retained project parameters/environment values are included
 in redacted secret warnings before CLI or desktop confirmation.
+
+MiMo workspace placements are disabled with the native `enabled: false` switch, retaining their project-only definition for safe re-enabling. Deleting a placement/server removes the managed entry. Private user overlays are never used to reconstruct a missing managed project entry.

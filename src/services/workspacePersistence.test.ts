@@ -272,10 +272,19 @@ describe('MiMo editor project path refresh', () => {
     expect(refreshMiMoProjectPaths(config, cached, fresh, [])).toEqual(config)
     expect(refreshMiMoProjectPaths(config, cached, { ...fresh, root: '/other' }, ['server-1'])).toBe(config)
   })
+  it('keeps unmanaged ownership and disabled destinations unchanged', () => {
+    const unmanaged = make()
+    unmanaged.servers[0].placements![0].managed = false
+    expect(refreshMiMoProjectPaths(unmanaged, cached, fresh, ['server-1'])).toEqual(unmanaged)
+    const disabledDestination = make()
+    disabledDestination.servers[0].placements!.push({ ...disabledDestination.servers[0].placements![0], path: fresh.placementPaths.miMoCode, enabled: false })
+    expect(refreshMiMoProjectPaths(disabledDestination, cached, fresh, ['server-1'])).toEqual(disabledDestination)
+  })
   it('preserves disabled state when refreshing an already disabled selection', () => {
     const config = make()
     config.servers[0].placements![0].enabled = false
     const next = refreshMiMoProjectPaths(config, cached, fresh, ['server-1'])
     expect(next.servers[0].placements?.map((placement) => placement.enabled)).toEqual([false, false])
+    expect(next.servers[0].placements?.map((placement) => placement.path)).toEqual([cached.placementPaths.miMoCode, fresh.placementPaths.miMoCode])
   })
 })

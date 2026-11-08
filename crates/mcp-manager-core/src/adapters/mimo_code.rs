@@ -118,7 +118,7 @@ pub(crate) fn validate_mimo_context(
         });
     if targeted {
         effective(ctx, None)?;
-        if let Some(previous) = previous {
+        {
             for server in config.servers.iter().filter(|server| {
                 server.enabled
                     && server.placements.iter().any(|p| {
@@ -128,17 +128,31 @@ pub(crate) fn validate_mimo_context(
                             && p.managed
                     })
             }) {
-                let managed_before = previous
-                    .servers
-                    .iter()
-                    .find(|old| old.id == server.id)
-                    .is_some_and(|old| {
-                        old.placements.iter().any(|p| {
-                            p.app == SupportedApp::MiMoCode
-                                && p.scope == PlacementScope::Workspace
-                                && p.managed
-                        })
-                    });
+                let managed_before = previous.map_or_else(
+                    || {
+                        effective(ctx, None)
+                            .ok()
+                            .and_then(|root| {
+                                root.get("mcp")
+                                    .and_then(|entries| entries.get(&server.id))
+                                    .cloned()
+                            })
+                            .is_some()
+                    },
+                    |previous| {
+                        previous
+                            .servers
+                            .iter()
+                            .find(|old| old.id == server.id)
+                            .is_some_and(|old| {
+                                old.placements.iter().any(|p| {
+                                    p.app == SupportedApp::MiMoCode
+                                        && p.scope == PlacementScope::Workspace
+                                        && p.managed
+                                })
+                            })
+                    },
+                );
                 if managed_before && project_entry(ctx, &server.id).is_none() {
                     return Err(format!("MiMo project entry {} no longer exists. Re-import before saving it; private user values were not copied.",server.id));
                 }
@@ -237,7 +251,7 @@ fn project_entry(ctx: &PlatformContext, id: &str) -> Option<Value> {
 
 /// Read only project-layer data for retained-field warnings and alias migration.
 pub(crate) fn retained_project_entry(ctx: &PlatformContext, path: &str, id: &str) -> Option<Value> {
-    fs::read_to_string(path)
+    fs::read_to_string(ctx.resolve_path(path))
         .ok()
         .and_then(|content| parse_jsonc(&content).ok())
         .and_then(|root| root.get("mcp").and_then(|entries| entries.get(id)).cloned())
@@ -251,7 +265,7 @@ fn layer_entries(
     previous: Option<&MCPConfig>,
     path: &str,
 ) -> Value {
-    let old = fs::read_to_string(path)
+    let old = fs::read_to_string(ctx.resolve_path(path))
         .ok()
         .and_then(|content| parse_jsonc(&content).ok());
     let baseline_servers = previous
@@ -455,11 +469,49 @@ impl AppAdapter for MiMoCodeAdapter {
                 path.canonicalize().unwrap_or(path)
             })
             .collect();
+        // Keep a disabled workspace entry in its native file so a later enable
+        // can recover project-only values without using the merged home overlay.
+        let mut retained = config.clone();
+        for server in &mut retained.servers {
+            if !server.enabled {
+                server.apps.insert(self.app(), false);
+                for p in &mut server.placements {
+                    if p.scope == PlacementScope::User {
+                        p.enabled = false;
+                    }
+                }
+            }
+            if let Some(old) =
+                previous.and_then(|c| c.servers.iter().find(|old| old.id == server.id))
+            {
+                for placement in &mut server.placements {
+                    if placement.app == self.app()
+                        && placement.scope == PlacementScope::Workspace
+                        && placement.managed
+                        && old.placements.iter().any(|p| {
+                            p.app == self.app()
+                                && p.scope == placement.scope
+                                && p.path == placement.path
+                                && p.managed
+                        })
+                        && retained_project_entry(
+                            ctx,
+                            placement.path.as_deref().unwrap_or(""),
+                            &server.id,
+                        )
+                        .is_some()
+                    {
+                        placement.enabled = true;
+                        server.enabled = true;
+                    }
+                }
+            }
+        }
         managed_json_field_writes_with(
             ctx,
             "mcp",
             self.app(),
-            config,
+            &retained,
             previous,
             opencode_mcp_servers_at,
         )
@@ -469,7 +521,34 @@ impl AppAdapter for MiMoCodeAdapter {
             allowed.contains(&path.canonicalize().unwrap_or(path))
         })
         .map(|mut operation| {
-            operation.content = layer_entries(ctx, config, previous, &operation.path).to_string();
+            let mut entries = layer_entries(ctx, &retained, previous, &operation.path);
+            for server in &config.servers {
+                let selected = |s: &MCPServer| {
+                    s.placements
+                        .iter()
+                        .find(|p| {
+                            p.app == self.app()
+                                && p.scope == PlacementScope::Workspace
+                                && p.managed
+                                && p.path.as_ref().is_some_and(|path| {
+                                    ctx.resolve_path(path) == ctx.resolve_path(&operation.path)
+                                })
+                        })
+                        .map(|p| s.enabled && p.enabled)
+                };
+                if let Some(active) = selected(server) {
+                    let old_active = previous
+                        .and_then(|c| c.servers.iter().find(|old| old.id == server.id))
+                        .and_then(selected);
+                    if !active || old_active == Some(false) {
+                        if let Some(entry) = entries.get_mut(&server.id) {
+                            entry["enabled"] = Value::Bool(active);
+                        }
+                    }
+                }
+            }
+            operation.mode = "merge_mimo_entries".into();
+            operation.content = entries.to_string();
             operation
         })
         .collect()
@@ -848,8 +927,92 @@ mod tests {
         let previous = build_import_result(vec![], detected, vec![], vec![]).config;
         write(&project, "{}");
         assert!(crate::workflow::prepare(&ctx, &previous, Some(&previous)).is_err());
+        assert!(crate::workflow::prepare(&ctx, &previous, None).is_err());
         assert_eq!(fs::read_to_string(project).unwrap(), "{}");
         assert_eq!(fs::read_to_string(home).unwrap(), private);
+    }
+
+    #[test]
+    fn disabling_and_reenabling_project_keeps_only_project_values() {
+        let temp = tempfile::tempdir().unwrap();
+        let ctx = ctx(temp.path());
+        let project = ctx.workspace_file("mimocode.jsonc");
+        let home = ctx.home_dir.join(".mimocode/mimocode.jsonc");
+        let public = r#"{"mcp":{"roundtrip":{"type":"local","command":["project"],"environment":{"TOKEN":"public"}}}}"#;
+        write(&project, public);
+        write(
+            &home,
+            r#"{"mcp":{"roundtrip":{"type":"local","command":["home"],"environment":{"TOKEN":"private"}}}}"#,
+        );
+        let mut active = MCPConfig {
+            version: 1,
+            servers: MiMoCodeAdapter
+                .parse_source(&ctx, project.to_str().unwrap(), 13, public)
+                .servers
+                .into_iter()
+                .map(|(s, _)| s)
+                .collect(),
+        };
+        // Model the private merged canonical definition to ensure it is never used as project raw data.
+        active.servers[0]
+            .command
+            .as_mut()
+            .unwrap()
+            .env
+            .insert("TOKEN".into(), "private".into());
+        let mut disabled = active.clone();
+        disabled.servers[0].placements[0].enabled = false;
+        for op in MiMoCodeAdapter.plan_apply(&ctx, &disabled, Some(&active)) {
+            apply_operation(Path::new(&op.path), &op).unwrap();
+        }
+        let off = fs::read_to_string(&project).unwrap();
+        assert_eq!(
+            parse_jsonc(&off).unwrap()["mcp"]["roundtrip"]["enabled"],
+            false
+        );
+        assert!(!off.contains("private"));
+        validate_mimo_context(&ctx, &active, Some(&disabled)).unwrap();
+        for op in MiMoCodeAdapter.plan_apply(&ctx, &active, Some(&disabled)) {
+            apply_operation(Path::new(&op.path), &op).unwrap();
+        }
+        let on = fs::read_to_string(project).unwrap();
+        assert_eq!(
+            parse_jsonc(&on).unwrap()["mcp"]["roundtrip"]["enabled"],
+            true
+        );
+        assert!(!on.contains("private"));
+    }
+
+    #[test]
+    fn tilde_user_layer_reads_its_own_raw_values() {
+        let temp = tempfile::tempdir().unwrap();
+        let ctx = ctx(temp.path());
+        let content = r#"{"mcp":{"tilde":{"type":"local","command":["local"],"environment":{"TOKEN":"layer-value"}}}}"#;
+        write(&ctx.home_dir.join(".mimocode/mimocode.jsonc"), content);
+        let previous = MCPConfig {
+            version: 1,
+            servers: MiMoCodeAdapter
+                .parse_source(&ctx, "~/.mimocode/mimocode.jsonc", 5, content)
+                .servers
+                .into_iter()
+                .map(|(s, _)| s)
+                .collect(),
+        };
+        let mut desired = previous.clone();
+        desired.servers[0]
+            .command
+            .as_mut()
+            .unwrap()
+            .env
+            .insert("EXTRA".into(), "new".into());
+        let entries = layer_entries(
+            &ctx,
+            &desired,
+            Some(&previous),
+            "~/.mimocode/mimocode.jsonc",
+        );
+        assert_eq!(entries["tilde"]["environment"]["TOKEN"], "layer-value");
+        assert_eq!(entries["tilde"]["environment"]["EXTRA"], "new");
     }
 
     #[test]
@@ -877,6 +1040,7 @@ mod tests {
         let content = r#"{"mcp":{
             "fixture-env":{"type":"local","command":["node"],"enabled":false,"environment":{"enabled":"old"}},
             "fixture-header":{"type":"remote","url":"https://example.com/mcp","enabled":false,"headers":{"enabled":"old","Other":"keep"}},
+            "fixture-loopback":{"type":"remote","url":"http://127.0.0.1:8300/mcp","headers":{"Authorization":"keep-local"}},
             "fixture-unsafe":{"type":"remote","url":"http://remote.example/mcp","headers":{"Authorization":"must-remove"}}
         }}"#;
         write(&path, content);
@@ -923,6 +1087,10 @@ mod tests {
             .get("enabled")
             .is_none());
         assert_eq!(value["mcp"]["fixture-header"]["headers"]["Other"], "keep");
+        assert_eq!(
+            value["mcp"]["fixture-loopback"]["headers"]["Authorization"],
+            "keep-local"
+        );
         assert!(value["mcp"]["fixture-unsafe"].get("headers").is_none());
     }
 }
