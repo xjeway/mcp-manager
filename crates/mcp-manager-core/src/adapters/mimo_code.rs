@@ -396,7 +396,10 @@ impl AppAdapter for MiMoCodeAdapter {
         let allowed: std::collections::BTreeSet<_> = sources(ctx)
             .unwrap_or_default()
             .into_iter()
-            .map(|(path, _)| path)
+            .map(|(path, _)| {
+                let path = ctx.resolve_path(&path);
+                path.canonicalize().unwrap_or(path)
+            })
             .collect();
         managed_json_field_writes_with(
             ctx,
@@ -407,7 +410,10 @@ impl AppAdapter for MiMoCodeAdapter {
             opencode_mcp_servers_at,
         )
         .into_iter()
-        .filter(|operation| allowed.contains(&operation.path))
+        .filter(|operation| {
+            let path = ctx.resolve_path(&operation.path);
+            allowed.contains(&path.canonicalize().unwrap_or(path))
+        })
         .map(|mut operation| {
             operation.content = layer_entries(ctx, config, previous, &operation.path).to_string();
             operation
