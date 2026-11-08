@@ -7,6 +7,7 @@ mod claude_desktop;
 mod cline;
 mod codebuddy;
 mod codex;
+mod command_code;
 mod cursor;
 mod factory_droid;
 mod gemini_cli;
@@ -18,12 +19,16 @@ mod iflow;
 mod kilo_code;
 mod kimi_cli;
 mod kiro;
+mod mimo_code;
 mod mistral_vibe;
+mod muse_code;
 mod opencode;
 mod qoder;
 mod qwen_code;
+mod rovo_dev;
 mod vscode;
 mod windsurf;
+mod zcode;
 mod zed;
 
 use crate::core::{
@@ -43,6 +48,7 @@ pub use claude_desktop::ClaudeDesktopAdapter;
 pub use cline::ClineAdapter;
 pub use codebuddy::CodeBuddyAdapter;
 pub use codex::CodexAdapter;
+pub use command_code::CommandCodeAdapter;
 pub use cursor::CursorAdapter;
 pub use factory_droid::FactoryDroidAdapter;
 pub use gemini_cli::GeminiCliAdapter;
@@ -54,12 +60,20 @@ pub use iflow::IFlowAdapter;
 pub use kilo_code::KiloCodeAdapter;
 pub use kimi_cli::KimiCliAdapter;
 pub use kiro::KiroAdapter;
+pub(crate) use mimo_code::validate_mimo_context;
+pub use mimo_code::MiMoCodeAdapter;
 pub use mistral_vibe::MistralVibeAdapter;
+pub use muse_code::MuseCodeAdapter;
+pub(crate) use muse_code::{validate_document as validate_muse_document, validate_muse_context};
 pub use opencode::OpenCodeAdapter;
 pub use qoder::QoderAdapter;
 pub use qwen_code::QwenCodeAdapter;
+pub(crate) use rovo_dev::validate_rovo_context;
+pub use rovo_dev::RovoDevAdapter;
 pub use vscode::VSCodeAdapter;
 pub use windsurf::WindsurfAdapter;
+pub(crate) use zcode::validate_project_fallback;
+pub use zcode::ZCodeAdapter;
 pub use zed::ZedAdapter;
 
 pub struct ParsedSources {
@@ -116,7 +130,11 @@ pub fn workspace_scope_path(ctx: &PlatformContext, app: SupportedApp) -> Option<
         // Amp asks before it runs servers from workspace settings.
         SupportedApp::Amp => ".amp/settings.json",
         SupportedApp::Grok => ".grok/config.toml",
+        SupportedApp::ZCode => ".zcode/config.json",
         SupportedApp::Agents => ".agents/mcp.json",
+        SupportedApp::MiMoCode => {
+            return Some(ctx.mimo_project_path().to_string_lossy().to_string())
+        }
         SupportedApp::Auggie => ".augment/settings.json",
         // Devin's shared, committed project file. Its gitignored
         // `.devin/mcp_config.local.json` is written only for servers imported
@@ -540,7 +558,13 @@ pub fn http_headers_supported(app: SupportedApp) -> bool {
 /// Clients that can only reach a remote server over streamable HTTP. An SSE
 /// server is not written to them.
 fn sse_supported(app: SupportedApp) -> bool {
-    !matches!(app, SupportedApp::MistralVibe | SupportedApp::Goose)
+    !matches!(
+        app,
+        SupportedApp::MistralVibe
+            | SupportedApp::Goose
+            | SupportedApp::CommandCode
+            | SupportedApp::MuseCode
+    )
 }
 
 /// Clients `server` is enabled for, at any scope.
@@ -877,7 +901,10 @@ pub fn standard_mcp_servers_at(
                     Value::String(
                         if matches!(
                             app,
-                            SupportedApp::Auggie | SupportedApp::CodeBuddy | SupportedApp::Agents
+                            SupportedApp::Auggie
+                                | SupportedApp::CodeBuddy
+                                | SupportedApp::Agents
+                                | SupportedApp::ZCode
                         ) && server.transport.kind == "streamable-http"
                         {
                             "http".to_string()
@@ -983,7 +1010,12 @@ pub fn adapters() -> Vec<Box<dyn AppAdapter>> {
         Box::new(KiloCodeAdapter),
         Box::new(FactoryDroidAdapter),
         Box::new(KimiCliAdapter),
+        Box::new(ZCodeAdapter),
         Box::new(AgentsAdapter),
+        Box::new(MiMoCodeAdapter),
+        Box::new(CommandCodeAdapter),
+        Box::new(MuseCodeAdapter),
+        Box::new(RovoDevAdapter),
         Box::new(CodeBuddyAdapter),
         Box::new(AuggieAdapter),
         Box::new(ZedAdapter),

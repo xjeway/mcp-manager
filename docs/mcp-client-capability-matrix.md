@@ -35,8 +35,13 @@ storage path, merge behavior, and precedence.
 | Kilo Code | `~/.config/kilo/kilo.json` (or `kilo.jsonc`) | `kilo.json(c)`, `.kilo/kilo.json(c)` | None | Direct project support; same `mcp` schema as OpenCode. Kilo also reads `opencode.json`, which is left to the OpenCode adapter |
 | Factory Droid | `~/.factory/mcp.json` | `.factory/mcp.json` | Ancestor-folder `.factory/mcp.json` (not read) | Direct project support. Project files are committed, so keep tokens out of them |
 | Auggie (Augment CLI) | `~/.augment/settings.json` | `.augment/settings.json` | `.augment/settings.local.json` (private, local > project > user); organization-managed settings (read-only, not imported) | Direct project support. JSONC `mcpServers` edited in place; remote entries use `type: http` / `type: sse` and `headers`. Imported local entries are written back to their private file. New project entries use the shared file |
+| Command Code | `~/.commandcode/mcp.json` | `.mcp.json`, managed through Claude Code | Private `~/.commandcode/projects/<slug>/mcp.json` (not managed) | User only in direct controls; project via Claude Code. Strict JSON `mcpServers`; canonical `transport: stdio` / `transport: http` with `type` accepted on import. Preserves environment references, enabled flags and same-transport OAuth metadata |
 | CodeBuddy Code | First existing: `~/.codebuddy/.mcp.json`, `~/.codebuddy/mcp.json`, `~/.codebuddy.json`; default to the first path for new installs | `.mcp.json`, managed through Claude Code | Private local entries in `~/.codebuddy.json.projects[path]` and deprecated project `mcp.json` (not managed) | User only in direct controls; project via Claude Code. JSONC `mcpServers` edited in place. Read and write only the active user file; do not merge deprecated files. Remote entries use `type: http` / `type: sse` and `headers` |
 | Shared `.agents` (Codebuff / Freebuff) | `~/.agents/mcp.json` | `.agents/mcp.json` | Immediate parent's `.agents/mcp.json` (read-only import) | One shared-file target, with CLI aliases `codebuff` / `freebuff`. Global > parent > project for same-name servers, matching the upstream loader's actual merge order. HTTP/SSE use `type`, `url`, `headers`; `params` are retained. Parent files are never apply targets. Project secrets warn; supported `$VAR` references are retained without local expansion |
+| ZCode | `~/.zcode/cli/config.json` → `mcp.servers` | `.zcode/config.json` → `mcp.servers` | Same-scope `.agents/mcp.json` fallback, only when native definitions are empty | Direct project support with user > workspace precedence. Native files are edited only under the nested `mcp.servers` path. Fallbacks are imported but never written by this adapter; the first native write carries forward fallback entries so they are not silently shadowed. Client-owned `enable: false`, timeouts and OAuth settings survive rewrites |
+| MiMo Code | `$MIMOCODE_HOME/config` or `$XDG_CONFIG_HOME/mimocode` (default `~/.config/mimocode`): `config.json`, `mimocode.json`, `mimocode.jsonc`; `~/.mimocode/mimocode.json(c)` overlay | `mimocode.json(c)` and `.mimocode/mimocode.json(c)` | Ancestor, managed/remote and per-run injected sources are not managed | Direct project support. OpenCode-style `mcp` entries (`local` command array / `environment`, `remote` URL / headers). JSONC overrides JSON; hidden-directory files override root files. Import deep-merges supported layers before decoding servers and retains references. User writes go to the highest loaded existing user file |
+| Muse Code | `~/.config/muse/settings.json` | — | — | User only. Strict JSON, `schema_version: 1`, root `mcp_servers`; `transport: stdio` / `streamable_http`. New settings are initialized atomically. Legacy `mcpServers` or an unsupported schema blocks apply. Retains client enabled flags, mode, same-transport framing and unrelated settings |
+| Rovo Dev CLI | `~/.rovodev/mcp.json`, overridden by `mcp.mcpConfigPath` in `~/.rovodev/config.yml` | — | Per-run config overrides not managed | User only. JSON `mcpServers`, canonical `transport: stdio` / `http` / `sse`. Read-only YAML resolution accepts absolute paths or `~/`; malformed YAML or ambiguous relative paths block apply. The YAML disabled-server list is preserved and never becomes a global disable |
 | Kimi CLI | `~/.kimi/mcp.json` | Unsupported | None | User only; remote servers are written without `type` |
 | Zed | `~/.config/zed/settings.json` (Windows: `%APPDATA%\\Zed\\settings.json`) | `.zed/settings.json` | None | Direct project support. Servers live under `context_servers` in the editor settings file, which is edited in place. No `type` field; older nested `command: {path, args, env}` entries are read and rewritten flat. Extension-provided servers (only `settings`) are left alone |
 | Mistral Vibe | `~/.vibe/config.toml` | `.vibe/config.toml` (trusted folders only) | None | Direct project support. Servers are a `[[mcp_servers]]` list keyed by `name`, edited in place. Remote servers are written as `streamable-http` with headers in a static `auth` table; SSE servers are not written (Vibe has no SSE client) and the apply reports it. Vibe rejects unknown fields, so no `type` is written |
@@ -158,5 +163,116 @@ trust consent. MCP Manager reads data only and does not grant that consent.
 There is one `.agents` target rather than competing adapters for each reader.
 Parent entries are imported as unmanaged read-only placements. Their paths and
 priority are not displayed in the dashboard; edit the parent file to change them. Applied writes are restricted
-to the current project's and user's file. ZCode fallback handling remains #59.
+to the current project's and user's file. ZCode's fallback behavior is described below.
 Remote query parameters and other unmodeled fields survive managed rewrites.
+
+## ZCode verification (2026-11-08)
+
+The [official MCP guide](https://zcode.z.ai/en/docs/mcp-services) confirms native
+user/workspace paths and `mcp.servers`, HTTP/SSE and request headers, and the
+client-owned `enable` switch. User definitions override project definitions.
+Within one scope, a **nonempty native server map** suppresses `.agents`; an
+empty map or a config containing only unrelated settings does not.
+
+Import reads native definitions when present, otherwise same-scope `.agents`
+definitions. Apply always writes the native file, retaining fallback settings
+when it first creates native server definitions. The shared file remains owned
+by the `.agents` adapter. Native JSON path edits preserve hooks, permission
+settings, plugin toggles, sibling `mcp` fields and comments. Removing every
+native definition permits the client's fallback to load again; manage the
+shared target too when removing a service from every consumer.
+
+Project fallback migration requires importing all of its servers first (CLI:
+`--from <project>/.agents/mcp.json -a zcode --project`). This prevents raw,
+unreviewed fallback credentials from being copied into a new shared native file
+outside the normal server-level secret review. User-level migration remains
+private. The nested-write mode uses JSON Pointer `/mcp/servers`, so a literal
+key named `mcp.servers` or `amp.mcpServers` is never mistaken for nesting.
+
+## MiMo Code verification (2026-11-08)
+
+Verified against [official configuration docs](https://mimo.xiaomi.com/mimocode/config-overrides)
+and Xiaomi's source at `3a12665a9e27789b04dc7529d4ce0c10128e9ad8`:
+[profile resolver](https://github.com/XiaomiMiMo/MiMo-Code/blob/3a12665a9e27789b04dc7529d4ce0c10128e9ad8/packages/shared/src/global.ts),
+[loader and general writer](https://github.com/XiaomiMiMo/MiMo-Code/blob/3a12665a9e27789b04dc7529d4ce0c10128e9ad8/packages/cli/src/config/config.ts),
+and [MCP schema](https://github.com/XiaomiMiMo/MiMo-Code/blob/3a12665a9e27789b04dc7529d4ce0c10128e9ad8/packages/cli/src/config/mcp.ts).
+
+Supported files are deep-merged without expanding environment/file references,
+then each source's declared IDs are attributed to that source's scope. Project
+files override the base user files; the home `.mimocode` overlay is loaded later
+and overrides project settings. User writes select the highest-priority existing
+file (JSONC before JSON); new files use `mimocode.jsonc`. MiMo's MCP-add command
+currently checks JSON before JSONC despite its comment; the manager follows the
+actual load precedence so a write cannot be hidden by an existing JSONC file.
+
+Only the current project and local user layers above are managed. Ancestor
+configs, managed organization configs and `MIMOCODE_CONFIG*` per-run injected
+layers can still override them and are left untouched. Invalid relative
+`MIMOCODE_HOME` values or malformed supported config files abort apply instead
+of writing a guessed path. This is Xiaomi's MiMo Code, not KoinaAI/MiMo-CLI.
+
+## Command Code format verification (2026-11-08)
+
+The [official MCP documentation](https://commandcode.ai/docs/mcp) now publishes
+user, project and local paths together with the `mcpServers` schema. The
+canonical transport key is `transport`; `type` is a documented alias. Only
+stdio and HTTP are supported by this adapter, matching the documented CLI
+transport choices. An incidental reference to SSE in the OAuth guidance is not
+treated as confirmation of an SSE configuration schema.
+
+The user file has one Command Code writer. Shared project `.mcp.json` remains
+owned by Claude Code, as for CodeBuddy, and is available through that client's
+project controls. Private local files are not discovered or modified: the slug
+algorithm is not specified. Local > project > user precedence can therefore
+make a private local definition override a managed definition.
+
+Raw `${VAR}`, `${VAR:-default}` and `$${VAR}` values are preserved without local
+expansion. Existing `enabled: false` is retained, including transport switches;
+manager enablement and the client's own switch remain separate. Windows uses
+configuration markers for detection because the OS `cmd.exe` is not evidence
+that Command Code is installed. The official favicon is used for the client icon.
+
+## Muse Code verification (2026-11-08)
+
+The current [official settings documentation](https://dev.meta.ai/docs/muse-code/configuration)
+requires `schema_version: 1`, and the [MCP documentation](https://dev.meta.ai/docs/muse-code/extending)
+explicitly uses `mcp_servers` with `transport: stdio` (command, args, env) or
+`transport: streamable_http` (url, headers). This is the settings schema, not
+the SDK's separate protocol representation.
+
+Only the user file is managed. Raw `${VAR}` strings remain unexpanded. Client
+`enabled` and `mode` survive writes, including transport changes; framing is
+retained only for the same transport. A new file receives its schema and MCP
+entries in one atomic write. Existing missing/unknown schema versions and any
+legacy `mcpServers` key fail import/apply before writes, requiring the user to
+resolve the version conflict instead of creating two conflicting server maps.
+Unrelated hooks, runtime capabilities and settings remain intact. SSE is not
+written to Muse because only streamable HTTP is documented for remote servers.
+
+## Rovo Dev CLI verification (2026-11-08)
+
+Verified the official standalone Rovo plugin `202611.3.1` obtained from the
+[public Atlassian plugin endpoint](https://api.atlassian.com/acli/api/v1/plugin/rovodev)
+(with OS/architecture headers). Its official
+[Darwin arm64 archive](https://acli.atlassian.com/plugins/rovodev/darwin/arm64/202611.3.1/rovodev.zip)
+matched published SHA-256 `fb785065c0bd58fe64d2714da9bc70b96eaecef0666d9a383b9f404f8e42831a`.
+Running `--version` and `mcp` in an isolated HOME with a recording editor confirmed
+that this version creates/opens `~/.rovodev/mcp.json`, initialized as
+`{"mcpServers": {}}`. No login, model invocation or real user configuration was used.
+The client icon comes from this archive's bundled web GUI favicon.
+
+The [MCP guide](https://support.atlassian.com/rovo/docs/connect-to-an-mcp-server-in-rovo-dev-cli/)
+confirms the transport/command/args/url schema. The
+[settings guide](https://support.atlassian.com/rovo/docs/manage-rovo-dev-cli-settings/)
+still shows the older `mcp_config.json` default. The adapter uses the executable's
+observed default, and honors the guide's explicit `mcp.mcpConfigPath` override.
+Only absolute or home-relative overrides are managed; per-run `--config-file`
+and `--config-override` are left untouched. The current `mcp` editor command
+always opened the default even with YAML overrides in the probe, so that command
+is not evidence of the effective runtime override path. No authenticated server
+connection was tested.
+
+The YAML file is read-only: allowed/disabled server lists and all other settings
+remain unchanged. Client-local disabled entries are imported without globally
+disabling them. Prepared writes reject a changed target path or invalid YAML
+before writing; JSON updates retain unrelated entries and same-transport metadata.

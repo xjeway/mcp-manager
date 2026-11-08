@@ -878,3 +878,298 @@ fn agents_retained_secret_warnings_include_servers_outside_the_command_focus() {
         "nonfocus-private"
     );
 }
+
+#[test]
+fn zcode_native_writes_preserve_fallbacks_and_project_nesting() {
+    let sandbox = Sandbox::new();
+    let fallback = sandbox.home.join(".agents/mcp.json");
+    fs::create_dir_all(fallback.parent().unwrap()).unwrap();
+    let fallback_text = r#"{"mcpServers":{"keep":{"command":"node","args":["keep.js"],"enable":false,"timeoutMs":9000}}}"#;
+    fs::write(&fallback, fallback_text).unwrap();
+    sandbox.ok(&[
+        "add",
+        "api",
+        "--url",
+        "https://example.com/mcp",
+        "-a",
+        "zcode",
+        "--global",
+        "-y",
+    ]);
+    let native = sandbox.read_json(&sandbox.home.join(".zcode/cli/config.json"));
+    assert_eq!(native["mcp"]["servers"]["api"]["type"], "http");
+    assert_eq!(native["mcp"]["servers"]["keep"]["enable"], false);
+    assert_eq!(native["mcp"]["servers"]["keep"]["timeoutMs"], 9000);
+    assert_eq!(fs::read_to_string(&fallback).unwrap(), fallback_text);
+    let report = sandbox.json(&[
+        "add",
+        "project",
+        "-a",
+        "zcode",
+        "--project",
+        "--env",
+        "API_KEY=literal-secret",
+        "-y",
+        "--json",
+        "--",
+        "node",
+        "project.js",
+    ]);
+    assert_eq!(report["warnings"][0]["kind"], "sharedProjectSecret");
+    let project = sandbox.read_json(&sandbox.project.join(".zcode/config.json"));
+    assert_eq!(project["mcp"]["servers"]["project"]["command"], "node");
+    assert!(project.get("mcpServers").is_none());
+}
+
+#[test]
+fn mimo_global_add_uses_upstream_profile_and_command_array() {
+    for profile in [false, true] {
+        let sandbox = Sandbox::new();
+        let root = sandbox.home.join("custom-profile");
+        let mut command = sandbox.command(&[
+            "add",
+            "local",
+            "-a",
+            "mimo",
+            "--global",
+            "-y",
+            "--",
+            "node",
+            "server.js",
+        ]);
+        if profile {
+            command.env("MIMOCODE_HOME", &root);
+        }
+        let output = command.output().unwrap();
+        assert!(
+            output.status.success(),
+            "{}",
+            String::from_utf8_lossy(&output.stderr)
+        );
+        let path = if profile {
+            root.join("config/mimocode.jsonc")
+        } else {
+            sandbox.home.join(".config/mimocode/mimocode.jsonc")
+        };
+        let value = sandbox.read_json(&path);
+        assert_eq!(value["mcp"]["local"]["type"], "local");
+        assert_eq!(
+            value["mcp"]["local"]["command"],
+            serde_json::json!(["node", "server.js"])
+        );
+    }
+}
+
+#[test]
+fn mimo_relative_profile_fails_before_writing_client_files() {
+    let sandbox = Sandbox::new();
+    let output = sandbox
+        .command(&[
+            "add",
+            "api",
+            "-a",
+            "mimo",
+            "--global",
+            "--url",
+            "https://example.com/mcp",
+            "-y",
+        ])
+        .env("MIMOCODE_HOME", "relative-profile")
+        .output()
+        .unwrap();
+    assert!(!output.status.success());
+    assert!(!sandbox
+        .home
+        .join(".config/mimocode/mimocode.jsonc")
+        .exists());
+    assert!(!sandbox.project.join("relative-profile").exists());
+}
+
+#[test]
+fn command_code_uses_canonical_transport_and_one_project_writer() {
+    let sandbox = Sandbox::new();
+    let shared_path = sandbox.project.join(".mcp.json");
+    let shared = r#"{"mcpServers":{"shared":{"command":"keep"}}}"#;
+    fs::write(&shared_path, shared).unwrap();
+    sandbox.ok(&[
+        "add",
+        "api",
+        "--url",
+        "https://example.com/mcp",
+        "-a",
+        "command-code",
+        "--global",
+        "-y",
+    ]);
+    let path = sandbox.home.join(".commandcode/mcp.json");
+    let config = sandbox.read_json(&path);
+    assert_eq!(config["mcpServers"]["api"]["transport"], "http");
+    assert!(config["mcpServers"]["api"].get("type").is_none());
+    assert_eq!(fs::read_to_string(&shared_path).unwrap(), shared);
+    sandbox.ok(&[
+        "add",
+        "local",
+        "-a",
+        "cmd",
+        "--global",
+        "-y",
+        "--",
+        "node",
+        "server.js",
+    ]);
+    let config = sandbox.read_json(&path);
+    assert_eq!(config["mcpServers"]["local"]["transport"], "stdio");
+    assert_eq!(
+        config["mcpServers"]["local"]["args"],
+        serde_json::json!(["server.js"])
+    );
+    assert!(!sandbox.home.join(".commandcode/projects").exists());
+}
+
+#[test]
+fn muse_new_file_has_required_schema_and_native_transport() {
+    let sandbox = Sandbox::new();
+    sandbox.ok(&[
+        "add",
+        "api",
+        "-a",
+        "muse",
+        "--global",
+        "--url",
+        "https://example.com/mcp",
+        "-y",
+    ]);
+    let path = sandbox.home.join(".config/muse/settings.json");
+    let config = sandbox.read_json(&path);
+    assert_eq!(config["schema_version"], 1);
+    assert_eq!(config["mcp_servers"]["api"]["transport"], "streamable_http");
+    assert!(config.get("mcpServers").is_none());
+    assert!(!sandbox.project.join(".mcp.json").exists());
+}
+
+#[test]
+fn muse_legacy_key_is_rejected_without_changing_either_client_or_shared_store() {
+    let sandbox = Sandbox::new();
+    let path = sandbox.home.join(".config/muse/settings.json");
+    fs::create_dir_all(path.parent().unwrap()).unwrap();
+    let original = r#"{"schema_version":1,"mcpServers":{"old":{"command":"keep"}}}"#;
+    fs::write(&path, original).unwrap();
+    let output = sandbox.run(&[
+        "add",
+        "api",
+        "-a",
+        "muse-code",
+        "--global",
+        "--url",
+        "https://example.com/mcp",
+        "-y",
+    ]);
+    assert!(!output.status.success());
+    assert_eq!(fs::read_to_string(path).unwrap(), original);
+    assert!(!sandbox.servers_yaml().exists());
+}
+
+#[test]
+fn rovo_cli_resolves_explicit_yaml_path_and_preserves_disabled_list() {
+    let sandbox = Sandbox::new();
+    let yaml = sandbox.home.join(".rovodev/config.yml");
+    fs::create_dir_all(yaml.parent().unwrap()).unwrap();
+    let settings = "mcp:\n  mcpConfigPath: '~/custom/mcp.json'\n  disabledMcpServers: [api]\n";
+    fs::write(&yaml, settings).unwrap();
+    sandbox.ok(&[
+        "add",
+        "api",
+        "-a",
+        "rovodev",
+        "--global",
+        "--url",
+        "https://example.com/mcp",
+        "-y",
+    ]);
+    let value = sandbox.read_json(&sandbox.home.join("custom/mcp.json"));
+    assert_eq!(value["mcpServers"]["api"]["transport"], "http");
+    assert_eq!(fs::read_to_string(&yaml).unwrap(), settings);
+    assert!(!sandbox.home.join(".rovodev/mcp.json").exists());
+}
+
+#[test]
+fn rovo_cli_malformed_yaml_fails_before_creating_a_fallback() {
+    let sandbox = Sandbox::new();
+    let yaml = sandbox.home.join(".rovodev/config.yml");
+    fs::create_dir_all(yaml.parent().unwrap()).unwrap();
+    fs::write(&yaml, "mcp: [").unwrap();
+    let output = sandbox.run(&[
+        "add",
+        "api",
+        "-a",
+        "rovo-dev",
+        "--global",
+        "--url",
+        "https://example.com/mcp",
+        "-y",
+    ]);
+    assert!(!output.status.success());
+    assert!(!sandbox.home.join(".rovodev/mcp.json").exists());
+    assert!(!sandbox.servers_yaml().exists());
+}
+
+#[test]
+fn remaining_clients_apply_together_and_rollback_without_crossing_native_schemas() {
+    let sandbox = Sandbox::new();
+    sandbox.ok(&[
+        "add",
+        "shared-api",
+        "-a",
+        "command-code,mimo,muse,rovodev,zcode",
+        "--global",
+        "--url",
+        "https://example.com/mcp",
+        "-y",
+    ]);
+    let paths = [
+        (
+            ".commandcode/mcp.json",
+            "/mcpServers/shared-api/transport",
+            "http",
+        ),
+        (
+            ".config/mimocode/mimocode.jsonc",
+            "/mcp/shared-api/type",
+            "remote",
+        ),
+        (
+            ".config/muse/settings.json",
+            "/mcp_servers/shared-api/transport",
+            "streamable_http",
+        ),
+        (
+            ".rovodev/mcp.json",
+            "/mcpServers/shared-api/transport",
+            "http",
+        ),
+        (
+            ".zcode/cli/config.json",
+            "/mcp/servers/shared-api/type",
+            "http",
+        ),
+    ];
+    let before = paths.map(|(path, pointer, expected)| {
+        let value = sandbox.read_json(&sandbox.home.join(path));
+        assert_eq!(value.pointer(pointer).unwrap(), expected);
+        value
+    });
+    assert_eq!(before[2]["schema_version"], 1);
+    sandbox.ok(&["remove", "shared-api", "-a", "muse", "-y"]);
+    assert_eq!(
+        sandbox.read_json(&sandbox.home.join(paths[2].0))["schema_version"],
+        1
+    );
+    for (index, (path, _, _)) in paths.iter().enumerate().filter(|(index, _)| *index != 2) {
+        assert_eq!(sandbox.read_json(&sandbox.home.join(path)), before[index]);
+    }
+    sandbox.ok(&["rollback", "-y"]);
+    for (index, (path, _, _)) in paths.iter().enumerate() {
+        assert_eq!(sandbox.read_json(&sandbox.home.join(path)), before[index]);
+    }
+    assert!(!sandbox.home.join(".agents/mcp.json").exists());
+}
