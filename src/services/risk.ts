@@ -113,8 +113,8 @@ export function sharedProjectSecretWarnings(servers: MCPServer[], workspace: Wor
       for (const [key, value] of Object.entries(values ?? {})) {
         const dollarReference = placement.app === 'agents' && (server.transport.type === 'stdio'
           ? /^\$[A-Za-z_][A-Za-z0-9_]*$/.test(value)
-          : /\$[A-Z_][A-Z0-9_]*/.test(value))
-        if (!isLiteralSecret(key, value) || dollarReference) continue
+          : /^(?:Bearer )?\$[A-Z_][A-Z0-9_]*$/.test(value))
+        if (!(placement.app === 'agents' ? isLiteralSecret(key, 'literal') && value.trim().length > 0 : isLiteralSecret(key, value)) || dollarReference) continue
         const advice = placement.app === 'agents' ? t('secretAdviceDollarInterpolation')
           : placement.app === 'windsurf' ? t('secretAdviceDevin')
           : ['grok', 'claudeCode', 'factoryDroid'].includes(placement.app) ? t('secretAdviceInterpolation') : t('secretAdvicePrivate')

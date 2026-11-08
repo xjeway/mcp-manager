@@ -32,6 +32,7 @@ import {
   applyConfig,
   ConfigConflictError,
   ConfigTooNewError,
+  projectSecretWarnings,
   detectInstalledApps,
   hasExternalConfigChange,
   getCurrentWorkspace,
@@ -63,6 +64,7 @@ import { UPDATE_INSTALL_REQUEST_EVENT, UPDATE_SYNC_REQUEST_EVENT } from './servi
 import { deriveVisibleApps } from './services/visibleApps'
 import { resolveWindowSurface } from './services/windowSurface'
 import {
+  inheritedAgentsRemovalPath,
   deleteServerFromConfig,
   importServersIntoConfig,
   importConfigOnLaunch,
@@ -556,6 +558,11 @@ function MainApp() {
     successKind?: FeedbackItem['kind']
     successMessage?: string
   }): Promise<boolean> => {
+    const inheritedPath = inheritedAgentsRemovalPath(config, nextConfig)
+    if (inheritedPath) {
+      pushFeedback('warning', t('inheritedAgentsReadOnly', { path: inheritedPath }))
+      return false
+    }
     const summary = evaluateApplyRisks(nextConfig.servers)
     if (summary.blockingErrors.length > 0) {
       for (const error of summary.blockingErrors) {
@@ -565,6 +572,19 @@ function MainApp() {
     }
 
     const secretWarnings = sharedProjectSecretWarnings(nextConfig.servers, currentWorkspace, t)
+    try {
+      for (const warning of await projectSecretWarnings(nextConfig)) {
+        if (!warning.key?.startsWith('params')) continue
+        secretWarnings.push(t('sharedProjectSecretWarning', {
+          server: nextConfig.servers.find((server) => server.id === warning.serverId)?.name ?? warning.serverId,
+          client: 'Codebuff / Freebuff', path: warning.path, key: warning.key,
+          advice: t('secretAdviceDollarInterpolation'),
+        }))
+      }
+    } catch (error) {
+      pushFeedback('error', String(error))
+      return false
+    }
     if (secretWarnings.length > 0) {
       const confirmed = await confirmDialog({
         cancelLabel: t('cancel'),

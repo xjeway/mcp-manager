@@ -156,7 +156,7 @@ loads MCP through that SDK. Repository files still require the client's own
 trust consent. MCP Manager reads data only and does not grant that consent.
 
 There is one `.agents` target rather than competing adapters for each reader.
-Parent entries are imported as unmanaged read-only placements so their priority
-is visible without modifying another repository. Applied writes are restricted
+Parent entries are imported as unmanaged read-only placements. Their paths and
+priority are not displayed in the dashboard; edit the parent file to change them. Applied writes are restricted
 to the current project's and user's file. ZCode fallback handling remains #59.
 Remote query parameters and other unmodeled fields survive managed rewrites.

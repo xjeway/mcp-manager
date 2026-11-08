@@ -243,6 +243,12 @@ pub fn current_workspace() -> Result<WorkspaceInfo, String> {
     Ok(workflow::workspace_info(&PlatformContext::current()))
 }
 
+/// Preflight includes retained client fields absent from the editable server model.
+#[tauri::command]
+pub fn project_secret_warnings(config: MCPConfig) -> Vec<mcp_manager_core::core::ApplyWarning> {
+    mcp_manager_core::adapters::shared_project_secret_warnings(&PlatformContext::current(), &config)
+}
+
 #[tauri::command]
 pub fn apply_config(
     config: MCPConfig,

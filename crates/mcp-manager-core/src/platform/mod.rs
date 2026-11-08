@@ -401,7 +401,6 @@ impl PlatformContext {
             | SupportedApp::KiloCode
             | SupportedApp::FactoryDroid
             | SupportedApp::KimiCli
-            | SupportedApp::Agents
             | SupportedApp::CodeBuddy
             | SupportedApp::Auggie
             | SupportedApp::Zed
@@ -411,6 +410,19 @@ impl PlatformContext {
             | SupportedApp::Amp
             | SupportedApp::Grok => {
                 vec![self.user_app_config_path(app).to_string_lossy().to_string()]
+            }
+            SupportedApp::Agents => {
+                let mut paths = vec![self.user_app_config_path(app)];
+                if self.has_workspace() {
+                    paths.push(self.workspace_file(".agents/mcp.json"));
+                    if let Some(parent) = self.workspace_root.parent() {
+                        paths.push(parent.join(".agents/mcp.json"));
+                    }
+                }
+                paths
+                    .into_iter()
+                    .map(|path| path.to_string_lossy().to_string())
+                    .collect()
             }
             SupportedApp::GithubCopilot => vec![
                 self.workspace_file(".vscode/mcp.json")

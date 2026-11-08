@@ -153,6 +153,46 @@ mod tests {
     }
 
     #[test]
+    fn preserves_agents_transport_when_other_clients_have_the_same_id() {
+        let temp = tempfile::tempdir().unwrap();
+        let ctx = ctx(temp.path());
+        let path = ctx
+            .user_app_config_path(SupportedApp::Agents)
+            .to_string_lossy()
+            .to_string();
+        let parsed = AgentsAdapter.parse_source(
+            &ctx,
+            &path,
+            10,
+            r#"{"mcpServers":{"same":{"command":"global"}}}"#,
+        );
+        let current = &parsed.servers[0].0;
+        let incoming = parse_mcp_json(
+            r#"{"mcpServers":{"same":{"url":"https://other.example/mcp","type":"http"}}}"#,
+        )
+        .servers
+        .remove(0);
+        let merged = crate::core::merge_servers(Some(current), &incoming);
+        assert_eq!(merged.transport.kind, "stdio");
+        assert!(merged.transport.url.is_none());
+        assert_eq!(merged.command.unwrap().program, "global");
+    }
+
+    #[test]
+    fn detects_parent_only_installation_without_a_cli() {
+        let temp = tempfile::tempdir().unwrap();
+        let ctx = ctx(temp.path());
+        let parent = ctx
+            .workspace_root
+            .parent()
+            .unwrap()
+            .join(".agents/mcp.json");
+        fs::create_dir_all(parent.parent().unwrap()).unwrap();
+        fs::write(parent, "{}").unwrap();
+        assert!(ctx.detect_installed_apps().contains(&SupportedApp::Agents));
+    }
+
+    #[test]
     fn imports_full_definitions_in_global_parent_project_order() {
         let temp = tempfile::tempdir().unwrap();
         let ctx = ctx(temp.path());

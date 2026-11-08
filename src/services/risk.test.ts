@@ -164,6 +164,9 @@ describe('shared .agents configuration', () => {
   it.each(['$TOKEN', 'Bearer $TOKEN'])('preserves supported remote environment references %s', (value) => {
     expect(sharedProjectSecretWarnings([make(value)], workspace, t)).toEqual([])
   })
+  it.each(['${TOKEN}', 'Bearer ${TOKEN}', 'session=literal-secret; region=$REGION'])('warns for unsupported or mixed references %s', (value) => {
+    expect(sharedProjectSecretWarnings([make(value)], workspace, t)).toEqual(['sharedProjectSecretWarning'])
+  })
   it('warns for literals and exempts read-only parent sources', () => {
     const server = make('literal-secret')
     expect(sharedProjectSecretWarnings([server], workspace, t)).toEqual(['sharedProjectSecretWarning'])

@@ -129,3 +129,17 @@ export function importServersIntoConfig(
 
   return { config: { ...config, servers: nextServers }, added, updated }
 }
+
+/** A parent Agents file remains active until it is edited directly. */
+export function inheritedAgentsRemovalPath(config: MCPConfig, nextConfig: MCPConfig): string | undefined {
+  for (const server of config.servers) {
+    const inherited = (server.placements ?? []).find((placement) => placement.app === 'agents' && placement.enabled && placement.managed === false)
+    if (!inherited) continue
+    const next = nextConfig.servers.find((item) => item.id === server.id)
+    if (!next || (server.enabled && !next.enabled)
+      || !(next.placements ?? []).some((placement) => placement.app === 'agents' && placement.enabled && placement.managed === false)) {
+      return inherited.path ?? '.agents/mcp.json'
+    }
+  }
+  return undefined
+}

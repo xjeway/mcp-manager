@@ -1,5 +1,6 @@
 import { describe, expect, it, vi } from 'vitest'
 import {
+  inheritedAgentsRemovalPath,
   importConfigOnLaunch,
   importServersIntoConfig,
   persistImportedConfig,
@@ -224,4 +225,12 @@ describe('workspacePersistence', () => {
     expect(result.config.servers[0].apps.vscode).toBe(true)
     expect(result.config.servers[0].apps.cursor).toBe(true)
   })
+})
+
+it('prevents claiming inherited Agents servers were disabled or deleted', () => {
+  const config: import('../types/config').MCPConfig = structuredClone(previousConfig)
+  config.servers[0].placements = [{ app: 'agents', scope: 'workspace', path: '/parent/.agents/mcp.json', enabled: true, managed: false }]
+  expect(inheritedAgentsRemovalPath(config, { ...config, servers: [] })).toBe('/parent/.agents/mcp.json')
+  expect(inheritedAgentsRemovalPath(config, toggleServerAppInConfig(config, 'server-1', 'agents'))).toBe('/parent/.agents/mcp.json')
+  expect(inheritedAgentsRemovalPath(config, toggleServerAppInConfig(config, 'server-1', 'cursor'))).toBeUndefined()
 })

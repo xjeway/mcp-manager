@@ -323,6 +323,12 @@ export interface ApplyResult {
   historyError?: string
 }
 
+/** Inspect retained fields in native client files before asking to apply. */
+export async function projectSecretWarnings(config: MCPConfig): Promise<(Omit<ApplyWarning, 'kind'> & { kind: 'sharedProjectSecret'; path?: string; key?: string })[]> {
+  if (!isDesktopRuntime()) return []
+  return invoke<(Omit<ApplyWarning, 'kind'> & { kind: 'sharedProjectSecret'; path?: string; key?: string })[]>('project_secret_warnings', { config })
+}
+
 export async function applyConfig(
   config: MCPConfig,
   previousConfig: MCPConfig = config,

@@ -612,6 +612,26 @@ pub fn shared_project_secret_warnings(
             if server.transport.kind == "sse" && !sse_supported(placement.app) {
                 continue;
             }
+            if placement.app == SupportedApp::Agents {
+                // Unmodeled params survive rewrites and can carry project credentials.
+                if let Ok(content) = std::fs::read_to_string(&path) {
+                    if let Ok(value) = serde_json::from_str::<Value>(&content) {
+                        if let Some(params) = value
+                            .get("mcpServers")
+                            .and_then(|m| m.get(&server.id))
+                            .and_then(|entry| entry.get("params"))
+                        {
+                            collect_agents_param_warnings(
+                                params,
+                                "params",
+                                server,
+                                &path,
+                                &mut warnings,
+                            );
+                        }
+                    }
+                }
+            }
             let mut values: Vec<_> = if server.transport.kind == "stdio" {
                 server
                     .command
@@ -625,10 +645,12 @@ pub fn shared_project_secret_warnings(
             };
             values.sort_by_key(|(key, _)| *key);
             for (key, value) in values {
-                if !is_literal_secret(key, value)
-                    || (placement.app == SupportedApp::Agents
-                        && agents_env_reference(value, server.transport.kind == "stdio"))
-                {
+                if !project_literal_secret(
+                    placement.app,
+                    key,
+                    value,
+                    server.transport.kind == "stdio",
+                ) {
                     continue;
                 }
                 let warning = ApplyWarning {
@@ -645,6 +667,47 @@ pub fn shared_project_secret_warnings(
         }
     }
     warnings
+}
+
+/// Inspects retained parameter objects without including values in diagnostics.
+fn collect_agents_param_warnings(
+    value: &Value,
+    key: &str,
+    server: &MCPServer,
+    path: &str,
+    warnings: &mut Vec<ApplyWarning>,
+) {
+    match value {
+        Value::Object(fields) => {
+            for (name, value) in fields {
+                collect_agents_param_warnings(
+                    value,
+                    &format!("{key}.{name}"),
+                    server,
+                    path,
+                    warnings,
+                );
+            }
+        }
+        Value::Array(values) => {
+            for value in values {
+                collect_agents_param_warnings(value, key, server, path, warnings);
+            }
+        }
+        Value::String(value) if project_literal_secret(SupportedApp::Agents, key, value, true) => {
+            let warning = ApplyWarning {
+                kind: "sharedProjectSecret".into(),
+                app: SupportedApp::Agents,
+                server_id: server.id.clone(),
+                path: Some(path.into()),
+                key: Some(key.into()),
+            };
+            if !warnings.contains(&warning) {
+                warnings.push(warning);
+            }
+        }
+        _ => {}
+    }
 }
 
 /// Codebuff/Freebuff resolve whole `$VAR` stdio env values and uppercase
@@ -667,13 +730,21 @@ fn agents_env_reference(value: &str, stdio: bool) -> bool {
             .strip_prefix('$')
             .is_some_and(|name| valid_name(name, false));
     }
-    value.split('$').skip(1).any(|tail| {
-        let name = tail
-            .split(|ch: char| !(ch == '_' || ch.is_ascii_uppercase() || ch.is_ascii_digit()))
-            .next()
-            .unwrap_or_default();
-        valid_name(name, true)
-    })
+    let reference = value.strip_prefix("Bearer ").unwrap_or(value);
+    reference
+        .strip_prefix('$')
+        .is_some_and(|name| valid_name(name, true))
+}
+
+/// Agents supports dollar names, never braced interpolation; mixed literal values still warn.
+fn project_literal_secret(app: SupportedApp, key: &str, value: &str, stdio: bool) -> bool {
+    if app == SupportedApp::Agents {
+        is_literal_secret(key, "literal")
+            && !value.trim().is_empty()
+            && !agents_env_reference(value, stdio)
+    } else {
+        is_literal_secret(key, value)
+    }
 }
 
 fn is_literal_secret(key: &str, value: &str) -> bool {
@@ -1203,6 +1274,61 @@ mod tests {
         server.placements[0].enabled = true;
         server.enabled = false;
         assert!(super::shared_project_secret_warnings(&ctx, &config(vec![server])).is_empty());
+    }
+
+    #[test]
+    fn agents_secret_checks_reject_braces_and_mixed_literal_credentials() {
+        for value in [
+            "${TOKEN}",
+            "Bearer ${TOKEN}",
+            "session=literal-secret; region=$REGION",
+        ] {
+            assert!(super::project_literal_secret(
+                SupportedApp::Agents,
+                "Cookie",
+                value,
+                false
+            ));
+        }
+        for value in ["$TOKEN", "Bearer $TOKEN"] {
+            assert!(!super::project_literal_secret(
+                SupportedApp::Agents,
+                "Authorization",
+                value,
+                false
+            ));
+        }
+        let mut server = remote("api", true, &[]);
+        server.placements.push(ServerPlacement {
+            app: SupportedApp::Agents,
+            scope: PlacementScope::Workspace,
+            path: None,
+            enabled: true,
+            managed: true,
+        });
+        let temp = tempfile::tempdir().unwrap();
+        let ctx = crate::platform::PlatformContext {
+            os: crate::platform::PlatformOs::MacOS,
+            home_dir: temp.path().join("home"),
+            workspace_root: temp.path().join("project"),
+        };
+        let path = ctx.workspace_file(".agents/mcp.json");
+        std::fs::create_dir_all(path.parent().unwrap()).unwrap();
+        std::fs::write(
+            &path,
+            r#"{"mcpServers":{"api":{"params":{"api_key":"retained-private","token":"$TOKEN"}}}}"#,
+        )
+        .unwrap();
+        let warnings = super::shared_project_secret_warnings(&ctx, &config(vec![server]));
+        assert!(warnings
+            .iter()
+            .any(|w| w.key.as_deref() == Some("params.api_key")));
+        assert!(!warnings
+            .iter()
+            .any(|w| w.key.as_deref() == Some("params.token")));
+        assert!(!serde_json::to_string(&warnings)
+            .unwrap()
+            .contains("retained-private"));
     }
 
     #[test]
