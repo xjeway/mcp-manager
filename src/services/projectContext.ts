@@ -12,13 +12,21 @@ function normalize(path: string): string {
 export function placementInProject(placement: ServerPlacement, workspace: WorkspaceContext): boolean {
   if (placement.scope === 'user') return true
   if (!workspace.root) return false
-  if (!placement.path) return true
+  if (!placement.path) return false
   const path = normalize(placement.path)
-  if (workspace.contextPaths?.some((known) => normalize(known) === path)) return true
+  // Desktop snapshots are authoritative: absence means foreign, even if a
+  // lexical prefix looks local (symlinks and parent traversal can escape).
+  if (workspace.contextPaths) return workspace.contextPaths.some((known) => normalize(known) === path)
   const root = normalize(workspace.root)
   const parent = root.slice(0, root.lastIndexOf('/'))
   return path.startsWith(`${root}/`)
     || (placement.app === 'agents' && placement.managed === false && path === `${parent}/.agents/mcp.json`)
+}
+
+/** Detect changed ownership before merging a candidate made from the old view. */
+export function projectContextChanged(previous: WorkspaceContext, next: WorkspaceContext): boolean {
+  return previous.root !== next.root
+    || JSON.stringify([...(previous.contextPaths ?? [])].sort()) !== JSON.stringify([...(next.contextPaths ?? [])].sort())
 }
 
 /** Present only this project's placements while retaining the shared server definitions. */

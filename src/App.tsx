@@ -5,7 +5,7 @@ import { CLIENTS } from './components/clientMeta'
 import { ConfigProblemDialog } from './components/ConfigProblemDialog'
 import { Dashboard } from './components/Dashboard'
 import { ProjectSelector } from './components/ProjectSelector'
-import { configForProject, mergeProjectChange, readProjectSelection, readRecentProjects, saveProjectSelection } from './services/projectContext'
+import { configForProject, mergeProjectChange, projectContextChanged, readProjectSelection, readRecentProjects, saveProjectSelection } from './services/projectContext'
 import { MarketplacePage } from './components/MarketplacePage'
 import { SettingsPage } from './components/SettingsPage'
 import { ServerEditor } from './components/ServerEditor'
@@ -269,7 +269,10 @@ function MainApp() {
 
   const reloadConfigFromDisk = async (kind: FeedbackItem['kind'], message: string) => {
     try {
-      setConfig(await loadConfig())
+      const loaded = await loadConfig()
+      setConfig(loaded)
+      try { setCurrentWorkspace(await getCurrentWorkspace(currentWorkspace.root)); setWorkspaceProblem(null) }
+      catch (error) { setWorkspaceProblem(String(error)) }
       setConfigProblem(null)
       pushFeedback(kind, message)
     } catch (error) {
@@ -297,6 +300,8 @@ function MainApp() {
         const imported = mergeProjectChange(baselineConfig, result.config, importWorkspace)
         await persistImportedConfig(imported, (next) => saveConfig(next, importWorkspace))
         setConfig(imported)
+        try { setCurrentWorkspace(await getCurrentWorkspace(importWorkspace.root)); setWorkspaceProblem(null) }
+        catch (error) { setWorkspaceProblem(String(error)) }
         pushFeedback(
           mode === 'manual' ? 'success' : 'info',
           t(mode === 'manual' ? 'importSummary' : 'autoImportSummary', {
@@ -605,6 +610,11 @@ function MainApp() {
       let workspaceForSave = currentWorkspace
       try {
         workspaceForSave = await getCurrentWorkspace(currentWorkspace.root)
+        if (projectContextChanged(currentWorkspace, workspaceForSave)) {
+          setCurrentWorkspace(workspaceForSave)
+          pushFeedback('warning', t('configChangedExternally'))
+          return false
+        }
         nextConfig = refreshMiMoProjectPaths(nextConfig, currentWorkspace, workspaceForSave, nextConfig.servers.map((server) => server.id))
         nextConfig = mergeProjectChange(config, nextConfig, workspaceForSave)
       } catch (error) {

@@ -230,7 +230,10 @@ fn apply_plan(
     validate_required_workspace(required_workspace)?;
     for operation in &operations {
         let path = ctx.resolve_path(&operation.path);
-        if !ctx.can_write(&path) {
+        // can_write creates parent directories. For pinned desktop projects,
+        // defer permission errors to the guarded write rather than creating
+        // directories during a permission probe.
+        if required_workspace.is_none() && !ctx.can_write(&path) {
             let error = format!("permission denied for {}", path.to_string_lossy());
             if crate::security::is_high_risk_condition(&error) {
                 return Err(error);

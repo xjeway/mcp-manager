@@ -14,20 +14,22 @@ pub fn placement_in_context(ctx: &PlatformContext, placement: &ServerPlacement) 
     if !ctx.has_workspace() {
         return false;
     }
-    let Some(path) = placement
-        .path
-        .clone()
-        .or_else(|| crate::adapters::workspace_scope_path(ctx, placement.app))
-    else {
+    // A legacy pathless placement has no owner. Import its concrete client file
+    // before allowing desktop writes; never rebind it when switching projects.
+    let Some(path) = placement.path.as_ref() else {
         return false;
     };
-    let path = ctx.resolve_path(&path);
+    let path = ctx.resolve_path(path);
     if path.components().any(|part| part == Component::ParentDir) {
         return false;
     }
     let root = target_identity(&ctx.workspace_root);
     let identity = target_identity(&path);
-    if identity.starts_with(&root) {
+    if identity.starts_with(&root)
+        && project_paths(ctx, placement.app)
+            .iter()
+            .any(|candidate| target_identity(candidate) == identity)
+    {
         return true;
     }
     // Imported parent Agents definitions remain visible but read-only.
@@ -36,6 +38,34 @@ pub fn placement_in_context(ctx: &PlatformContext, placement: &ServerPlacement) 
         && root
             .parent()
             .is_some_and(|parent| identity == target_identity(&parent.join(".agents/mcp.json")))
+}
+
+/// Concrete client paths owned by this project, excluding nested project files.
+pub fn project_paths(ctx: &PlatformContext, app: SupportedApp) -> Vec<std::path::PathBuf> {
+    if !ctx.has_workspace() {
+        return Vec::new();
+    }
+    let mut paths = crate::adapters::adapters()
+        .into_iter()
+        .find(|adapter| adapter.app() == app)
+        .map(|adapter| {
+            adapter
+                .detect_sources(ctx)
+                .into_iter()
+                .map(|(path, _)| ctx.resolve_path(&path))
+                .collect::<Vec<_>>()
+        })
+        .unwrap_or_default();
+    if let Some(path) = crate::adapters::workspace_scope_path(ctx, app) {
+        paths.push(ctx.resolve_path(&path));
+    }
+    let root = target_identity(&ctx.workspace_root);
+    paths.retain(|path| {
+        path.starts_with(&ctx.workspace_root) && target_identity(path).starts_with(&root)
+    });
+    paths.sort();
+    paths.dedup();
+    paths
 }
 
 /// Filter only the native write inputs, leaving the shared store and other projects intact.
@@ -149,6 +179,40 @@ mod tests {
         let mut none = ctx.clone();
         none.workspace_root = Default::default();
         assert!(scoped_config(&none, &all).servers.is_empty());
+    }
+
+    #[test]
+    fn nested_and_pathless_placements_cannot_follow_the_selection() {
+        let (_temp, ctx, foreign) = setup();
+        let mut nested = foreign.clone();
+        nested.path = Some(
+            ctx.workspace_file("nested/.cursor/mcp.json")
+                .to_string_lossy()
+                .into(),
+        );
+        assert!(!placement_in_context(&ctx, &nested));
+        let mut child = ctx.clone();
+        child.workspace_root = ctx.workspace_file("nested");
+        fs::create_dir_all(&child.workspace_root).unwrap();
+        assert!(placement_in_context(&child, &nested));
+        let mut ambiguous = nested.clone();
+        ambiguous.path = None;
+        assert!(!placement_in_context(&ctx, &ambiguous));
+        assert!(!placement_in_context(&child, &ambiguous));
+        let previous = config(vec![nested, ambiguous]);
+        assert_eq!(scoped_config(&ctx, &previous).servers.len(), 0);
+        assert!(validate_foreign_placements(
+            &ctx,
+            &previous,
+            &MCPConfig {
+                version: 1,
+                servers: vec![]
+            }
+        )
+        .is_err());
+        assert!(CursorAdapter
+            .plan_apply(&ctx, &scoped_config(&ctx, &previous), None)
+            .is_empty());
     }
 
     #[test]

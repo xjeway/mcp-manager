@@ -300,18 +300,25 @@ pub fn detect_installed_apps(workspace_root: Option<String>) -> Result<Vec<Strin
 pub fn current_workspace(workspace_root: Option<String>) -> Result<WorkspaceInfo, String> {
     let ctx = project_context(workspace_root.as_deref())?;
     let mut info = workflow::workspace_info(&ctx);
+    info.context_paths = mcp_manager_core::core::SupportedApp::ALL
+        .into_iter()
+        .flat_map(|app| mcp_manager_core::project::project_paths(&ctx, app))
+        .map(|path| path.to_string_lossy().into_owned())
+        .collect();
     // An unreadable store is handled by load_yaml_config; context discovery itself is read-only.
     if let Ok(config) = store::load(&ctx) {
-        info.context_paths = config
-            .servers
-            .iter()
-            .flat_map(|s| &s.placements)
-            .filter(|p| {
-                p.scope == mcp_manager_core::core::PlacementScope::Workspace
-                    && mcp_manager_core::project::placement_in_context(&ctx, p)
-            })
-            .filter_map(|p| p.path.clone())
-            .collect();
+        info.context_paths.extend(
+            config
+                .servers
+                .iter()
+                .flat_map(|s| &s.placements)
+                .filter(|p| {
+                    p.scope == mcp_manager_core::core::PlacementScope::Workspace
+                        && mcp_manager_core::project::placement_in_context(&ctx, p)
+                })
+                .filter_map(|p| p.path.clone())
+                .collect::<Vec<_>>(),
+        );
         info.context_paths.sort();
         info.context_paths.dedup();
     }

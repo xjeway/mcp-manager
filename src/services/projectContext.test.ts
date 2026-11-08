@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import { beforeEach, describe, expect, it } from 'vitest'
-import { configForProject, mergeProjectChange, placementInProject, readRecentProjects, saveProjectSelection, readProjectSelection } from './projectContext'
+import { configForProject, mergeProjectChange, projectContextChanged, placementInProject, readRecentProjects, saveProjectSelection, readProjectSelection } from './projectContext'
 import { SUPPORTED_APPS, type MCPConfig } from '../types/config'
 
 const workspace = { root: '/projects/a', placementPaths: {} }
@@ -33,6 +33,25 @@ describe('project boundaries', () => {
     expect(placementInProject({...p,path:'C:/Work/A/.cursor/mcp.json'}, {root:'\\\\?\\C:\\Work\\A',placementPaths:{}})).toBe(true)
     expect(placementInProject({...p,path:'/projects/ab/.cursor/mcp.json'},workspace)).toBe(false)
     expect(configForProject(fixture(),{root:'',placementPaths:{}}).servers).toHaveLength(0)
+  })
+  it('uses authoritative native ownership for escapes, nested projects and missing owners', () => {
+    const p = fixture().servers[0].placements![0]
+    const native = { ...workspace, contextPaths: [p.path!] }
+    expect(placementInProject(p, native)).toBe(true)
+    expect(placementInProject({ ...p, path: '/projects/a/nested/.cursor/mcp.json' }, native)).toBe(false)
+    expect(placementInProject({ ...p, path: '/projects/a/../b/.cursor/mcp.json' }, native)).toBe(false)
+    expect(placementInProject({ ...p, path: '/projects/a/linked-outside/mcp.json' }, native)).toBe(false)
+    expect(placementInProject({ ...p, path: undefined }, native)).toBe(false)
+  })
+  it('detects newly resolved aliases before merging a change made from a stale view', () => {
+    const previous = fixture()
+    previous.servers[0].placements = [{ ...previous.servers[0].placements![0], path: '/alias/.cursor/mcp.json' }]
+    const stale = { ...workspace, contextPaths: [] }
+    const fresh = { ...workspace, contextPaths: ['/alias/.cursor/mcp.json'] }
+    expect(configForProject(previous, stale).servers).toHaveLength(0)
+    expect(configForProject(previous, fresh).servers).toHaveLength(1)
+    expect(projectContextChanged(stale, fresh)).toBe(true)
+    expect(mergeProjectChange(previous, { version: 1, servers: [] }, stale).servers[0].placements).toEqual(previous.servers[0].placements)
   })
   it('remembers explicit computer-only selection and bounds recent projects', () => {
     expect(readProjectSelection()).toBeUndefined()

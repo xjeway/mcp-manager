@@ -277,6 +277,7 @@ describe('explicit desktop project context', () => {
     await service.projectSecretWarnings(EMPTY,workspace)
     await service.saveConfig(EMPTY,workspace)
     await service.applyConfig(EMPTY,EMPTY,workspace)
+    expect(invokeMock.mock.calls.map(([command]) => command)).toEqual(['current_workspace', 'import_detected_configs', 'detect_installed_apps', 'project_secret_warnings', 'save_yaml_config', 'apply_config'])
     for(const [command,args] of invokeMock.mock.calls) {
       expect(args,command).toMatchObject({workspaceRoot:'/project'})
     }

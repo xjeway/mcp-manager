@@ -65,7 +65,7 @@ export interface MCPServer {
 
 /** The explicitly selected project, or the startup project before a selection is saved. */
 export interface WorkspaceContext {
-  /** Saved path aliases that the backend resolved into this context. */
+  /** Authoritative native project paths and saved aliases; omission is browser-only. */
   contextPaths?: string[]
   /** Empty when there is no current project. */
   root: string
