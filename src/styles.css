@@ -465,10 +465,6 @@ button {
 .field input,
 .field select,
 .field textarea,
-.stats-strip > .tooltip-trigger {
-  min-width: 0;
-}
-
 .stat-card {
   border: 1px solid var(--line);
   border-radius: 16px;
@@ -671,6 +667,10 @@ button {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(72px, 1fr));
   gap: 6px;
+}
+
+.stats-strip > .tooltip-trigger {
+  min-width: 0;
 }
 
 .stat-card {
