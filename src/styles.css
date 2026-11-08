@@ -669,6 +669,10 @@ button {
   gap: 6px;
 }
 
+.stats-strip > .tooltip-trigger {
+  min-width: 0;
+}
+
 .stat-card {
   padding: 7px 8px;
   background: linear-gradient(180deg, rgba(255, 255, 255, 0.06), var(--panel-muted));
