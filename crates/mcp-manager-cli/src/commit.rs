@@ -43,6 +43,17 @@ fn commit_with_confirmation(
     dry_run: bool,
     confirm: impl FnOnce(&[ApplyWarning]) -> Outcome<()>,
 ) -> Outcome<bool> {
+    commit_with_hooks(session, change, dry_run, confirm, || {})
+}
+
+/// Expose the apply/save boundary for deterministic compensation tests.
+fn commit_with_hooks(
+    session: &Session,
+    change: Change,
+    dry_run: bool,
+    confirm: impl FnOnce(&[ApplyWarning]) -> Outcome<()>,
+    after_apply: impl FnOnce(),
+) -> Outcome<bool> {
     let blocking = validate(&change.after).blocking_errors;
     if !blocking.is_empty() {
         let lines = blocking.iter().map(describe_issue).collect::<Vec<_>>();
@@ -104,6 +115,7 @@ fn commit_with_confirmation(
     // Client files as they were, in case servers.yaml cannot be saved after
     // they are written.
     let client_files = RefCell::new(None);
+    let committed_files = RefCell::new(std::collections::BTreeMap::new());
     let backups = RefCell::new(Vec::new());
     let recorded = Cell::new(false);
     let record_error = RefCell::new(None);
@@ -120,6 +132,7 @@ fn commit_with_confirmation(
             let files = prepared.snapshot(&session.ctx)?;
             // apply undoes its own partial writes when it fails.
             let applied = prepared.apply(&session.ctx)?;
+            after_apply();
             *current = after.clone();
             // Recorded while the lock is held, so no other change or rollback
             // can slip in between. A record that fails does not stop the
@@ -136,17 +149,19 @@ fn commit_with_confirmation(
                 Ok(()) => recorded.set(true),
                 Err(error) => *record_error.borrow_mut() = Some(error),
             }
+            *committed_files.borrow_mut() = applied.committed_files;
             *client_files.borrow_mut() = Some(files);
             *backups.borrow_mut() = applied.backups;
             Ok(())
         },
-        // Runs before the lock is released, so nothing else can write the
-        // client files while they are put back.
+        // The shared-store lock excludes other manager transactions; ownership
+        // checks separately protect observed edits made by external clients.
         |error| {
-            let mut error = match client_files.borrow().as_ref().map(|files| files.restore()) {
-                Some(Ok(())) => {
+            let mut error = match client_files.borrow().as_ref().map(|files| files.restore_owned(&committed_files.borrow())) {
+                Some(Ok(skipped)) if skipped.is_empty() => {
                     format!("{error}. Client files were restored; nothing was changed.")
                 }
+                Some(Ok(skipped)) => format!("{error}. Owned client files were restored; external edits were preserved in {}. Review these files before retrying.", skipped.iter().map(|p|p.display().to_string()).collect::<Vec<_>>().join(", ")),
                 Some(Err(restore_error)) => {
                     format!("{error}. Restoring client files also failed: {restore_error}")
                 }
@@ -331,6 +346,62 @@ mod confirmation_tests {
     use mcp_manager_core::adapters::{AppAdapter, ZCodeAdapter};
     use mcp_manager_core::platform::{PlatformContext, PlatformOs};
     use std::fs;
+
+    #[test]
+    fn failed_store_save_preserves_an_external_edit_after_apply() {
+        let temp = tempfile::tempdir().unwrap();
+        let ctx = PlatformContext {
+            os: PlatformOs::MacOS,
+            home_dir: temp.path().join("home"),
+            workspace_root: temp.path().join("project"),
+        };
+        let mut server = mcp_manager_core::parser::parse_mcp_json(
+            r#"{"mcpServers":{"compensation":{"command":"node"}}}"#,
+        )
+        .servers
+        .remove(0);
+        server
+            .apps
+            .insert(mcp_manager_core::core::SupportedApp::Cursor, true);
+        let change = Change {
+            before: MCPConfig {
+                version: 1,
+                servers: vec![],
+            },
+            after: MCPConfig {
+                version: 1,
+                servers: vec![server],
+            },
+            focus: vec!["compensation".into()],
+        };
+        let session = Session {
+            ctx,
+            interactive: false,
+            yes: true,
+            json: true,
+            agent: None,
+        };
+        let native = session.ctx.home_dir.join(".cursor/mcp.json");
+        let result = commit_with_hooks(
+            &session,
+            change,
+            false,
+            |_| Ok(()),
+            || {
+                fs::write(&native, r#"{"external":true}"#).unwrap();
+                fs::create_dir(store::config_path(&session.ctx)).unwrap();
+            },
+        );
+        let Failure::Error(message) = result.unwrap_err() else {
+            panic!("expected store save failure")
+        };
+        assert!(
+            message.contains("external edits were preserved"),
+            "{message}"
+        );
+        assert!(!message.contains("nothing was changed"));
+        assert_eq!(fs::read_to_string(native).unwrap(), r#"{"external":true}"#);
+    }
 
     #[test]
     fn retained_secret_warning_reaches_confirmation_before_any_write() {

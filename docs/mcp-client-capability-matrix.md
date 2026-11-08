@@ -297,3 +297,7 @@ even when failure occurred in a different dependency. Retained project parameter
 in redacted secret warnings before CLI or desktop confirmation.
 
 MiMo workspace placements are disabled with the native `enabled: false` switch, retaining their project-only definition for safe re-enabling. Deleting a placement/server removes the managed entry. Private user overlays are never used to reconstruct a missing managed project entry.
+
+When an apply omits the previous configuration, MiMo uses saved placement provenance to distinguish a new project assignment from a removed imported entry. If neither baseline is available and the same id exists only in user layers, the ambiguous assignment is rejected with guidance to provide the previous configuration or re-import. GUI and CLI edits provide their previous configuration explicitly.
+
+Failed-batch and failed-store-save compensation restore only payloads still owned by the batch and report skipped external revisions. Dependency aliases and active-path markers are rechecked at write boundaries. These checks are optimistic; a noncooperating editor can still race the final check and atomic replacement.

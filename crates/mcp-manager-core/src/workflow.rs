@@ -284,6 +284,8 @@ pub struct PreparedApply {
 impl PreparedApply {
     /// Rejects changed contents or active paths before any write is attempted.
     pub fn validate(&self, ctx: &PlatformContext) -> Result<(), String> {
+        self.inputs.verify_bindings()?;
+        self.snapshot.verify_bindings()?;
         validate_mimo_binding(ctx, self.bound_mimo_path.as_deref())?;
         validate_inherited_agents(ctx, &self.config, self.previous.as_ref())?;
         crate::adapters::validate_command_context(ctx, &self.config, self.previous.as_ref())?;
@@ -342,12 +344,17 @@ fn planning_inputs(
         .iter()
         .any(|(app, _)| *app == SupportedApp::CodeBuddy)
     {
+        let active = ctx.user_app_config_path(SupportedApp::CodeBuddy);
         for path in [
             ".codebuddy/.mcp.json",
             ".codebuddy/mcp.json",
             ".codebuddy.json",
         ] {
-            inputs.capture(&ctx.home_dir.join(path))?;
+            let path = ctx.home_dir.join(path);
+            inputs.capture_presence(&path);
+            if active.exists() && path == active {
+                break;
+            }
         }
     }
     for path in crate::adapters::zcode_fallback_input_paths(ctx, &footprint) {
@@ -357,6 +364,9 @@ fn planning_inputs(
         .iter()
         .any(|(app, _)| *app == SupportedApp::MiMoCode)
     {
+        if previous.is_none() && config_path(ctx).exists() {
+            inputs.capture(&config_path(ctx))?;
+        }
         for (path, _) in crate::adapters::MiMoCodeAdapter.detect_sources(ctx) {
             inputs.capture(&ctx.resolve_path(&path))?;
         }
@@ -1063,6 +1073,75 @@ mod tests {
             .inputs
             .paths()
             .all(|path| path != ctx.workspace_file(".cursor/mcp.json")));
+    }
+
+    #[test]
+    fn codebuddy_ignores_inactive_lower_priority_directories() {
+        use crate::adapters::{AppAdapter, CodeBuddyAdapter};
+        let temp = tempdir().unwrap();
+        let ctx = PlatformContext {
+            os: PlatformOs::MacOS,
+            home_dir: temp.path().join("home"),
+            workspace_root: temp.path().join("project"),
+        };
+        let path = ctx.home_dir.join(".codebuddy/.mcp.json");
+        fs::create_dir_all(path.parent().unwrap()).unwrap();
+        let content = r#"{"mcpServers":{"active":{"command":"node"}}}"#;
+        fs::write(&path, content).unwrap();
+        fs::create_dir(ctx.home_dir.join(".codebuddy/mcp.json")).unwrap();
+        let config = MCPConfig {
+            version: 1,
+            servers: CodeBuddyAdapter
+                .parse_source(&ctx, path.to_str().unwrap(), 20, content)
+                .servers
+                .into_iter()
+                .map(|(s, _)| s)
+                .collect(),
+        };
+        super::prepare(&ctx, &config, None)
+            .unwrap()
+            .validate(&ctx)
+            .unwrap();
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn zcode_fallback_symlink_retarget_is_rejected_at_the_write_boundary() {
+        use crate::adapters::{AppAdapter, ZCodeAdapter};
+        let temp = tempdir().unwrap();
+        let ctx = PlatformContext {
+            os: PlatformOs::MacOS,
+            home_dir: temp.path().join("home"),
+            workspace_root: temp.path().join("project"),
+        };
+        let fallback = ctx.workspace_file(".agents/mcp.json");
+        fs::create_dir_all(fallback.parent().unwrap()).unwrap();
+        let first = temp.path().join("first.json");
+        let second = temp.path().join("second.json");
+        let content = r#"{"mcpServers":{"link":{"command":"first"}}}"#;
+        fs::write(&first, content).unwrap();
+        fs::write(&second, content.replace("first", "second")).unwrap();
+        std::os::unix::fs::symlink(&first, &fallback).unwrap();
+        let config = MCPConfig {
+            version: 1,
+            servers: ZCodeAdapter
+                .parse_source(&ctx, fallback.to_str().unwrap(), 13, content)
+                .servers
+                .into_iter()
+                .map(|(s, _)| s)
+                .collect(),
+        };
+        let prepared = super::prepare(&ctx, &config, None).unwrap();
+        prepared.validate(&ctx).unwrap();
+        fs::remove_file(&fallback).unwrap();
+        std::os::unix::fs::symlink(&second, &fallback).unwrap();
+        assert!(prepared
+            .apply_validated(&ctx)
+            .unwrap_err()
+            .contains("alias changed"));
+        assert!(!ctx.workspace_file(".zcode/config.json").exists());
+        assert_eq!(fs::read_to_string(&first).unwrap(), content);
+        assert!(fs::read_to_string(&second).unwrap().contains("second"));
     }
 
     #[test]

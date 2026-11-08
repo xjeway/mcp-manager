@@ -128,7 +128,13 @@ pub(crate) fn validate_mimo_context(
                             && p.managed
                     })
             }) {
-                let managed_before = previous.map_or_else(
+                let saved = if previous.is_none() && crate::store::config_path(ctx).exists() {
+                    crate::store::load(ctx).ok()
+                } else {
+                    None
+                };
+                let baseline = previous.or(saved.as_ref());
+                let managed_before = baseline.map_or_else(
                     || {
                         effective(ctx, None)
                             .ok()
@@ -154,6 +160,9 @@ pub(crate) fn validate_mimo_context(
                     },
                 );
                 if managed_before && project_entry(ctx, &server.id).is_none() {
+                    if baseline.is_none() {
+                        return Err(format!("MiMo project entry {} no longer exists or is a new assignment overlapping a user definition. Supply the previous configuration or re-import before saving; private user values were not copied.",server.id));
+                    }
                     return Err(format!("MiMo project entry {} no longer exists. Re-import before saving it; private user values were not copied.",server.id));
                 }
             }
@@ -481,29 +490,19 @@ impl AppAdapter for MiMoCodeAdapter {
                     }
                 }
             }
-            if let Some(old) =
-                previous.and_then(|c| c.servers.iter().find(|old| old.id == server.id))
-            {
-                for placement in &mut server.placements {
-                    if placement.app == self.app()
-                        && placement.scope == PlacementScope::Workspace
-                        && placement.managed
-                        && old.placements.iter().any(|p| {
-                            p.app == self.app()
-                                && p.scope == placement.scope
-                                && p.path == placement.path
-                                && p.managed
-                        })
-                        && retained_project_entry(
-                            ctx,
-                            placement.path.as_deref().unwrap_or(""),
-                            &server.id,
-                        )
-                        .is_some()
-                    {
-                        placement.enabled = true;
-                        server.enabled = true;
-                    }
+            for placement in &mut server.placements {
+                if placement.app == self.app()
+                    && placement.scope == PlacementScope::Workspace
+                    && placement.managed
+                    && retained_project_entry(
+                        ctx,
+                        placement.path.as_deref().unwrap_or(""),
+                        &server.id,
+                    )
+                    .is_some()
+                {
+                    placement.enabled = true;
+                    server.enabled = true;
                 }
             }
         }
@@ -1019,6 +1018,89 @@ mod tests {
             true
         );
         assert!(!on.contains("private"));
+    }
+
+    #[test]
+    fn disabled_project_entries_are_written_without_previous_or_after_alias_refresh() {
+        let temp = tempfile::tempdir().unwrap();
+        let ctx = ctx(temp.path());
+        let path = ctx.workspace_file("mimocode.jsonc");
+        let content = r#"{"mcp":{"off":{"type":"local","command":["project"],"environment":{"TOKEN":"project-token"}}}}"#;
+        write(&path, content);
+        let mut disabled = MCPConfig {
+            version: 1,
+            servers: MiMoCodeAdapter
+                .parse_source(&ctx, path.to_str().unwrap(), 13, content)
+                .servers
+                .into_iter()
+                .map(|(s, _)| s)
+                .collect(),
+        };
+        disabled.servers[0].placements[0].enabled = false;
+        for op in MiMoCodeAdapter.plan_apply(&ctx, &disabled, None) {
+            apply_operation(Path::new(&op.path), &op).unwrap();
+        }
+        assert_eq!(
+            parse_jsonc(&fs::read_to_string(&path).unwrap()).unwrap()["mcp"]["off"]["enabled"],
+            false
+        );
+        let fresh = ctx.workspace_file(".mimocode/mimocode.jsonc");
+        write(&fresh, content);
+        let mut refreshed = disabled.clone();
+        let mut p = refreshed.servers[0].placements[0].clone();
+        p.path = Some(fresh.to_string_lossy().into());
+        refreshed.servers[0].placements.push(p);
+        for op in MiMoCodeAdapter.plan_apply(&ctx, &refreshed, Some(&disabled)) {
+            apply_operation(Path::new(&op.path), &op).unwrap();
+        }
+        assert_eq!(
+            parse_jsonc(&fs::read_to_string(&fresh).unwrap()).unwrap()["mcp"]["off"]["enabled"],
+            false
+        );
+    }
+
+    #[test]
+    fn saved_user_only_provenance_allows_a_new_project_assignment() {
+        let temp = tempfile::tempdir().unwrap();
+        let ctx = ctx(temp.path());
+        let home = ctx.home_dir.join(".mimocode/mimocode.jsonc");
+        let content = r#"{"mcp":{"new-project":{"type":"local","command":["user"]}}}"#;
+        write(&home, content);
+        let previous = MCPConfig {
+            version: 1,
+            servers: MiMoCodeAdapter
+                .parse_source(&ctx, home.to_str().unwrap(), 5, content)
+                .servers
+                .into_iter()
+                .map(|(s, _)| s)
+                .collect(),
+        };
+        let saved = crate::store::config_path(&ctx);
+        write(&saved, &serde_yaml::to_string(&previous).unwrap());
+        let mut next = previous.clone();
+        next.servers[0].placements.push(ServerPlacement {
+            app: SupportedApp::MiMoCode,
+            scope: PlacementScope::Workspace,
+            path: Some(
+                ctx.workspace_file("mimocode.jsonc")
+                    .to_string_lossy()
+                    .into(),
+            ),
+            enabled: true,
+            managed: true,
+        });
+        validate_mimo_context(&ctx, &next, None).unwrap();
+        crate::workflow::prepare(&ctx, &next, None).unwrap();
+        validate_mimo_context(&ctx, &next, Some(&previous)).unwrap();
+        let mut stale = next.clone();
+        stale.servers[0]
+            .command
+            .as_mut()
+            .unwrap()
+            .env
+            .insert("TOKEN".into(), "private".into());
+        write(&saved, &serde_yaml::to_string(&stale).unwrap());
+        assert!(validate_mimo_context(&ctx, &stale, None).is_err());
     }
 
     #[test]

@@ -200,6 +200,8 @@ fn remove_stale_temp_files(path: &Path) {
 /// directories that had to be created for it (when they are left empty).
 #[derive(Debug, Default)]
 pub struct Snapshot {
+    aliases: std::collections::BTreeMap<PathBuf, PathBuf>,
+    presence: std::collections::BTreeMap<PathBuf, bool>,
     files: Vec<(PathBuf, Option<Vec<u8>>)>,
     /// Directories that did not exist, parents before children.
     new_dirs: Vec<PathBuf>,
@@ -209,6 +211,7 @@ impl Snapshot {
     /// Records `path` unless it is already recorded, so the first state wins.
     pub fn capture(&mut self, path: &Path) -> Result<(), String> {
         let identity = target_identity(path);
+        self.aliases.insert(path.to_path_buf(), identity.clone());
         let path = identity.as_path();
         if self.files.iter().any(|(seen, _)| seen == path) {
             return Ok(());
@@ -230,6 +233,40 @@ impl Snapshot {
             None
         };
         self.files.push((path.to_path_buf(), content));
+        Ok(())
+    }
+
+    /// Watch path selection without reading inactive client files.
+    pub(crate) fn capture_presence(&mut self, path: &Path) {
+        self.presence.insert(path.to_path_buf(), path.exists());
+    }
+
+    /// Recheck original dependency aliases and precedence markers, not just canonical contents.
+    pub(crate) fn verify_bindings(&self) -> Result<(), String> {
+        self.verify_bindings_except(|_| false)
+    }
+
+    /// Presence changes to approved write targets are checked against batch-owned bytes instead.
+    fn verify_bindings_except(
+        &self,
+        ignore_presence: impl Fn(&Path) -> bool,
+    ) -> Result<(), String> {
+        for (alias, identity) in &self.aliases {
+            if target_identity(alias) != *identity {
+                return Err(format!(
+                    "Client configuration alias changed before writing {}",
+                    alias.display()
+                ));
+            }
+        }
+        for (path, existed) in &self.presence {
+            if !ignore_presence(path) && path.exists() != *existed {
+                return Err(format!(
+                    "Client configuration active path changed before writing {}",
+                    path.display()
+                ));
+            }
+        }
         Ok(())
     }
 
@@ -291,7 +328,7 @@ impl Snapshot {
     pub fn restore_owned(
         &self,
         written: &std::collections::BTreeMap<PathBuf, Vec<u8>>,
-    ) -> Result<(), String> {
+    ) -> Result<Vec<PathBuf>, String> {
         self.restore_owned_with(written, |_| {})
     }
 
@@ -300,14 +337,16 @@ impl Snapshot {
         &self,
         written: &std::collections::BTreeMap<PathBuf, Vec<u8>>,
         mut before: impl FnMut(&Path),
-    ) -> Result<(), String> {
+    ) -> Result<Vec<PathBuf>, String> {
         let mut failures = Vec::new();
+        let mut skipped = Vec::new();
         for (path, original) in self.files.iter().rev() {
             before(path);
-            if !written
-                .get(path)
-                .is_some_and(|bytes| fs::read(path).is_ok_and(|current| current == *bytes))
-            {
+            let Some(bytes) = written.get(path) else {
+                continue;
+            };
+            if !fs::read(path).is_ok_and(|current| current == *bytes) {
+                skipped.push(path.clone());
                 continue;
             }
             let result = match original {
@@ -320,7 +359,7 @@ impl Snapshot {
         }
         remove_empty_dirs(&self.new_dirs);
         if failures.is_empty() {
-            Ok(())
+            Ok(skipped)
         } else {
             Err(failures.join("; "))
         }
@@ -789,9 +828,9 @@ fn apply_operation_committed(path: &Path, item: &WriteOperation) -> Result<Vec<u
     }
 }
 
-/// Applies every operation, backing up each existing file first. If one
-/// fails, every file already written by this batch is put back as it was
-/// (and files it created are removed), so clients never end up half-applied.
+/// Apply operations with backups and compensating restoration on failure.
+/// Restore only revisions still owned by the batch; report and preserve observed
+/// external edits. Checks are optimistic against uncooperative external writers.
 pub fn apply_operations(artifacts: Vec<WriteOperation>) -> Result<Vec<String>, String> {
     apply_operations_guarded(artifacts, None)
 }
@@ -814,6 +853,11 @@ pub fn apply_operations_checked_with_inputs(
 ) -> Result<BatchCommit, String> {
     apply_operations_guarded_with(artifacts, Some(expected), |_, _| {
         check_context()?;
+        inputs.verify_bindings_except(|path| {
+            expected
+                .paths()
+                .any(|target| target == target_identity(path))
+        })?;
         for path in inputs
             .paths()
             .filter(|path| !expected.paths().any(|target| target == *path))
@@ -846,6 +890,7 @@ fn apply_operations_guarded_with(
         let result = (|| {
             before(index, &path)?;
             if let Some(expected) = expected {
+                expected.verify_bindings()?;
                 if !expected.paths().any(|target| target == path) {
                     return Err(format!("unapproved target: {}", path.display()));
                 }
@@ -874,7 +919,15 @@ fn apply_operations_guarded_with(
         if let Err(error) = result {
             // Restore only versions still owned by this batch, even if failure was elsewhere.
             return Err(match originals.restore_owned(&written) {
-                Ok(()) => error,
+                Ok(skipped) if skipped.is_empty() => error,
+                Ok(skipped) => format!(
+                    "{error}; external edits were preserved during rollback: {}",
+                    skipped
+                        .iter()
+                        .map(|p| p.display().to_string())
+                        .collect::<Vec<_>>()
+                        .join(", ")
+                ),
                 Err(restore_error) => format!(
                     "{error}; restoring the files written before it also failed: {restore_error}"
                 ),
