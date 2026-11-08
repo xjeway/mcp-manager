@@ -361,11 +361,14 @@ function MainApp() {
       try {
         let initialWorkspace = EMPTY_WORKSPACE
         let projectAvailable = true
+        const selectedRoot = readProjectSelection()
         try {
-          initialWorkspace = await getCurrentWorkspace(readProjectSelection())
+          initialWorkspace = await getCurrentWorkspace(selectedRoot)
           setCurrentWorkspace(initialWorkspace)
         } catch (error) {
           projectAvailable = false
+          // Retain the unavailable selection so choosing My computer can recover.
+          setCurrentWorkspace({ ...EMPTY_WORKSPACE, root: selectedRoot ?? '' })
           setWorkspaceProblem(String(error))
           pushFeedback('error', t('projectSelectionFailed', { error: String(error) }))
         }
