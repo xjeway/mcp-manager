@@ -507,12 +507,32 @@ impl AppAdapter for MiMoCodeAdapter {
                 }
             }
         }
+        // Disabled native project entries remain managed and must participate in deletion.
+        let mut removal_previous = previous.cloned();
+        if let Some(previous) = &mut removal_previous {
+            for server in &mut previous.servers {
+                if !server.enabled {
+                    server.apps.insert(self.app(), false);
+                    for p in &mut server.placements {
+                        if p.scope == PlacementScope::User {
+                            p.enabled = false;
+                        }
+                    }
+                }
+                for p in &mut server.placements {
+                    if p.app == self.app() && p.scope == PlacementScope::Workspace && p.managed {
+                        p.enabled = true;
+                        server.enabled = true;
+                    }
+                }
+            }
+        }
         managed_json_field_writes_with(
             ctx,
             "mcp",
             self.app(),
             &retained,
-            previous,
+            removal_previous.as_ref(),
             opencode_mcp_servers_at,
         )
         .into_iter()
@@ -971,6 +991,24 @@ mod tests {
             false
         );
         assert!(!off.contains("private"));
+        for remove_placement_only in [false, true] {
+            let mut removed = disabled.clone();
+            if remove_placement_only {
+                removed.servers[0].placements.clear();
+            } else {
+                removed.servers.clear();
+            }
+            for op in MiMoCodeAdapter.plan_apply(&ctx, &removed, Some(&disabled)) {
+                apply_operation(Path::new(&op.path), &op).unwrap();
+            }
+            assert!(
+                parse_jsonc(&fs::read_to_string(&project).unwrap()).unwrap()["mcp"]
+                    .get("roundtrip")
+                    .is_none()
+            );
+            write(&project, &off);
+        }
+
         validate_mimo_context(&ctx, &active, Some(&disabled)).unwrap();
         for op in MiMoCodeAdapter.plan_apply(&ctx, &active, Some(&disabled)) {
             apply_operation(Path::new(&op.path), &op).unwrap();

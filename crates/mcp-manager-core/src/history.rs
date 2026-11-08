@@ -238,9 +238,11 @@ pub struct RollbackReport {
 /// them and backups map back with the platform's separators, so on Windows
 /// `/` versus `\\` and letter case must not matter.
 fn same_path(a: &str, b: &str) -> bool {
+    let a = storage::target_identity(Path::new(a));
+    let b = storage::target_identity(Path::new(b));
     if cfg!(windows) {
-        let normalize = |p: &str| p.replace('\\', "/").to_ascii_lowercase();
-        normalize(a) == normalize(b)
+        a.to_string_lossy()
+            .eq_ignore_ascii_case(&b.to_string_lossy())
     } else {
         a == b
     }
@@ -378,6 +380,17 @@ mod tests {
     use crate::store;
     use std::fs;
     use tempfile::tempdir;
+
+    #[test]
+    fn backup_targets_match_canonical_history_paths() {
+        let temp = tempfile::tempdir().unwrap();
+        let path = temp.path().join("client.json");
+        fs::write(&path, "{}").unwrap();
+        assert!(super::same_path(
+            path.to_str().unwrap(),
+            path.canonicalize().unwrap().to_str().unwrap()
+        ));
+    }
 
     #[test]
     fn history_uses_committed_payload_even_if_external_edit_arrives_before_recording() {

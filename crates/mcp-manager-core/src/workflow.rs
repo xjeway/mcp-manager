@@ -415,6 +415,17 @@ pub fn prepare_with_mimo_project_path(
     previous: Option<&MCPConfig>,
     expected: Option<&str>,
 ) -> Result<PreparedApply, String> {
+    prepare_with_capture_hook(ctx, config, previous, expected, || {})
+}
+
+/// Keep the semantic-validation/input-capture boundary explicit for concurrency regressions.
+fn prepare_with_capture_hook(
+    ctx: &PlatformContext,
+    config: &MCPConfig,
+    previous: Option<&MCPConfig>,
+    expected: Option<&str>,
+    before_capture: impl FnOnce(),
+) -> Result<PreparedApply, String> {
     let implicit = std::iter::once(config)
         .chain(previous)
         .flat_map(|config| &config.servers)
@@ -439,7 +450,10 @@ pub fn prepare_with_mimo_project_path(
     crate::adapters::validate_mimo_context(ctx, config, previous)?;
     crate::adapters::validate_muse_context(ctx, config, previous)?;
     crate::adapters::validate_rovo_context(ctx, config, previous)?;
+    before_capture();
     let inputs = planning_inputs(ctx, config, previous)?;
+    // Validate native semantics against already captured dependencies; later edits fail fingerprints.
+    crate::adapters::validate_mimo_context(ctx, config, previous)?;
     let by_app = plan_by_app(ctx, config, previous);
     crate::adapters::validate_project_fallback(ctx, &by_app)?;
     let operations = by_app
@@ -1047,6 +1061,43 @@ mod tests {
             .inputs
             .paths()
             .all(|path| path != ctx.workspace_file(".cursor/mcp.json")));
+    }
+
+    #[test]
+    fn mimo_deletion_between_semantic_validation_and_capture_is_rejected() {
+        use crate::adapters::{AppAdapter, MiMoCodeAdapter};
+        let temp = tempdir().unwrap();
+        let ctx = PlatformContext {
+            os: PlatformOs::MacOS,
+            home_dir: temp.path().join("home"),
+            workspace_root: temp.path().join("project"),
+        };
+        fs::create_dir_all(&ctx.workspace_root).unwrap();
+        let project = ctx.workspace_file("mimocode.jsonc");
+        let content = r#"{"mcp":{"capture-race":{"type":"local","command":["public"]}}}"#;
+        fs::write(&project, content).unwrap();
+        let private = ctx.home_dir.join(".mimocode/mimocode.jsonc");
+        fs::create_dir_all(private.parent().unwrap()).unwrap();
+        let private_content = r#"{"mcp":{"capture-race":{"type":"local","command":["private"],"environment":{"TOKEN":"secret"}}}}"#;
+        fs::write(&private, private_content).unwrap();
+        let config = MCPConfig {
+            version: 1,
+            servers: MiMoCodeAdapter
+                .parse_source(&ctx, project.to_str().unwrap(), 13, content)
+                .servers
+                .into_iter()
+                .map(|(s, _)| s)
+                .collect(),
+        };
+        for previous in [Some(&config), None] {
+            fs::write(&project, content).unwrap();
+            let result = super::prepare_with_capture_hook(&ctx, &config, previous, None, || {
+                fs::write(&project, "{}").unwrap()
+            });
+            assert!(result.err().unwrap().contains("no longer exists"));
+            assert_eq!(fs::read_to_string(&project).unwrap(), "{}");
+            assert_eq!(fs::read_to_string(&private).unwrap(), private_content);
+        }
     }
 
     #[test]
