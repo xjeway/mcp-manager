@@ -55,7 +55,7 @@ pub fn commit(session: &Session, change: Change, dry_run: bool) -> Outcome<bool>
             &session.ctx,
             &change.after,
         ))
-        .filter(|w| change.focus.contains(&w.server_id))
+        .filter(|w| w.kind == "sharedProjectSecret" || change.focus.contains(&w.server_id))
         .collect::<Vec<_>>();
 
     if !session.json {

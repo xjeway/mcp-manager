@@ -836,3 +836,45 @@ fn inherited_agents_removal_is_rejected_before_the_shared_store_is_saved() {
         assert_eq!(fs::read_to_string(&parent).unwrap(), parent_text);
     }
 }
+
+#[test]
+fn agents_retained_secret_warnings_include_servers_outside_the_command_focus() {
+    let sandbox = Sandbox::new();
+    sandbox.ok(&[
+        "add",
+        "retained",
+        "-a",
+        "agents",
+        "--project",
+        "-y",
+        "--",
+        "node",
+        "keep.js",
+    ]);
+    let path = sandbox.project.join(".agents/mcp.json");
+    let mut value = sandbox.read_json(&path);
+    value["mcpServers"]["retained"]["params"] =
+        serde_json::json!({"api_key":"nonfocus-private","token":"$TOKEN"});
+    fs::write(&path, value.to_string()).unwrap();
+    let report = sandbox.json(&[
+        "add",
+        "other",
+        "-a",
+        "cursor",
+        "--global",
+        "--url",
+        "https://example.com/mcp",
+        "-y",
+        "--json",
+    ]);
+    assert!(report["warnings"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .any(|warning| warning["serverId"] == "retained" && warning["key"] == "params.api_key"));
+    assert!(!report.to_string().contains("nonfocus-private"));
+    assert_eq!(
+        sandbox.read_json(&path)["mcpServers"]["retained"]["params"]["api_key"],
+        "nonfocus-private"
+    );
+}

@@ -237,7 +237,7 @@ mod tests {
             .join(".agents/mcp.json");
         fs::create_dir_all(parent.parent().unwrap()).unwrap();
         fs::write(parent, "{}").unwrap();
-        assert!(ctx.detect_installed_apps().contains(&SupportedApp::Agents));
+        assert!(ctx.config_marker_exists(SupportedApp::Agents));
     }
 
     #[test]

@@ -374,7 +374,7 @@ impl PlatformContext {
         dirs
     }
 
-    fn config_marker_exists(&self, app: SupportedApp) -> bool {
+    pub(crate) fn config_marker_exists(&self, app: SupportedApp) -> bool {
         self.config_markers(app)
             .into_iter()
             .any(|path| self.resolve_path(&path).exists())
