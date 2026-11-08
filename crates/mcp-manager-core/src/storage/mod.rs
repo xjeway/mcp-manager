@@ -702,29 +702,72 @@ pub fn apply_operations_checked(
     apply_operations_guarded(artifacts, Some(expected))
 }
 
+/// Read-only planning inputs are checked before every write and never enter rollback state.
+pub fn apply_operations_checked_with_inputs(
+    artifacts: Vec<WriteOperation>,
+    expected: &Snapshot,
+    inputs: &Snapshot,
+) -> Result<Vec<String>, String> {
+    apply_operations_guarded_with(artifacts, Some(expected), |_, _| {
+        for path in inputs
+            .paths()
+            .filter(|path| !expected.paths().any(|target| target == *path))
+        {
+            inputs.verify_path(path)?;
+        }
+        Ok(())
+    })
+}
+
 /// Shared batch rollback implementation with an optional per-target precondition.
 fn apply_operations_guarded(
     artifacts: Vec<WriteOperation>,
     expected: Option<&Snapshot>,
 ) -> Result<Vec<String>, String> {
+    apply_operations_guarded_with(artifacts, expected, |_, _| Ok(()))
+}
+
+/// A batch owns its prior writes, while an edit between operations remains external.
+fn apply_operations_guarded_with(
+    artifacts: Vec<WriteOperation>,
+    expected: Option<&Snapshot>,
+    mut before: impl FnMut(usize, &Path) -> Result<(), String>,
+) -> Result<Vec<String>, String> {
     let mut backups = Vec::new();
     let mut originals = Snapshot::default();
-
-    for item in artifacts {
+    let mut written = std::collections::BTreeMap::<PathBuf, Vec<u8>>::new();
+    for (index, item) in artifacts.into_iter().enumerate() {
         let path = resolve_path(&item.path);
         let result = (|| {
-            // Check before capturing this file for rollback: a rejected external
-            // edit must not be overwritten when earlier writes are restored.
+            before(index, &path)?;
             if let Some(expected) = expected {
-                expected.verify_path(&path)?;
+                let check = if let Some(bytes) = written.get(&path) {
+                    match fs::read(&path) {
+                        Ok(current) if current == *bytes => Ok(()),
+                        _ => Err(format!("Client configuration changed between batch writes to {}. Nothing further was written.", path.display())),
+                    }
+                } else {
+                    expected.verify_path(&path)
+                };
+                if let Err(error) = check {
+                    // Never restore over an external edit to a previously written target.
+                    originals.files.retain(|(target, _)| target != &path);
+                    return Err(error);
+                }
             }
             originals.capture(&path)?;
-            if let Some(backup) = backup_file(&path)? {
-                backups.push(backup);
+            if !written.contains_key(&path) {
+                if let Some(backup) = backup_file(&path)? {
+                    backups.push(backup);
+                }
             }
-            apply_operation(&path, &item)
+            apply_operation(&path, &item)?;
+            written.insert(
+                path.clone(),
+                fs::read(&path).map_err(|error| error.to_string())?,
+            );
+            Ok(())
         })();
-
         if let Err(error) = result {
             return Err(match originals.restore() {
                 Ok(()) => error,
@@ -734,7 +777,6 @@ fn apply_operations_guarded(
             });
         }
     }
-
     Ok(backups)
 }
 
@@ -1283,5 +1325,57 @@ mod tests {
         restored.expect("rollback");
         assert_eq!(fs::read_to_string(&target).expect("read"), "original");
         assert!(!target.with_file_name("mcp").exists());
+    }
+    #[test]
+    fn checked_batches_accept_their_own_prior_writes_but_preserve_external_edits() {
+        let _guard = env_lock().lock().unwrap();
+        let temp = tempfile::tempdir().unwrap();
+        let home = temp.path().join("home");
+        fs::create_dir_all(&home).unwrap();
+        let runtime = set_test_runtime(&home, temp.path());
+        let a = temp.path().join("a.json");
+        let b = temp.path().join("b.json");
+        fs::write(&a, "{}").unwrap();
+        fs::write(&b, "{}").unwrap();
+        let operation = |path: &Path, field: &str| WriteOperation {
+            path: path.to_string_lossy().into(),
+            mode: "merge_json_field".into(),
+            field: Some(field.into()),
+            content: "1".into(),
+            remove_keys: None,
+        };
+        let mut expected = super::Snapshot::default();
+        expected.capture(&a).unwrap();
+        expected.capture(&b).unwrap();
+        let result = super::apply_operations_checked(
+            vec![operation(&a, "first"), operation(&a, "second")],
+            &expected,
+        );
+        let accepted = fs::read_to_string(&a).unwrap();
+        fs::write(&a, "{}").unwrap();
+        let failed = super::apply_operations_guarded_with(
+            vec![
+                operation(&b, "first"),
+                operation(&a, "first"),
+                operation(&a, "second"),
+            ],
+            Some(&expected),
+            |index, path| {
+                if index == 2 {
+                    fs::write(path, r#"{"external":true}"#).unwrap();
+                }
+                Ok(())
+            },
+        );
+        let external = fs::read_to_string(&a).unwrap();
+        let restored = fs::read_to_string(&b).unwrap();
+        restore_test_runtime(runtime.0, runtime.1);
+        assert!(result.is_ok(), "{result:?}");
+        let value: serde_json::Value = serde_json::from_str(&accepted).unwrap();
+        assert_eq!(value["first"], 1);
+        assert_eq!(value["second"], 1);
+        assert!(failed.is_err());
+        assert_eq!(external, r#"{"external":true}"#);
+        assert_eq!(restored, "{}");
     }
 }

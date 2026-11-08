@@ -47,6 +47,39 @@ fn normalize(content: &str) -> Result<String, String> {
     Ok(value.to_string())
 }
 
+/// The client reads strict JSON, so reject JSONC before any app or store is written.
+pub(crate) fn validate_command_context(
+    ctx: &PlatformContext,
+    config: &MCPConfig,
+    previous: Option<&MCPConfig>,
+) -> Result<(), String> {
+    let targeted = std::iter::once(config)
+        .chain(previous)
+        .flat_map(|config| &config.servers)
+        .any(|server| {
+            server
+                .apps
+                .get(&SupportedApp::CommandCode)
+                .copied()
+                .unwrap_or(false)
+                || server
+                    .placements
+                    .iter()
+                    .any(|p| p.app == SupportedApp::CommandCode && p.managed)
+        });
+    if targeted {
+        let path = ctx.user_app_config_path(SupportedApp::CommandCode);
+        match std::fs::read_to_string(&path) {
+            Ok(content) => {
+                normalize(&content).map_err(|error| format!("{}: {error}", path.display()))?;
+            }
+            Err(error) if error.kind() == std::io::ErrorKind::NotFound => {}
+            Err(error) => return Err(format!("{}: {error}", path.display())),
+        }
+    }
+    Ok(())
+}
+
 /// Emits canonical transport names and preserves the native per-client enabled switch.
 fn content_at(config: &MCPConfig, app: SupportedApp, path: &str, ctx: &PlatformContext) -> Value {
     let old = std::fs::read_to_string(path)
@@ -278,5 +311,39 @@ mod tests {
         assert!(ctx
             .detect_installed_apps()
             .contains(&SupportedApp::CommandCode));
+    }
+    #[test]
+    fn strict_jsonc_is_rejected_before_other_clients_are_written() {
+        let temp = tempfile::tempdir().unwrap();
+        let ctx = PlatformContext {
+            os: PlatformOs::MacOS,
+            home_dir: temp.path().join("home"),
+            workspace_root: temp.path().join("project"),
+        };
+        let path = ctx.user_app_config_path(SupportedApp::CommandCode);
+        let parsed = CommandCodeAdapter.parse_source(
+            &ctx,
+            path.to_str().unwrap(),
+            20,
+            r#"{"mcpServers":{"api":{"transport":"http","url":"https://example.com"}}}"#,
+        );
+        let config = MCPConfig {
+            version: 1,
+            servers: parsed
+                .servers
+                .into_iter()
+                .map(|(server, _)| server)
+                .collect(),
+        };
+        fs::create_dir_all(path.parent().unwrap()).unwrap();
+        for text in [
+            "{ // not strict JSON\n\"mcpServers\":{}}",
+            "{\"mcpServers\":{},}",
+        ] {
+            fs::write(&path, text).unwrap();
+            assert!(crate::workflow::prepare(&ctx, &config, None).is_err());
+            assert!(crate::workflow::apply(&ctx, &config, None).is_err());
+            assert_eq!(fs::read_to_string(&path).unwrap(), text);
+        }
     }
 }

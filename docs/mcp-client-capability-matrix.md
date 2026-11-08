@@ -39,7 +39,7 @@ storage path, merge behavior, and precedence.
 | CodeBuddy Code | First existing: `~/.codebuddy/.mcp.json`, `~/.codebuddy/mcp.json`, `~/.codebuddy.json`; default to the first path for new installs | `.mcp.json`, managed through Claude Code | Private local entries in `~/.codebuddy.json.projects[path]` and deprecated project `mcp.json` (not managed) | User only in direct controls; project via Claude Code. JSONC `mcpServers` edited in place. Read and write only the active user file; do not merge deprecated files. Remote entries use `type: http` / `type: sse` and `headers` |
 | Shared `.agents` (Codebuff / Freebuff) | `~/.agents/mcp.json` | `.agents/mcp.json` | Immediate parent's `.agents/mcp.json` (read-only import) | One shared-file target, with CLI aliases `codebuff` / `freebuff`. Global > parent > project for same-name servers, matching the upstream loader's actual merge order. HTTP/SSE use `type`, `url`, `headers`; `params` are retained. Parent files are never apply targets. Project secrets warn; supported `$VAR` references are retained without local expansion |
 | ZCode | `~/.zcode/cli/config.json` → `mcp.servers` | `.zcode/config.json` → `mcp.servers` | Same-scope `.agents/mcp.json` fallback, only when native definitions are empty | Direct project support with user > workspace precedence. Native files are edited only under the nested `mcp.servers` path. Fallbacks are imported but never written by this adapter; the first native write carries forward fallback entries so they are not silently shadowed. Client-owned `enable: false`, timeouts and OAuth settings survive rewrites |
-| MiMo Code | `$MIMOCODE_HOME/config` or `$XDG_CONFIG_HOME/mimocode` (default `~/.config/mimocode`): `config.json`, `mimocode.json`, `mimocode.jsonc`; `~/.mimocode/mimocode.json(c)` overlay | `mimocode.json(c)` and `.mimocode/mimocode.json(c)` | Ancestor, managed/remote and per-run injected sources are not managed | Direct project support. OpenCode-style `mcp` entries (`local` command array / `environment`, `remote` URL / headers). JSONC overrides JSON; hidden-directory files override root files. Import deep-merges supported layers before decoding servers and retains references. User writes go to the highest loaded existing user file |
+| MiMo Code | `$MIMOCODE_HOME/config` or `$XDG_CONFIG_HOME/mimocode` (default `~/.config/mimocode`): `config.json`, `mimocode.json`, `mimocode.jsonc`; `~/.mimocode/mimocode.json(c)` overlay | `mimocode.json(c)` and `.mimocode/mimocode.json(c)` | Ancestor, managed/remote and per-run injected sources are not managed | Direct project support. OpenCode-style `mcp` entries (`local` command array / `environment`, `remote` URL / headers). JSONC overrides JSON; hidden-directory files override root files. Import deep-merges supported layers before decoding servers and retains references. New user installs select the highest loaded user file; imported user/project layers are pinned for in-place edits and complete removal |
 | Muse Code | `~/.config/muse/settings.json` | — | — | User only. Strict JSON, `schema_version: 1`, root `mcp_servers`; `transport: stdio` / `streamable_http`. New settings are initialized atomically. Legacy `mcpServers` or an unsupported schema blocks apply. Retains client enabled flags, mode, same-transport framing and unrelated settings |
 | Rovo Dev CLI | `~/.rovodev/mcp.json`, overridden by `mcp.mcpConfigPath` in `~/.rovodev/config.yml` | — | Per-run config overrides not managed | User only. JSON `mcpServers`, canonical `transport: stdio` / `http` / `sse`. Read-only YAML resolution accepts absolute paths or `~/`; malformed YAML or ambiguous relative paths block apply. The YAML disabled-server list is preserved and never becomes a global disable |
 | Kimi CLI | `~/.kimi/mcp.json` | Unsupported | None | User only; remote servers are written without `type` |
@@ -200,8 +200,14 @@ and [MCP schema](https://github.com/XiaomiMiMo/MiMo-Code/blob/3a12665a9e27789b04
 Supported files are deep-merged without expanding environment/file references,
 then each source's declared IDs are attributed to that source's scope. Project
 files override the base user files; the home `.mimocode` overlay is loaded later
-and overrides project settings. User writes select the highest-priority existing
-file (JSONC before JSON); new files use `mimocode.jsonc`. MiMo's MCP-add command
+and overrides project settings. New user writes select the highest-priority existing
+file (JSONC before JSON); new files use `mimocode.jsonc`. Imported user sources
+retain explicit managed placements so removal covers every imported layer.
+Project imports exclude the private home overlay. Writes preserve each layer's
+own raw values and apply only edited modeled fields; unchanged private values
+are never materialized into project files. Editor saves refresh a changed project
+alias while retaining managed lower layers, and stale disable operations require
+re-import instead of silently leaving a newly active definition enabled. MiMo's MCP-add command
 currently checks JSON before JSONC despite its comment; the manager follows the
 actual load precedence so a write cannot be hidden by an existing JSONC file.
 
@@ -276,3 +282,10 @@ The YAML file is read-only: allowed/disabled server lists and all other settings
 remain unchanged. Client-local disabled entries are imported without globally
 disabling them. Prepared writes reject a changed target path or invalid YAML
 before writing; JSON updates retain unrelated entries and same-transport metadata.
+
+Prepared writes fingerprint read-only source dependencies separately from rollback
+files, including ZCode fallback input and MiMo layers. These inputs are rechecked
+at validation and before each write. Batch writes to one target compare against
+the batch's last version, preserving genuine external edits while rolling back
+other files on failure. Retained project parameters/environment values are included
+in redacted secret warnings before CLI or desktop confirmation.

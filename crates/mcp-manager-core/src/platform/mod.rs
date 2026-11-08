@@ -519,8 +519,6 @@ impl PlatformContext {
             | SupportedApp::FactoryDroid
             | SupportedApp::MuseCode
             | SupportedApp::KimiCli
-            | SupportedApp::ZCode
-            | SupportedApp::MiMoCode
             | SupportedApp::CommandCode
             | SupportedApp::CodeBuddy
             | SupportedApp::Auggie
@@ -531,6 +529,13 @@ impl PlatformContext {
             | SupportedApp::Amp
             | SupportedApp::Grok => {
                 vec![self.user_app_config_path(app).to_string_lossy().to_string()]
+            }
+            SupportedApp::ZCode | SupportedApp::MiMoCode => {
+                let mut paths = vec![self.user_app_config_path(app).to_string_lossy().to_string()];
+                if let Some(project) = crate::adapters::workspace_scope_path(self, app) {
+                    paths.push(project);
+                }
+                paths
             }
             SupportedApp::Agents => {
                 let mut paths = vec![self.user_app_config_path(app)];

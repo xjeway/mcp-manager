@@ -210,6 +210,7 @@ fn apply_plan(
     config: &MCPConfig,
     operations: Vec<WriteOperation>,
     expected: &Snapshot,
+    inputs: &Snapshot,
 ) -> Result<ApplyResult, String> {
     for operation in &operations {
         let path = ctx.resolve_path(&operation.path);
@@ -221,7 +222,8 @@ fn apply_plan(
         }
     }
 
-    let backups = crate::storage::apply_operations_checked(operations, expected)?;
+    let backups =
+        crate::storage::apply_operations_checked_with_inputs(operations, expected, inputs)?;
     Ok(ApplyResult {
         backups,
         warnings: crate::adapters::apply_warnings(config),
@@ -255,6 +257,7 @@ pub struct PlannedChange {
 pub struct PreparedApply {
     operations: Vec<WriteOperation>,
     snapshot: Snapshot,
+    inputs: Snapshot,
     config: MCPConfig,
     previous: Option<MCPConfig>,
     pub changes: Vec<PlannedChange>,
@@ -264,6 +267,11 @@ impl PreparedApply {
     /// Rejects changed contents or active paths before any write is attempted.
     pub fn validate(&self, ctx: &PlatformContext) -> Result<(), String> {
         validate_inherited_agents(ctx, &self.config, self.previous.as_ref())?;
+        crate::adapters::validate_command_context(ctx, &self.config, self.previous.as_ref())?;
+        let inputs = planning_inputs(ctx, &self.config, self.previous.as_ref())?;
+        if self.inputs.fingerprints()? != inputs.fingerprints()? {
+            return Err("Client configuration inputs (contents or active path) changed after the preview. Nothing was written; review the new configuration.".into());
+        }
         crate::adapters::validate_rovo_context(ctx, &self.config, self.previous.as_ref())?;
         let current = snapshot(ctx, &self.config, self.previous.as_ref())?;
         if self.snapshot.fingerprints()? != current.fingerprints()? {
@@ -289,8 +297,49 @@ impl PreparedApply {
 
     /// Keeps the final-validation/write boundary explicit for race regression tests.
     fn apply_validated(&self, ctx: &PlatformContext) -> Result<ApplyResult, String> {
-        apply_plan(ctx, &self.config, self.operations.clone(), &self.snapshot)
+        apply_plan(
+            ctx,
+            &self.config,
+            self.operations.clone(),
+            &self.snapshot,
+            &self.inputs,
+        )
     }
+}
+
+/// Fingerprint read-only dependencies separately from files eligible for rollback.
+fn planning_inputs(
+    ctx: &PlatformContext,
+    config: &MCPConfig,
+    previous: Option<&MCPConfig>,
+) -> Result<Snapshot, String> {
+    let mut inputs = Snapshot::default();
+    for adapter in crate::adapters::adapters() {
+        let app = adapter.app();
+        let targeted = std::iter::once(config)
+            .chain(previous)
+            .flat_map(|config| &config.servers)
+            .any(|server| {
+                server.apps.get(&app).copied().unwrap_or(false)
+                    || server.placements.iter().any(|p| p.app == app && p.managed)
+            });
+        if !targeted {
+            continue;
+        }
+        for (path, _) in adapter.detect_sources(ctx) {
+            inputs.capture(&ctx.resolve_path(&path))?;
+        }
+        if app == SupportedApp::ZCode {
+            inputs.capture(&ctx.home_dir.join(".agents/mcp.json"))?;
+            if ctx.has_workspace() {
+                inputs.capture(&ctx.workspace_file(".agents/mcp.json"))?;
+            }
+        }
+        if app == SupportedApp::RovoDev {
+            inputs.capture(&ctx.home_dir.join(".rovodev/config.yml"))?;
+        }
+    }
+    Ok(inputs)
 }
 
 /// Prepares the preview, file fingerprints and writes from one resolved plan.
@@ -300,9 +349,11 @@ pub fn prepare(
     previous: Option<&MCPConfig>,
 ) -> Result<PreparedApply, String> {
     validate_inherited_agents(ctx, config, previous)?;
+    crate::adapters::validate_command_context(ctx, config, previous)?;
     crate::adapters::validate_mimo_context(ctx, config, previous)?;
     crate::adapters::validate_muse_context(ctx, config, previous)?;
     crate::adapters::validate_rovo_context(ctx, config, previous)?;
+    let inputs = planning_inputs(ctx, config, previous)?;
     let by_app = plan_by_app(ctx, config, previous);
     crate::adapters::validate_project_fallback(ctx, &by_app)?;
     let operations = by_app
@@ -317,6 +368,7 @@ pub fn prepare(
         changes: preview_plan(ctx, &by_app, previous),
         operations,
         snapshot,
+        inputs,
         config: config.clone(),
         previous: previous.cloned(),
     };
@@ -839,5 +891,35 @@ mod tests {
             action_for(&changes, "ctx", codex),
             Some(ChangeAction::Unchanged)
         );
+    }
+    #[test]
+    fn fallback_changed_after_final_validation_is_rejected_at_the_write_boundary() {
+        use crate::adapters::{AppAdapter, ZCodeAdapter};
+        let temp = tempdir().unwrap();
+        let ctx = PlatformContext {
+            os: PlatformOs::MacOS,
+            home_dir: temp.path().join("home"),
+            workspace_root: temp.path().join("project"),
+        };
+        let fallback = ctx.home_dir.join(".agents/mcp.json");
+        fs::create_dir_all(fallback.parent().unwrap()).unwrap();
+        let content = r#"{"mcpServers":{"fixture-fallback":{"command":"node"}}}"#;
+        fs::write(&fallback, content).unwrap();
+        let parsed = ZCodeAdapter.parse_source(&ctx, fallback.to_str().unwrap(), 8, content);
+        let config = MCPConfig {
+            version: 1,
+            servers: parsed
+                .servers
+                .into_iter()
+                .map(|(server, _)| server)
+                .collect(),
+        };
+        let prepared = super::prepare(&ctx, &config, None).unwrap();
+        prepared.validate(&ctx).unwrap();
+        let external = r#"{"mcpServers":{"fixture-fallback":{"command":"external"}}}"#;
+        fs::write(&fallback, external).unwrap();
+        assert!(prepared.apply_validated(&ctx).is_err());
+        assert_eq!(fs::read_to_string(&fallback).unwrap(), external);
+        assert!(!ctx.user_app_config_path(SupportedApp::ZCode).exists());
     }
 }

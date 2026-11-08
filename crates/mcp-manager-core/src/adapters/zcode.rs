@@ -81,6 +81,27 @@ pub(crate) fn validate_project_fallback(
     Ok(())
 }
 
+/// Retained parameters can come from either the native entry or its first-write fallback.
+pub(crate) fn retained_project_entries(ctx: &PlatformContext, path: &str, id: &str) -> Vec<Value> {
+    let mut entries = Vec::new();
+    if let Ok(native) = native_servers(path) {
+        if let Some(entry) = native.get(id) {
+            entries.push(entry.clone());
+        }
+        if native.is_empty() {
+            if let Ok(content) = fs::read_to_string(fallback_for(ctx, path)) {
+                if let Ok(root) = parse_jsonc(&content) {
+                    if let Some(entry) = root.get("mcpServers").and_then(|entries| entries.get(id))
+                    {
+                        entries.push(entry.clone());
+                    }
+                }
+            }
+        }
+    }
+    entries
+}
+
 impl AppAdapter for ZCodeAdapter {
     /// Registry and serialized id.
     fn app(&self) -> SupportedApp {
@@ -535,5 +556,67 @@ mod tests {
         assert!(crate::workflow::preview(&ctx, &updated, Some(&config))
             .iter()
             .any(|change| change.action == crate::workflow::ChangeAction::Update));
+    }
+    #[test]
+    fn user_fallback_is_a_read_dependency_and_is_never_restored_over_an_external_edit() {
+        let temp = tempfile::tempdir().unwrap();
+        let ctx = ctx(temp.path());
+        let fallback = ctx.home_dir.join(".agents/mcp.json");
+        write(
+            &fallback,
+            r#"{"mcpServers":{"fallback":{"command":"old"}}}"#,
+        );
+        let parsed = ZCodeAdapter.parse_source(
+            &ctx,
+            fallback.to_str().unwrap(),
+            8,
+            &fs::read_to_string(&fallback).unwrap(),
+        );
+        let config = MCPConfig {
+            version: 1,
+            servers: parsed
+                .servers
+                .into_iter()
+                .map(|(server, _)| server)
+                .collect(),
+        };
+        let prepared = crate::workflow::prepare(&ctx, &config, None).unwrap();
+        let changed = r#"{"mcpServers":{"fallback":{"command":"external"}}}"#;
+        fs::write(&fallback, changed).unwrap();
+        assert!(prepared.apply(&ctx).is_err());
+        assert_eq!(fs::read_to_string(&fallback).unwrap(), changed);
+        assert!(!ctx.user_app_config_path(SupportedApp::ZCode).exists());
+    }
+
+    #[test]
+    fn project_migration_warns_about_retained_parameter_secrets() {
+        let temp = tempfile::tempdir().unwrap();
+        let ctx = ctx(temp.path());
+        let fallback = ctx.workspace_file(".agents/mcp.json");
+        let content =
+            r#"{"mcpServers":{"api":{"command":"node","params":{"api_key":"migration-private"}}}}"#;
+        write(&fallback, content);
+        let parsed = ZCodeAdapter.parse_source(&ctx, fallback.to_str().unwrap(), 9, content);
+        let config = MCPConfig {
+            version: 1,
+            servers: parsed
+                .servers
+                .into_iter()
+                .map(|(server, _)| server)
+                .collect(),
+        };
+        let warnings = crate::adapters::shared_project_secret_warnings(&ctx, &config);
+        assert!(warnings
+            .iter()
+            .any(|warning| warning.app == SupportedApp::ZCode
+                && warning.key.as_deref() == Some("params.api_key")
+                && warning
+                    .path
+                    .as_ref()
+                    .unwrap()
+                    .ends_with(".zcode/config.json")));
+        assert!(!serde_json::to_string(&warnings)
+            .unwrap()
+            .contains("migration-private"));
     }
 }

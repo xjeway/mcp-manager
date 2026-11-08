@@ -1,6 +1,7 @@
 import { describe, expect, it, vi } from 'vitest'
 import {
   inheritedAgentsRemovalPath,
+  refreshMiMoProjectPaths,
   importConfigOnLaunch,
   importServersIntoConfig,
   persistImportedConfig,
@@ -250,4 +251,30 @@ it('ignores inherited placements saved by another workspace and rejects before s
   await expect(saveAndSyncConfig({ nextConfig, previousConfig: config, saveConfig, applyConfig, workspace: { root: '/parent/project', placementPaths: {} } })).rejects.toThrow('/parent/.agents/mcp.json')
   expect(saveConfig).not.toHaveBeenCalled()
   expect(applyConfig).not.toHaveBeenCalled()
+})
+
+describe('MiMo editor project path refresh', () => {
+  const cached = { root: '/project', placementPaths: { miMoCode: '/project/mimocode.jsonc' } }
+  const fresh = { root: '/project', placementPaths: { miMoCode: '/project/.mimocode/mimocode.jsonc' } }
+  const make = (): import('../types/config').MCPConfig => {
+    const config: import('../types/config').MCPConfig = structuredClone(previousConfig)
+    config.servers[0].placements = [{ app: 'miMoCode', scope: 'workspace', path: cached.placementPaths.miMoCode, enabled: true, managed: true }]
+    return config
+  }
+  it('saves an edited project selection to the newly active alias while keeping lower layers', () => {
+    const config = make()
+    const next = refreshMiMoProjectPaths(config, cached, fresh, ['server-1'])
+    expect(next.servers[0].placements?.map((placement) => placement.path)).toEqual([cached.placementPaths.miMoCode, fresh.placementPaths.miMoCode])
+    expect(config.servers[0].placements).toHaveLength(1)
+  })
+  it('does not expand unrelated dashboard changes or another workspace', () => {
+    const config = make()
+    expect(refreshMiMoProjectPaths(config, cached, fresh, [])).toEqual(config)
+    expect(refreshMiMoProjectPaths(config, cached, { ...fresh, root: '/other' }, ['server-1'])).toBe(config)
+  })
+  it('requires re-import before disabling a stale selection', () => {
+    const config = make()
+    config.servers[0].placements![0].enabled = false
+    expect(() => refreshMiMoProjectPaths(config, cached, fresh, ['server-1'])).toThrow('priority changed')
+  })
 })

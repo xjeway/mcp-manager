@@ -153,3 +153,19 @@ export function inheritedAgentsRemovalPath(config: MCPConfig, nextConfig: MCPCon
   }
   return undefined
 }
+
+/** Refresh an editor's newly stale primary alias without discarding managed lower layers. */
+export function refreshMiMoProjectPaths(config: MCPConfig, cached: WorkspaceContext, fresh: WorkspaceContext, editedIds: readonly string[]): MCPConfig {
+  const oldPath = cached.placementPaths.miMoCode
+  const path = fresh.placementPaths.miMoCode
+  if (!oldPath || !path || oldPath === path || cached.root !== fresh.root) return config
+  const ids = new Set(editedIds)
+  return { ...config, servers: config.servers.map((server) => {
+    if (!ids.has(server.id)) return server
+    const placement = server.placements?.find((item) => item.app === 'miMoCode' && item.scope === 'workspace' && item.path === oldPath)
+    if (!placement) return server
+    if (!placement.enabled) throw new Error('MiMo project configuration priority changed. Import the current configuration before disabling it.')
+    if (server.placements?.some((item) => item.app === 'miMoCode' && item.path === path && item.enabled)) return server
+    return { ...server, placements: [...(server.placements ?? []), { ...placement, path, managed: true }] }
+  }) }
+}

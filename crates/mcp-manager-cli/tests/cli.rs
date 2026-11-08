@@ -1164,6 +1164,11 @@ fn remaining_clients_apply_together_and_rollback_without_crossing_native_schemas
         sandbox.read_json(&sandbox.home.join(paths[2].0))["schema_version"],
         1
     );
+    assert!(
+        sandbox.read_json(&sandbox.home.join(paths[2].0))["mcp_servers"]
+            .get("shared-api")
+            .is_none()
+    );
     for (index, (path, _, _)) in paths.iter().enumerate().filter(|(index, _)| *index != 2) {
         assert_eq!(sandbox.read_json(&sandbox.home.join(path)), before[index]);
     }
@@ -1172,4 +1177,66 @@ fn remaining_clients_apply_together_and_rollback_without_crossing_native_schemas
         assert_eq!(sandbox.read_json(&sandbox.home.join(path)), before[index]);
     }
     assert!(!sandbox.home.join(".agents/mcp.json").exists());
+}
+
+#[test]
+fn mimo_removal_clears_every_imported_user_layer_and_keeps_unmanaged_entries() {
+    let sandbox = Sandbox::new();
+    let base = sandbox.home.join(".config/mimocode/mimocode.json");
+    let overlay = sandbox.home.join(".mimocode/mimocode.jsonc");
+    for path in [&base, &overlay] {
+        fs::create_dir_all(path.parent().unwrap()).unwrap();
+    }
+    fs::write(&base,r#"{"mcp":{"layered":{"type":"local","command":["base"]},"unmanaged":{"type":"local","command":["keep"]}}}"#).unwrap();
+    fs::write(
+        &overlay,
+        r#"{"mcp":{"layered":{"type":"local","command":["home"]}}}"#,
+    )
+    .unwrap();
+    let config = serde_json::json!({"version":1,"servers":[{"id":"layered","name":"layered","enabled":true,"transport":{"type":"stdio"},"command":{"program":"home","args":[],"env":{}},"apps":{"miMoCode":true},"placements":[
+        {"app":"miMoCode","scope":"user","path":base,"enabled":true,"managed":true},
+        {"app":"miMoCode","scope":"user","path":overlay,"enabled":true,"managed":true}
+    ]}]});
+    let store = sandbox.servers_yaml();
+    fs::create_dir_all(store.parent().unwrap()).unwrap();
+    fs::write(store, config.to_string()).unwrap();
+    sandbox.ok(&["remove", "layered", "-a", "mimo", "-y"]);
+    for path in [&base, &overlay] {
+        assert!(sandbox.read_json(path)["mcp"].get("layered").is_none());
+    }
+    assert_eq!(
+        sandbox.read_json(&base)["mcp"]["unmanaged"]["command"],
+        serde_json::json!(["keep"])
+    );
+}
+
+#[test]
+fn zcode_migration_reports_retained_parameter_secrets_before_writing() {
+    let sandbox = Sandbox::new();
+    let fallback = sandbox.project.join(".agents/mcp.json");
+    fs::create_dir_all(fallback.parent().unwrap()).unwrap();
+    fs::write(&fallback,r#"{"mcpServers":{"api":{"command":"node","params":{"api_key":"retained-migration-secret"}}}}"#).unwrap();
+    let report = sandbox.json(&[
+        "add",
+        "--from",
+        ".agents/mcp.json",
+        "-s",
+        "api",
+        "-a",
+        "zcode",
+        "--project",
+        "-y",
+        "--json",
+    ]);
+    assert!(report["warnings"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .any(|warning| warning["app"] == "zCode" && warning["key"] == "params.api_key"));
+    assert!(!report.to_string().contains("retained-migration-secret"));
+    assert_eq!(
+        sandbox.read_json(&sandbox.project.join(".zcode/config.json"))["mcp"]["servers"]["api"]
+            ["params"]["api_key"],
+        "retained-migration-secret"
+    );
 }

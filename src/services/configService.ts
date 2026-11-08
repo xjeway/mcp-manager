@@ -347,6 +347,7 @@ export async function projectSecretWarnings(config: MCPConfig): Promise<(Omit<Ap
 export async function applyConfig(
   config: MCPConfig,
   previousConfig: MCPConfig = config,
+  workspace?: WorkspaceContext,
 ): Promise<ApplyResult> {
   if (!isDesktopRuntime()) {
     window.localStorage.setItem(BROWSER_CONFIG_KEY, JSON.stringify(config))
@@ -361,6 +362,7 @@ export async function applyConfig(
       config,
       previousConfig,
       expectedFingerprint: loadedFingerprint,
+      expectedMimoProjectPath: config.servers.some((server) => server.placements?.some((placement) => placement.app === 'miMoCode' && placement.scope === 'workspace' && placement.enabled)) ? workspace?.placementPaths.miMoCode : undefined,
     })
   } catch (error) {
     if (String(error).startsWith(CONFLICT_ERROR)) {

@@ -531,6 +531,21 @@ pub fn merge_servers(current: Option<&MCPServer>, incoming: &MCPServer) -> MCPSe
         }
     }
 
+    let uses_mimo = |server: &MCPServer| {
+        server
+            .apps
+            .get(&SupportedApp::MiMoCode)
+            .copied()
+            .unwrap_or(false)
+            || server
+                .placements
+                .iter()
+                .any(|p| p.app == SupportedApp::MiMoCode && p.enabled)
+    };
+    if uses_mimo(current) && uses_mimo(incoming) {
+        return merged;
+    }
+
     // Native ZCode definitions beat shared Agents definitions; both are whole entries.
     let rank = |server: &MCPServer| {
         [SupportedApp::Agents, SupportedApp::ZCode]

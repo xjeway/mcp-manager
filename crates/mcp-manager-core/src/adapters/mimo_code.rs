@@ -2,13 +2,16 @@ use crate::adapters::{
     managed_json_field_writes_with, opencode_mcp_servers_at, scope_for_path, AppAdapter,
     ParsedSources,
 };
-use crate::core::{LocalConfigSource, MCPConfig, PlacementScope, SupportedApp, WriteOperation};
+use crate::core::{
+    LocalConfigSource, MCPConfig, MCPServer, PlacementScope, ServerPlacement, SupportedApp,
+    WriteOperation,
+};
 use crate::parser::{
     enable_servers_for_app_at, extract_opencode_mcp_json, parse_jsonc, parse_mcp_json,
 };
 use crate::platform::PlatformContext;
 use serde_json::Value;
-use std::fs;
+use std::{fs, path::Path};
 
 /// Xiaomi MiMo Code's local JSON/JSONC layers; never executes configs or resolves secrets.
 pub struct MiMoCodeAdapter;
@@ -59,8 +62,20 @@ fn merge(target: &mut Value, source: Value) {
 
 /// Produces effective MCP data while keeping original references as strings.
 fn effective(ctx: &PlatformContext, input: Option<(&str, &str)>) -> Result<Value, String> {
+    effective_for(ctx, input, false)
+}
+
+/// Project imports exclude the later private home overlay.
+fn effective_for(
+    ctx: &PlatformContext,
+    input: Option<(&str, &str)>,
+    project: bool,
+) -> Result<Value, String> {
     let mut result = serde_json::json!({});
-    for (path, _) in sources(ctx)?.into_iter().rev() {
+    for (path, priority) in sources(ctx)?.into_iter().rev() {
+        if project && priority < 10 {
+            continue;
+        }
         let content = if let Some((_, content)) = input.filter(|(source, _)| *source == path) {
             content.to_string()
         } else {
@@ -107,18 +122,165 @@ pub(crate) fn validate_mimo_context(
     Ok(())
 }
 
-/// Keeps MiMo's inherited client switch even if its defining file is a different layer.
-fn content_at(config: &MCPConfig, app: SupportedApp, path: &str, ctx: &PlatformContext) -> Value {
-    let mut entries = opencode_mcp_servers_at(config, app, path, ctx);
-    if let (Some(entries), Ok(effective)) = (entries.as_object_mut(), effective(ctx, None)) {
-        for (id, entry) in entries {
-            if let Some(enabled) = effective
-                .get("mcp")
-                .and_then(|mcp| mcp.get(id))
-                .and_then(|server| server.get("enabled"))
-                .filter(|value| value.is_boolean())
-            {
-                entry["enabled"] = enabled.clone();
+/// Serialize a canonical model for comparison, independently of its installation flags.
+fn native_models(servers: Vec<MCPServer>, path: &str, ctx: &PlatformContext) -> Value {
+    let servers = servers
+        .into_iter()
+        .map(|mut server| {
+            server.enabled = true;
+            server.placements = vec![ServerPlacement {
+                app: SupportedApp::MiMoCode,
+                scope: PlacementScope::User,
+                path: Some(path.into()),
+                enabled: true,
+                managed: true,
+            }];
+            server
+        })
+        .collect();
+    opencode_mcp_servers_at(
+        &MCPConfig {
+            version: 1,
+            servers,
+        },
+        SupportedApp::MiMoCode,
+        path,
+        ctx,
+    )
+}
+
+/// Apply only user-edited modeled fields to a layer's own definition.
+/// Unchanged private values from another layer must never be materialized here.
+fn patch_changes(layer: &mut Value, baseline: &Value, desired: &Value) {
+    let (Some(baseline), Some(desired)) = (baseline.as_object(), desired.as_object()) else {
+        *layer = desired.clone();
+        return;
+    };
+    if !layer.is_object() {
+        *layer = serde_json::json!({});
+    }
+    let layer = layer.as_object_mut().expect("layer object");
+    let keys: std::collections::BTreeSet<_> = baseline.keys().chain(desired.keys()).collect();
+    for key in keys {
+        if key == "enabled" || baseline.get(key) == desired.get(key) {
+            continue;
+        }
+        match desired.get(key) {
+            Some(value) if value.is_object() && baseline.get(key).is_some_and(Value::is_object) => {
+                patch_changes(
+                    layer
+                        .entry(key.clone())
+                        .or_insert_with(|| serde_json::json!({})),
+                    &baseline[key],
+                    value,
+                );
+            }
+            Some(value) => {
+                layer.insert(key.clone(), value.clone());
+            }
+            None => {
+                layer.remove(key);
+            }
+        }
+    }
+}
+
+/// A newly selected project alias may inherit existing project data, never home overlay data.
+fn project_entry(ctx: &PlatformContext, id: &str) -> Option<Value> {
+    let mut project = serde_json::json!({});
+    for (path, priority) in sources(ctx).ok()?.into_iter().rev() {
+        if !(10..20).contains(&priority) {
+            continue;
+        }
+        let Ok(content) = fs::read_to_string(path) else {
+            continue;
+        };
+        let Ok(value) = parse_jsonc(&content) else {
+            continue;
+        };
+        merge(&mut project, value);
+    }
+    project.get("mcp")?.get(id).cloned()
+}
+
+/// Read only project-layer data for retained-field warnings and alias migration.
+pub(crate) fn retained_project_entry(ctx: &PlatformContext, path: &str, id: &str) -> Option<Value> {
+    fs::read_to_string(path)
+        .ok()
+        .and_then(|content| parse_jsonc(&content).ok())
+        .and_then(|root| root.get("mcp").and_then(|entries| entries.get(id)).cloned())
+        .or_else(|| project_entry(ctx, id))
+}
+
+/// Keep each managed layer's raw values; distribute only explicit edits between layers.
+fn layer_entries(
+    ctx: &PlatformContext,
+    config: &MCPConfig,
+    previous: Option<&MCPConfig>,
+    path: &str,
+) -> Value {
+    let old = fs::read_to_string(path)
+        .ok()
+        .and_then(|content| parse_jsonc(&content).ok());
+    let baseline_servers = previous
+        .map(|config| config.servers.clone())
+        .unwrap_or_else(|| {
+            effective(ctx, None)
+                .ok()
+                .and_then(|value| extract_opencode_mcp_json(&value.to_string()).ok())
+                .map(|content| parse_mcp_json(&content).servers)
+                .unwrap_or_default()
+        });
+    let baseline = native_models(baseline_servers, path, ctx);
+    let mut entries = opencode_mcp_servers_at(config, SupportedApp::MiMoCode, path, ctx);
+    if let Some(entries) = entries.as_object_mut() {
+        for (id, desired) in entries {
+            let project = scope_for_path(ctx, path) == PlacementScope::Workspace
+                && !Path::new(path).starts_with(ctx.mimo_config_dir().unwrap_or_default());
+            let raw = old
+                .as_ref()
+                .and_then(|root| root.get("mcp"))
+                .and_then(|entries| entries.get(id))
+                .cloned()
+                .or_else(|| project.then(|| project_entry(ctx, id)).flatten());
+            let owned = previous.is_none_or(|previous| {
+                previous
+                    .servers
+                    .iter()
+                    .find(|server| server.id == *id)
+                    .is_some_and(|server| {
+                        server.placements.iter().any(|placement| {
+                            placement.app == SupportedApp::MiMoCode
+                                && placement.managed
+                                && (placement.path.as_deref() == Some(path)
+                                    || (project
+                                        && placement.scope == PlacementScope::Workspace
+                                        && placement.path.as_ref().is_some_and(|path| {
+                                            ctx.resolve_path(path).starts_with(&ctx.workspace_root)
+                                        })))
+                        }) || (server
+                            .apps
+                            .get(&SupportedApp::MiMoCode)
+                            .copied()
+                            .unwrap_or(false)
+                            && ctx
+                                .user_app_config_path(SupportedApp::MiMoCode)
+                                .to_string_lossy()
+                                == path)
+                    })
+            });
+            if !owned {
+                continue;
+            }
+            if let (Some(mut layer), Some(base)) = (raw, baseline.get(id)) {
+                if base.get("type") != desired.get("type") {
+                    if let Some(enabled) = layer.get("enabled").cloned() {
+                        desired["enabled"] = enabled;
+                    }
+                } else {
+                    patch_changes(&mut layer, base, desired);
+                    *desired = layer;
+                }
             }
         }
     }
@@ -170,7 +332,8 @@ impl AppAdapter for MiMoCodeAdapter {
                         .collect::<std::collections::BTreeSet<_>>()
                 })
                 .unwrap_or_default();
-            let mut merged = effective(ctx, Some((path, content)))?;
+            let mut merged =
+                effective_for(ctx, Some((path, content)), (10..20).contains(&priority))?;
             if let Some(mcp) = merged.get_mut("mcp").and_then(Value::as_object_mut) {
                 mcp.retain(|id, _| ids.contains(id));
             }
@@ -202,7 +365,18 @@ impl AppAdapter for MiMoCodeAdapter {
             sources: vec![source],
             servers: enable_servers_for_app_at(parsed.servers, self.app(), scope, path.into())
                 .into_iter()
-                .map(|server| (server, priority))
+                .map(|mut server| {
+                    if scope == PlacementScope::User {
+                        server.placements.push(ServerPlacement {
+                            app: self.app(),
+                            scope,
+                            path: Some(path.into()),
+                            enabled: true,
+                            managed: true,
+                        });
+                    }
+                    (server, priority)
+                })
                 .collect(),
             warnings: parsed.warnings,
             errors: parsed.errors,
@@ -219,7 +393,26 @@ impl AppAdapter for MiMoCodeAdapter {
         if ctx.mimo_config_dir().is_err() {
             return vec![];
         }
-        managed_json_field_writes_with(ctx, "mcp", self.app(), config, previous, content_at)
+        let allowed: std::collections::BTreeSet<_> = sources(ctx)
+            .unwrap_or_default()
+            .into_iter()
+            .map(|(path, _)| path)
+            .collect();
+        managed_json_field_writes_with(
+            ctx,
+            "mcp",
+            self.app(),
+            config,
+            previous,
+            opencode_mcp_servers_at,
+        )
+        .into_iter()
+        .filter(|operation| allowed.contains(&operation.path))
+        .map(|mut operation| {
+            operation.content = layer_entries(ctx, config, previous, &operation.path).to_string();
+            operation
+        })
+        .collect()
     }
 }
 
@@ -420,5 +613,156 @@ mod tests {
         assert!(crate::workflow::prepare(&ctx, &config, None).is_err());
         assert!(crate::workflow::apply(&ctx, &config, None).is_err());
         assert_eq!(fs::read_to_string(&path).unwrap(), "{broken");
+    }
+    #[test]
+    fn private_home_overrides_never_replace_project_layer_values() {
+        let temp = tempfile::tempdir().unwrap();
+        let ctx = ctx(temp.path());
+        let project = ctx.workspace_file("mimocode.jsonc");
+        let home = ctx.home_dir.join(".mimocode/mimocode.jsonc");
+        let project_text = r#"{"mcp":{"fixture-private":{"type":"local","command":["project-server"],"environment":{"TOKEN":"project-literal-token","PROJECT_ONLY":"public"}}}}"#;
+        let home_text = r#"{"mcp":{"fixture-private":{"type":"local","command":["private-server"],"environment":{"TOKEN":"${HOME_TOKEN}","HOME_ONLY":"private-home-value"}}}}"#;
+        write(&project, project_text);
+        write(&home, home_text);
+        let project_parsed =
+            MiMoCodeAdapter.parse_source(&ctx, project.to_str().unwrap(), 13, project_text);
+        assert_eq!(
+            project_parsed.servers[0].0.command.as_ref().unwrap().env["TOKEN"],
+            "project-literal-token"
+        );
+        let home_parsed = MiMoCodeAdapter.parse_source(&ctx, home.to_str().unwrap(), 5, home_text);
+        let detected = project_parsed
+            .servers
+            .into_iter()
+            .chain(home_parsed.servers)
+            .map(|(server, priority)| DetectedServer { server, priority })
+            .collect();
+        let config = build_import_result(vec![], detected, vec![], vec![]).config;
+        let warnings = crate::adapters::shared_project_secret_warnings(&ctx, &config);
+        assert!(warnings
+            .iter()
+            .any(|warning| warning.key.as_deref() == Some("environment.TOKEN")));
+        assert!(!serde_json::to_string(&warnings)
+            .unwrap()
+            .contains("project-literal-token"));
+        assert_eq!(
+            config.servers[0].command.as_ref().unwrap().program,
+            "private-server"
+        );
+        for operation in MiMoCodeAdapter.plan_apply(&ctx, &config, None) {
+            apply_operation(Path::new(&operation.path), &operation).unwrap();
+        }
+        let value = parse_jsonc(&fs::read_to_string(&project).unwrap()).unwrap();
+        assert_eq!(
+            value["mcp"]["fixture-private"]["command"],
+            json!(["project-server"])
+        );
+        assert_eq!(
+            value["mcp"]["fixture-private"]["environment"]["TOKEN"],
+            "project-literal-token"
+        );
+        assert!(!value.to_string().contains("private-home-value"));
+        let mut changed = config.clone();
+        changed.servers[0]
+            .command
+            .as_mut()
+            .unwrap()
+            .env
+            .insert("LOG_LEVEL".into(), "debug".into());
+        for operation in MiMoCodeAdapter.plan_apply(&ctx, &changed, Some(&config)) {
+            apply_operation(Path::new(&operation.path), &operation).unwrap();
+        }
+        let value = parse_jsonc(&fs::read_to_string(&project).unwrap()).unwrap();
+        assert_eq!(
+            value["mcp"]["fixture-private"]["environment"]["LOG_LEVEL"],
+            "debug"
+        );
+        assert_eq!(
+            value["mcp"]["fixture-private"]["environment"]["TOKEN"],
+            "project-literal-token"
+        );
+        assert!(!value.to_string().contains("private-home-value"));
+    }
+
+    #[test]
+    fn imports_pin_all_user_layers_for_complete_managed_removal() {
+        let temp = tempfile::tempdir().unwrap();
+        let ctx = ctx(temp.path());
+        let paths = [
+            ctx.home_dir.join(".mimocode/mimocode.jsonc"),
+            ctx.mimo_config_dir().unwrap().join("mimocode.json"),
+        ];
+        let mut detected = vec![];
+        for (index, path) in paths.iter().enumerate() {
+            // Feed the base source in memory; never write a process-level XDG/profile directory.
+            let parsed = MiMoCodeAdapter.parse_source(
+                &ctx,
+                path.to_str().unwrap(),
+                if index == 0 { 5 } else { 21 },
+                r#"{"mcp":{"fixture-remove":{"type":"local","command":["node"]}}}"#,
+            );
+            detected.extend(
+                parsed
+                    .servers
+                    .into_iter()
+                    .map(|(server, priority)| DetectedServer { server, priority }),
+            );
+        }
+        let previous = build_import_result(vec![], detected, vec![], vec![]).config;
+        assert_eq!(
+            previous.servers[0]
+                .placements
+                .iter()
+                .filter(|p| p.scope == PlacementScope::User)
+                .count(),
+            2
+        );
+        let next = MCPConfig {
+            version: 1,
+            servers: vec![],
+        };
+        let operations = MiMoCodeAdapter.plan_apply(&ctx, &next, Some(&previous));
+        for path in paths {
+            assert!(operations
+                .iter()
+                .any(|operation| Path::new(&operation.path) == path
+                    && operation
+                        .remove_keys
+                        .as_ref()
+                        .unwrap()
+                        .contains(&"fixture-remove".to_string())));
+        }
+    }
+
+    #[test]
+    fn project_only_files_are_configuration_markers_for_both_clients() {
+        let temp = tempfile::tempdir().unwrap();
+        let ctx = ctx(temp.path());
+        write(&ctx.workspace_file(".mimocode/mimocode.jsonc"), "{}");
+        write(&ctx.workspace_file(".zcode/config.json"), "{}");
+        assert!(ctx.config_marker_exists(SupportedApp::MiMoCode));
+        assert!(ctx.config_marker_exists(SupportedApp::ZCode));
+    }
+    #[test]
+    fn new_user_assignment_replaces_an_unmanaged_same_id_definition() {
+        let temp = tempfile::tempdir().unwrap();
+        let ctx = ctx(temp.path());
+        let path = ctx.home_dir.join(".mimocode/mimocode.jsonc");
+        write(
+            &path,
+            r#"{"mcp":{"fixture-new":{"type":"local","command":["unmanaged"]}}}"#,
+        );
+        let parsed = parse_mcp_json(r#"{"mcpServers":{"fixture-new":{"command":"desired"}}}"#);
+        let previous = MCPConfig {
+            version: 1,
+            servers: parsed.servers,
+        };
+        let mut next = previous.clone();
+        next.servers[0].apps.insert(SupportedApp::MiMoCode, true);
+        for operation in MiMoCodeAdapter.plan_apply(&ctx, &next, Some(&previous)) {
+            apply_operation(Path::new(&operation.path), &operation).unwrap();
+        }
+        let value = parse_jsonc(&fs::read_to_string(&path).unwrap()).unwrap();
+        assert_eq!(value["mcp"]["fixture-new"]["command"], json!(["desired"]));
     }
 }
