@@ -66,6 +66,7 @@ function BusyIcon({ spinning }: { spinning: boolean }) {
   return <LoaderCircle size={14} className={spinning ? 'spin' : ''} />
 }
 
+/** Render client filters and server actions with full client names available on focus. */
 export function Dashboard({
   busy,
   canRollback,
@@ -209,19 +210,22 @@ export function Dashboard({
 
         <section className="stats-strip">
           {workspace.stats.map((stat) => (
-            <button key={stat.id}
-              type="button"
-              className={activeAppFilter === stat.id ? `stat-card ${stat.accent} is-active` : `stat-card ${stat.accent}`}
-              aria-pressed={activeAppFilter === stat.id}
-              onClick={() => setAppFilter((current) => (current === stat.id ? null : stat.id))}
-              data-tauri-no-drag
-            >
-              <div className="stat-topline">
-                <span className="stat-icon-wrap">{stat.icon}</span>
-              </div>
-              <strong className="stat-value">{stat.count}</strong>
-              <span className="stat-caption" title={stat.label}>{stat.compactLabel ?? stat.label}</span>
-            </button>
+            <Tooltip key={stat.id} content={stat.label}>
+              <button
+                type="button"
+                className={activeAppFilter === stat.id ? `stat-card ${stat.accent} is-active` : `stat-card ${stat.accent}`}
+                aria-pressed={activeAppFilter === stat.id}
+                aria-label={`${stat.label}: ${stat.count}`}
+                onClick={() => setAppFilter((current) => (current === stat.id ? null : stat.id))}
+                data-tauri-no-drag
+              >
+                <div className="stat-topline">
+                  <span className="stat-icon-wrap">{stat.icon}</span>
+                </div>
+                <strong className="stat-value">{stat.count}</strong>
+                <span className="stat-caption">{stat.compactLabel ?? stat.label}</span>
+              </button>
+            </Tooltip>
           ))}
         </section>
       </div>

@@ -28,6 +28,7 @@ const workspace: WorkspaceViewModel = {
   stats: [
     { id: 'cursor', label: 'Cursor', accent: 'client-cursor', icon: null, count: 2 },
     { id: 'vscode', label: 'VS Code', accent: 'client-vscode', icon: null, count: 1 },
+    { id: 'agents', label: 'Codebuff / Freebuff', compactLabel: 'Codebuff', accent: 'client-agents', icon: null, count: 0 },
   ],
   rows: [
     row('github', 'GitHub', 'uvx mcp-server-github', ['vscode', 'cursor']),
@@ -91,6 +92,21 @@ function clickClientCard(label: string) {
 }
 
 describe('Dashboard filtering', () => {
+  it('keeps the compact caption and exposes the full client name on keyboard focus', () => {
+    vi.useFakeTimers()
+    try {
+      const card = container.querySelector<HTMLButtonElement>('button[aria-label="Codebuff / Freebuff: 0"]')!
+      expect(card.querySelector('.stat-caption')?.textContent).toBe('Codebuff')
+      act(() => card.focus())
+      act(() => vi.advanceTimersByTime(500))
+      expect(document.querySelector('.tooltip-layer')?.textContent).toBe('Codebuff / Freebuff')
+      act(() => card.blur())
+      expect(document.querySelector('.tooltip-layer')).toBeNull()
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
   it('combines the search query with the client filter and announces the result', () => {
     expect(renderedNames()).toEqual(['GitHub', 'Filesystem', 'Fetch'])
     expect(status()).toBe('')

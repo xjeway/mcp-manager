@@ -205,7 +205,12 @@ impl SupportedApp {
             SupportedApp::RovoDev => &["rovodev"],
             SupportedApp::Windsurf => &["devin-desktop", "devin-cli"],
             SupportedApp::Auggie => &["augment", "augment-cli"],
-            SupportedApp::Agents => &["codebuff", "freebuff", "agents-mcp"],
+            SupportedApp::Agents => &[
+                "codebuff",
+                "freebuff",
+                "agents-mcp",
+                ".agents (Codebuff / Freebuff)",
+            ],
             SupportedApp::MiMoCode => &["mimo-code", "mimocode"],
             _ => &[],
         }
@@ -643,6 +648,10 @@ mod tests {
         assert_eq!(
             SupportedApp::parse("Windsurf"),
             Some(SupportedApp::Windsurf)
+        );
+        assert_eq!(
+            SupportedApp::parse(".agents (Codebuff / Freebuff)"),
+            Some(SupportedApp::Agents)
         );
         assert_eq!(SupportedApp::parse("nope"), None);
     }
