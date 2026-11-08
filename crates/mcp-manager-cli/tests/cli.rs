@@ -878,3 +878,67 @@ fn agents_retained_secret_warnings_include_servers_outside_the_command_focus() {
         "nonfocus-private"
     );
 }
+
+#[test]
+fn mimo_global_add_uses_upstream_profile_and_command_array() {
+    for profile in [false, true] {
+        let sandbox = Sandbox::new();
+        let root = sandbox.home.join("custom-profile");
+        let mut command = sandbox.command(&[
+            "add",
+            "local",
+            "-a",
+            "mimo",
+            "--global",
+            "-y",
+            "--",
+            "node",
+            "server.js",
+        ]);
+        if profile {
+            command.env("MIMOCODE_HOME", &root);
+        }
+        let output = command.output().unwrap();
+        assert!(
+            output.status.success(),
+            "{}",
+            String::from_utf8_lossy(&output.stderr)
+        );
+        let path = if profile {
+            root.join("config/mimocode.jsonc")
+        } else {
+            sandbox.home.join(".config/mimocode/mimocode.jsonc")
+        };
+        let value = sandbox.read_json(&path);
+        assert_eq!(value["mcp"]["local"]["type"], "local");
+        assert_eq!(
+            value["mcp"]["local"]["command"],
+            serde_json::json!(["node", "server.js"])
+        );
+    }
+}
+
+#[test]
+fn mimo_relative_profile_fails_before_writing_client_files() {
+    let sandbox = Sandbox::new();
+    let output = sandbox
+        .command(&[
+            "add",
+            "api",
+            "-a",
+            "mimo",
+            "--global",
+            "--url",
+            "https://example.com/mcp",
+            "-y",
+        ])
+        .env("MIMOCODE_HOME", "relative-profile")
+        .output()
+        .unwrap();
+    assert!(!output.status.success());
+    assert!(!sandbox
+        .home
+        .join(".config/mimocode/mimocode.jsonc")
+        .exists());
+    assert!(!sandbox.project.join("relative-profile").exists());
+}

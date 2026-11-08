@@ -202,6 +202,7 @@ pub fn apply(
     previous_config: Option<&MCPConfig>,
 ) -> Result<ApplyResult, String> {
     validate_inherited_agents(ctx, config, previous_config)?;
+    crate::adapters::validate_mimo_context(ctx, config, previous_config)?;
     apply_plan(ctx, config, plan(ctx, config, previous_config), None)
 }
 
@@ -308,6 +309,7 @@ pub fn prepare(
     previous: Option<&MCPConfig>,
 ) -> Result<PreparedApply, String> {
     validate_inherited_agents(ctx, config, previous)?;
+    crate::adapters::validate_mimo_context(ctx, config, previous)?;
     let by_app = plan_by_app(ctx, config, previous);
     let operations = by_app
         .iter()

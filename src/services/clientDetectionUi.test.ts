@@ -28,6 +28,7 @@ describe('clientDetectionUi', () => {
         'factoryDroid',
         'kimiCli',
         'agents',
+        'miMoCode',
         'codeBuddy',
         'auggie',
         'zed',

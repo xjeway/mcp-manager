@@ -21,6 +21,25 @@ fn grok_home(home_dir: &Path) -> PathBuf {
         .unwrap_or_else(|| home_dir.join(".grok"))
 }
 
+/// MiMo's profile root is independent of platform-specific application-data folders.
+pub(crate) fn resolve_mimo_config_dir(
+    home: &Path,
+    profile: Option<&Path>,
+    xdg: Option<&Path>,
+) -> Result<PathBuf, String> {
+    if let Some(profile) = profile.filter(|p| !p.as_os_str().is_empty()) {
+        if !profile.is_absolute() {
+            return Err("MIMOCODE_HOME must be an absolute path".into());
+        }
+        return Ok(profile.join("config"));
+    }
+    Ok(xdg
+        .filter(|p| p.is_absolute())
+        .map(Path::to_path_buf)
+        .unwrap_or_else(|| home.join(".config"))
+        .join("mimocode"))
+}
+
 #[derive(Debug, Clone)]
 pub struct PlatformContext {
     pub os: PlatformOs,
@@ -117,6 +136,47 @@ impl PlatformContext {
             .clone()
     }
 
+    /// Resolves the documented MIMOCODE_HOME/XDG profile without executing the client.
+    pub fn mimo_config_dir(&self) -> Result<PathBuf, String> {
+        let profile = std::env::var_os("MIMOCODE_HOME").map(PathBuf::from);
+        let xdg = std::env::var_os("XDG_CONFIG_HOME").map(PathBuf::from);
+        resolve_mimo_config_dir(&self.home_dir, profile.as_deref(), xdg.as_deref())
+    }
+
+    /// Highest loaded user file; never create a lower-precedence sibling over it.
+    pub fn mimo_user_path(&self) -> PathBuf {
+        let base = self
+            .mimo_config_dir()
+            .unwrap_or_else(|_| self.home_dir.join(".config/mimocode"));
+        let paths = [
+            self.home_dir.join(".mimocode/mimocode.jsonc"),
+            self.home_dir.join(".mimocode/mimocode.json"),
+            base.join("mimocode.jsonc"),
+            base.join("mimocode.json"),
+            base.join("config.json"),
+        ];
+        paths
+            .iter()
+            .find(|p| p.exists())
+            .cloned()
+            .unwrap_or_else(|| base.join("mimocode.jsonc"))
+    }
+
+    /// Current-project aliases, with the hidden-directory JSONC file loaded last.
+    pub fn mimo_project_path(&self) -> PathBuf {
+        let paths = [
+            ".mimocode/mimocode.jsonc",
+            ".mimocode/mimocode.json",
+            "mimocode.jsonc",
+            "mimocode.json",
+        ];
+        paths
+            .iter()
+            .map(|path| self.workspace_file(path))
+            .find(|path| path.exists())
+            .unwrap_or_else(|| self.workspace_file("mimocode.jsonc"))
+    }
+
     pub fn user_app_config_path(&self, app: SupportedApp) -> PathBuf {
         match app {
             SupportedApp::Vscode => match self.os {
@@ -176,6 +236,7 @@ impl PlatformContext {
             SupportedApp::FactoryDroid => self.home_dir.join(".factory/mcp.json"),
             SupportedApp::KimiCli => self.home_dir.join(".kimi/mcp.json"),
             SupportedApp::Agents => self.home_dir.join(".agents/mcp.json"),
+            SupportedApp::MiMoCode => self.mimo_user_path(),
             SupportedApp::CodeBuddy => self.codebuddy_config_path(),
             SupportedApp::Auggie => self.home_dir.join(".augment/settings.json"),
             SupportedApp::Zed => match self.os {
@@ -280,6 +341,7 @@ impl PlatformContext {
             SupportedApp::FactoryDroid => (&["droid"][..], &[][..], &[][..]),
             SupportedApp::KimiCli => (&["kimi"][..], &[][..], &[][..]),
             SupportedApp::Agents => (&["codebuff", "freebuff"][..], &[][..], &[][..]),
+            SupportedApp::MiMoCode => (&["mimo"][..], &[][..], &[][..]),
             SupportedApp::CodeBuddy => (&["codebuddy"][..], &[][..], &[][..]),
             SupportedApp::Auggie => (&["auggie"][..], &[][..], &[][..]),
             SupportedApp::Zed => (
@@ -401,6 +463,7 @@ impl PlatformContext {
             | SupportedApp::KiloCode
             | SupportedApp::FactoryDroid
             | SupportedApp::KimiCli
+            | SupportedApp::MiMoCode
             | SupportedApp::CodeBuddy
             | SupportedApp::Auggie
             | SupportedApp::Zed

@@ -37,6 +37,7 @@ storage path, merge behavior, and precedence.
 | Auggie (Augment CLI) | `~/.augment/settings.json` | `.augment/settings.json` | `.augment/settings.local.json` (private, local > project > user); organization-managed settings (read-only, not imported) | Direct project support. JSONC `mcpServers` edited in place; remote entries use `type: http` / `type: sse` and `headers`. Imported local entries are written back to their private file. New project entries use the shared file |
 | CodeBuddy Code | First existing: `~/.codebuddy/.mcp.json`, `~/.codebuddy/mcp.json`, `~/.codebuddy.json`; default to the first path for new installs | `.mcp.json`, managed through Claude Code | Private local entries in `~/.codebuddy.json.projects[path]` and deprecated project `mcp.json` (not managed) | User only in direct controls; project via Claude Code. JSONC `mcpServers` edited in place. Read and write only the active user file; do not merge deprecated files. Remote entries use `type: http` / `type: sse` and `headers` |
 | Shared `.agents` (Codebuff / Freebuff) | `~/.agents/mcp.json` | `.agents/mcp.json` | Immediate parent's `.agents/mcp.json` (read-only import) | One shared-file target, with CLI aliases `codebuff` / `freebuff`. Global > parent > project for same-name servers, matching the upstream loader's actual merge order. HTTP/SSE use `type`, `url`, `headers`; `params` are retained. Parent files are never apply targets. Project secrets warn; supported `$VAR` references are retained without local expansion |
+| MiMo Code | `$MIMOCODE_HOME/config` or `$XDG_CONFIG_HOME/mimocode` (default `~/.config/mimocode`): `config.json`, `mimocode.json`, `mimocode.jsonc`; `~/.mimocode/mimocode.json(c)` overlay | `mimocode.json(c)` and `.mimocode/mimocode.json(c)` | Ancestor, managed/remote and per-run injected sources are not managed | Direct project support. OpenCode-style `mcp` entries (`local` command array / `environment`, `remote` URL / headers). JSONC overrides JSON; hidden-directory files override root files. Import deep-merges supported layers before decoding servers and retains references. User writes go to the highest loaded existing user file |
 | Kimi CLI | `~/.kimi/mcp.json` | Unsupported | None | User only; remote servers are written without `type` |
 | Zed | `~/.config/zed/settings.json` (Windows: `%APPDATA%\\Zed\\settings.json`) | `.zed/settings.json` | None | Direct project support. Servers live under `context_servers` in the editor settings file, which is edited in place. No `type` field; older nested `command: {path, args, env}` entries are read and rewritten flat. Extension-provided servers (only `settings`) are left alone |
 | Mistral Vibe | `~/.vibe/config.toml` | `.vibe/config.toml` (trusted folders only) | None | Direct project support. Servers are a `[[mcp_servers]]` list keyed by `name`, edited in place. Remote servers are written as `streamable-http` with headers in a static `auth` table; SSE servers are not written (Vibe has no SSE client) and the apply reports it. Vibe rejects unknown fields, so no `type` is written |
@@ -160,3 +161,25 @@ Parent entries are imported as unmanaged read-only placements. Their paths and
 priority are not displayed in the dashboard; edit the parent file to change them. Applied writes are restricted
 to the current project's and user's file. ZCode fallback handling remains #59.
 Remote query parameters and other unmodeled fields survive managed rewrites.
+
+## MiMo Code verification (2026-11-08)
+
+Verified against [official configuration docs](https://mimo.xiaomi.com/mimocode/config-overrides)
+and Xiaomi's source at `3a12665a9e27789b04dc7529d4ce0c10128e9ad8`:
+[profile resolver](https://github.com/XiaomiMiMo/MiMo-Code/blob/3a12665a9e27789b04dc7529d4ce0c10128e9ad8/packages/shared/src/global.ts),
+[loader and general writer](https://github.com/XiaomiMiMo/MiMo-Code/blob/3a12665a9e27789b04dc7529d4ce0c10128e9ad8/packages/cli/src/config/config.ts),
+and [MCP schema](https://github.com/XiaomiMiMo/MiMo-Code/blob/3a12665a9e27789b04dc7529d4ce0c10128e9ad8/packages/cli/src/config/mcp.ts).
+
+Supported files are deep-merged without expanding environment/file references,
+then each source's declared IDs are attributed to that source's scope. Project
+files override the base user files; the home `.mimocode` overlay is loaded later
+and overrides project settings. User writes select the highest-priority existing
+file (JSONC before JSON); new files use `mimocode.jsonc`. MiMo's MCP-add command
+currently checks JSON before JSONC despite its comment; the manager follows the
+actual load precedence so a write cannot be hidden by an existing JSONC file.
+
+Only the current project and local user layers above are managed. Ancestor
+configs, managed organization configs and `MIMOCODE_CONFIG*` per-run injected
+layers can still override them and are left untouched. Invalid relative
+`MIMOCODE_HOME` values or malformed supported config files abort apply instead
+of writing a guessed path. This is Xiaomi's MiMo Code, not KoinaAI/MiMo-CLI.

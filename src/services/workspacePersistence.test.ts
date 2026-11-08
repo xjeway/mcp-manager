@@ -38,6 +38,7 @@ const previousConfig = {
         factoryDroid: false,
         kimiCli: false,
         agents: false,
+        miMoCode: false,
         codeBuddy: false,
         auggie: false,
         zed: false,

@@ -18,6 +18,7 @@ mod iflow;
 mod kilo_code;
 mod kimi_cli;
 mod kiro;
+mod mimo_code;
 mod mistral_vibe;
 mod opencode;
 mod qoder;
@@ -54,6 +55,8 @@ pub use iflow::IFlowAdapter;
 pub use kilo_code::KiloCodeAdapter;
 pub use kimi_cli::KimiCliAdapter;
 pub use kiro::KiroAdapter;
+pub(crate) use mimo_code::validate_mimo_context;
+pub use mimo_code::MiMoCodeAdapter;
 pub use mistral_vibe::MistralVibeAdapter;
 pub use opencode::OpenCodeAdapter;
 pub use qoder::QoderAdapter;
@@ -117,6 +120,9 @@ pub fn workspace_scope_path(ctx: &PlatformContext, app: SupportedApp) -> Option<
         SupportedApp::Amp => ".amp/settings.json",
         SupportedApp::Grok => ".grok/config.toml",
         SupportedApp::Agents => ".agents/mcp.json",
+        SupportedApp::MiMoCode => {
+            return Some(ctx.mimo_project_path().to_string_lossy().to_string())
+        }
         SupportedApp::Auggie => ".augment/settings.json",
         // Devin's shared, committed project file. Its gitignored
         // `.devin/mcp_config.local.json` is written only for servers imported
@@ -984,6 +990,7 @@ pub fn adapters() -> Vec<Box<dyn AppAdapter>> {
         Box::new(FactoryDroidAdapter),
         Box::new(KimiCliAdapter),
         Box::new(AgentsAdapter),
+        Box::new(MiMoCodeAdapter),
         Box::new(CodeBuddyAdapter),
         Box::new(AuggieAdapter),
         Box::new(ZedAdapter),

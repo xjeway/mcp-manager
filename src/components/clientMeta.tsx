@@ -134,6 +134,12 @@ export const CLIENTS: ClientMeta[] = [
     icon: <ClientLogo src="/logos/apps/agents.svg" alt="Shared .agents configuration" />,
   },
   {
+    id: 'miMoCode',
+    label: 'MiMo Code',
+    accent: 'client-mimo',
+    icon: <ClientLogo src="/logos/apps/mimo.ico" alt="MiMo Code" />,
+  },
+  {
     id: 'kimiCli',
     label: 'Kimi CLI',
     accent: 'client-cursor',
