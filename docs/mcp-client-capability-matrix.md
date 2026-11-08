@@ -37,6 +37,7 @@ storage path, merge behavior, and precedence.
 | Auggie (Augment CLI) | `~/.augment/settings.json` | `.augment/settings.json` | `.augment/settings.local.json` (private, local > project > user); organization-managed settings (read-only, not imported) | Direct project support. JSONC `mcpServers` edited in place; remote entries use `type: http` / `type: sse` and `headers`. Imported local entries are written back to their private file. New project entries use the shared file |
 | CodeBuddy Code | First existing: `~/.codebuddy/.mcp.json`, `~/.codebuddy/mcp.json`, `~/.codebuddy.json`; default to the first path for new installs | `.mcp.json`, managed through Claude Code | Private local entries in `~/.codebuddy.json.projects[path]` and deprecated project `mcp.json` (not managed) | User only in direct controls; project via Claude Code. JSONC `mcpServers` edited in place. Read and write only the active user file; do not merge deprecated files. Remote entries use `type: http` / `type: sse` and `headers` |
 | Shared `.agents` (Codebuff / Freebuff) | `~/.agents/mcp.json` | `.agents/mcp.json` | Immediate parent's `.agents/mcp.json` (read-only import) | One shared-file target, with CLI aliases `codebuff` / `freebuff`. Global > parent > project for same-name servers, matching the upstream loader's actual merge order. HTTP/SSE use `type`, `url`, `headers`; `params` are retained. Parent files are never apply targets. Project secrets warn; supported `$VAR` references are retained without local expansion |
+| Rovo Dev CLI | `~/.rovodev/mcp.json`, overridden by `mcp.mcpConfigPath` in `~/.rovodev/config.yml` | — | Per-run config overrides not managed | User only. JSON `mcpServers`, canonical `transport: stdio` / `http` / `sse`. Read-only YAML resolution accepts absolute paths or `~/`; malformed YAML or ambiguous relative paths block apply. The YAML disabled-server list is preserved and never becomes a global disable |
 | Kimi CLI | `~/.kimi/mcp.json` | Unsupported | None | User only; remote servers are written without `type` |
 | Zed | `~/.config/zed/settings.json` (Windows: `%APPDATA%\\Zed\\settings.json`) | `.zed/settings.json` | None | Direct project support. Servers live under `context_servers` in the editor settings file, which is edited in place. No `type` field; older nested `command: {path, args, env}` entries are read and rewritten flat. Extension-provided servers (only `settings`) are left alone |
 | Mistral Vibe | `~/.vibe/config.toml` | `.vibe/config.toml` (trusted folders only) | None | Direct project support. Servers are a `[[mcp_servers]]` list keyed by `name`, edited in place. Remote servers are written as `streamable-http` with headers in a static `auth` table; SSE servers are not written (Vibe has no SSE client) and the apply reports it. Vibe rejects unknown fields, so no `type` is written |
@@ -160,3 +161,31 @@ Parent entries are imported as unmanaged read-only placements. Their paths and
 priority are not displayed in the dashboard; edit the parent file to change them. Applied writes are restricted
 to the current project's and user's file. ZCode fallback handling remains #59.
 Remote query parameters and other unmodeled fields survive managed rewrites.
+
+## Rovo Dev CLI verification (2026-11-08)
+
+Verified the official standalone Rovo plugin `202611.3.1` obtained from the
+[public Atlassian plugin endpoint](https://api.atlassian.com/acli/api/v1/plugin/rovodev)
+(with OS/architecture headers). Its official
+[Darwin arm64 archive](https://acli.atlassian.com/plugins/rovodev/darwin/arm64/202611.3.1/rovodev.zip)
+matched published SHA-256 `fb785065c0bd58fe64d2714da9bc70b96eaecef0666d9a383b9f404f8e42831a`.
+Running `--version` and `mcp` in an isolated HOME with a recording editor confirmed
+that this version creates/opens `~/.rovodev/mcp.json`, initialized as
+`{"mcpServers": {}}`. No login, model invocation or real user configuration was used.
+The client icon comes from this archive's bundled web GUI favicon.
+
+The [MCP guide](https://support.atlassian.com/rovo/docs/connect-to-an-mcp-server-in-rovo-dev-cli/)
+confirms the transport/command/args/url schema. The
+[settings guide](https://support.atlassian.com/rovo/docs/manage-rovo-dev-cli-settings/)
+still shows the older `mcp_config.json` default. The adapter uses the executable's
+observed default, and honors the guide's explicit `mcp.mcpConfigPath` override.
+Only absolute or home-relative overrides are managed; per-run `--config-file`
+and `--config-override` are left untouched. The current `mcp` editor command
+always opened the default even with YAML overrides in the probe, so that command
+is not evidence of the effective runtime override path. No authenticated server
+connection was tested.
+
+The YAML file is read-only: allowed/disabled server lists and all other settings
+remain unchanged. Client-local disabled entries are imported without globally
+disabling them. Prepared writes reject a changed target path or invalid YAML
+before writing; JSON updates retain unrelated entries and same-transport metadata.

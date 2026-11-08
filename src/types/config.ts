@@ -20,6 +20,7 @@ export const SUPPORTED_APPS = [
   'factoryDroid',
   'kimiCli',
   'agents',
+  'rovoDev',
   'codeBuddy',
   'auggie',
   'zed',

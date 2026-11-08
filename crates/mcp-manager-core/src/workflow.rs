@@ -202,6 +202,7 @@ pub fn apply(
     previous_config: Option<&MCPConfig>,
 ) -> Result<ApplyResult, String> {
     validate_inherited_agents(ctx, config, previous_config)?;
+    crate::adapters::validate_rovo_context(ctx, config, previous_config)?;
     apply_plan(ctx, config, plan(ctx, config, previous_config), None)
 }
 
@@ -268,6 +269,7 @@ impl PreparedApply {
     /// Rejects changed contents or active paths before any write is attempted.
     pub fn validate(&self, ctx: &PlatformContext) -> Result<(), String> {
         validate_inherited_agents(ctx, &self.config, self.previous.as_ref())?;
+        crate::adapters::validate_rovo_context(ctx, &self.config, self.previous.as_ref())?;
         let current = snapshot(ctx, &self.config, self.previous.as_ref())?;
         if self.snapshot.fingerprints()? != current.fingerprints()? {
             return Err("Client configuration changed after the preview (contents or active path). Nothing was written; run the command again to review the new target.".into());
@@ -308,6 +310,7 @@ pub fn prepare(
     previous: Option<&MCPConfig>,
 ) -> Result<PreparedApply, String> {
     validate_inherited_agents(ctx, config, previous)?;
+    crate::adapters::validate_rovo_context(ctx, config, previous)?;
     let by_app = plan_by_app(ctx, config, previous);
     let operations = by_app
         .iter()

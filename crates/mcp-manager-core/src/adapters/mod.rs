@@ -22,6 +22,7 @@ mod mistral_vibe;
 mod opencode;
 mod qoder;
 mod qwen_code;
+mod rovo_dev;
 mod vscode;
 mod windsurf;
 mod zed;
@@ -58,6 +59,8 @@ pub use mistral_vibe::MistralVibeAdapter;
 pub use opencode::OpenCodeAdapter;
 pub use qoder::QoderAdapter;
 pub use qwen_code::QwenCodeAdapter;
+pub(crate) use rovo_dev::validate_rovo_context;
+pub use rovo_dev::RovoDevAdapter;
 pub use vscode::VSCodeAdapter;
 pub use windsurf::WindsurfAdapter;
 pub use zed::ZedAdapter;
@@ -984,6 +987,7 @@ pub fn adapters() -> Vec<Box<dyn AppAdapter>> {
         Box::new(FactoryDroidAdapter),
         Box::new(KimiCliAdapter),
         Box::new(AgentsAdapter),
+        Box::new(RovoDevAdapter),
         Box::new(CodeBuddyAdapter),
         Box::new(AuggieAdapter),
         Box::new(ZedAdapter),

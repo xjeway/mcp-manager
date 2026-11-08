@@ -122,6 +122,12 @@ export const CLIENTS: ClientMeta[] = [
     icon: <ClientLogo src="/logos/apps/auggie.svg" alt="Auggie" />,
   },
   {
+    id: 'rovoDev',
+    label: 'Rovo Dev CLI',
+    accent: 'client-cursor',
+    icon: <ClientLogo src="/logos/apps/rovo-dev.svg" alt="Rovo Dev CLI" />,
+  },
+  {
     id: 'codeBuddy',
     label: 'CodeBuddy Code',
     accent: 'client-codebuddy',

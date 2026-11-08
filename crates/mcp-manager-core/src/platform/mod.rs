@@ -117,6 +117,46 @@ impl PlatformContext {
             .clone()
     }
 
+    /// Reads the documented MCP override without executing YAML or changing disable lists.
+    pub fn rovo_mcp_path(&self) -> Result<PathBuf, String> {
+        let yaml_path = self.home_dir.join(".rovodev/config.yml");
+        let text = match std::fs::read_to_string(&yaml_path) {
+            Ok(text) => text,
+            Err(error) if error.kind() == std::io::ErrorKind::NotFound => {
+                return Ok(self.home_dir.join(".rovodev/mcp.json"))
+            }
+            Err(error) => return Err(format!("{}: {error}", yaml_path.display())),
+        };
+        let value: serde_yaml::Value = serde_yaml::from_str(&text)
+            .map_err(|error| format!("{}: {error}", yaml_path.display()))?;
+        if value.is_null() {
+            return Ok(self.home_dir.join(".rovodev/mcp.json"));
+        }
+        if !value.is_mapping() {
+            return Err("Rovo config.yml must be a mapping".into());
+        }
+        let mcp = &value["mcp"];
+        if !mcp.is_null() && !mcp.is_mapping() {
+            return Err("Rovo config.yml mcp must be a mapping".into());
+        }
+        let path = &mcp["mcpConfigPath"];
+        if path.is_null() {
+            return Ok(self.home_dir.join(".rovodev/mcp.json"));
+        }
+        let path = path
+            .as_str()
+            .filter(|path| !path.trim().is_empty())
+            .ok_or("Rovo mcpConfigPath must be a nonempty string")?;
+        if let Some(relative) = path.strip_prefix("~/") {
+            return Ok(self.home_dir.join(relative));
+        }
+        let path = PathBuf::from(path);
+        if path.is_absolute() {
+            return Ok(path);
+        }
+        Err("Relative Rovo mcpConfigPath is not managed; use an absolute path or ~/".into())
+    }
+
     pub fn user_app_config_path(&self, app: SupportedApp) -> PathBuf {
         match app {
             SupportedApp::Vscode => match self.os {
@@ -176,6 +216,9 @@ impl PlatformContext {
             SupportedApp::FactoryDroid => self.home_dir.join(".factory/mcp.json"),
             SupportedApp::KimiCli => self.home_dir.join(".kimi/mcp.json"),
             SupportedApp::Agents => self.home_dir.join(".agents/mcp.json"),
+            SupportedApp::RovoDev => self
+                .rovo_mcp_path()
+                .unwrap_or_else(|_| self.home_dir.join(".rovodev/mcp.json")),
             SupportedApp::CodeBuddy => self.codebuddy_config_path(),
             SupportedApp::Auggie => self.home_dir.join(".augment/settings.json"),
             SupportedApp::Zed => match self.os {
@@ -280,6 +323,8 @@ impl PlatformContext {
             SupportedApp::FactoryDroid => (&["droid"][..], &[][..], &[][..]),
             SupportedApp::KimiCli => (&["kimi"][..], &[][..], &[][..]),
             SupportedApp::Agents => (&["codebuff", "freebuff"][..], &[][..], &[][..]),
+            // The shared acli executable alone does not establish a Rovo installation.
+            SupportedApp::RovoDev => (&[][..], &[][..], &[][..]),
             SupportedApp::CodeBuddy => (&["codebuddy"][..], &[][..], &[][..]),
             SupportedApp::Auggie => (&["auggie"][..], &[][..], &[][..]),
             SupportedApp::Zed => (
@@ -424,6 +469,13 @@ impl PlatformContext {
                     .map(|path| path.to_string_lossy().to_string())
                     .collect()
             }
+            SupportedApp::RovoDev => vec![
+                self.user_app_config_path(app).to_string_lossy().to_string(),
+                self.home_dir
+                    .join(".rovodev/config.yml")
+                    .to_string_lossy()
+                    .to_string(),
+            ],
             SupportedApp::GithubCopilot => vec![
                 self.workspace_file(".vscode/mcp.json")
                     .to_string_lossy()

@@ -878,3 +878,47 @@ fn agents_retained_secret_warnings_include_servers_outside_the_command_focus() {
         "nonfocus-private"
     );
 }
+
+#[test]
+fn rovo_cli_resolves_explicit_yaml_path_and_preserves_disabled_list() {
+    let sandbox = Sandbox::new();
+    let yaml = sandbox.home.join(".rovodev/config.yml");
+    fs::create_dir_all(yaml.parent().unwrap()).unwrap();
+    let settings = "mcp:\n  mcpConfigPath: '~/custom/mcp.json'\n  disabledMcpServers: [api]\n";
+    fs::write(&yaml, settings).unwrap();
+    sandbox.ok(&[
+        "add",
+        "api",
+        "-a",
+        "rovodev",
+        "--global",
+        "--url",
+        "https://example.com/mcp",
+        "-y",
+    ]);
+    let value = sandbox.read_json(&sandbox.home.join("custom/mcp.json"));
+    assert_eq!(value["mcpServers"]["api"]["transport"], "http");
+    assert_eq!(fs::read_to_string(&yaml).unwrap(), settings);
+    assert!(!sandbox.home.join(".rovodev/mcp.json").exists());
+}
+
+#[test]
+fn rovo_cli_malformed_yaml_fails_before_creating_a_fallback() {
+    let sandbox = Sandbox::new();
+    let yaml = sandbox.home.join(".rovodev/config.yml");
+    fs::create_dir_all(yaml.parent().unwrap()).unwrap();
+    fs::write(&yaml, "mcp: [").unwrap();
+    let output = sandbox.run(&[
+        "add",
+        "api",
+        "-a",
+        "rovo-dev",
+        "--global",
+        "--url",
+        "https://example.com/mcp",
+        "-y",
+    ]);
+    assert!(!output.status.success());
+    assert!(!sandbox.home.join(".rovodev/mcp.json").exists());
+    assert!(!sandbox.servers_yaml().exists());
+}
