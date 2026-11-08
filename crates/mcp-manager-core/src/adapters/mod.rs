@@ -7,6 +7,7 @@ mod claude_desktop;
 mod cline;
 mod codebuddy;
 mod codex;
+mod command_code;
 mod cursor;
 mod factory_droid;
 mod gemini_cli;
@@ -43,6 +44,7 @@ pub use claude_desktop::ClaudeDesktopAdapter;
 pub use cline::ClineAdapter;
 pub use codebuddy::CodeBuddyAdapter;
 pub use codex::CodexAdapter;
+pub use command_code::CommandCodeAdapter;
 pub use cursor::CursorAdapter;
 pub use factory_droid::FactoryDroidAdapter;
 pub use gemini_cli::GeminiCliAdapter;
@@ -540,7 +542,10 @@ pub fn http_headers_supported(app: SupportedApp) -> bool {
 /// Clients that can only reach a remote server over streamable HTTP. An SSE
 /// server is not written to them.
 fn sse_supported(app: SupportedApp) -> bool {
-    !matches!(app, SupportedApp::MistralVibe | SupportedApp::Goose)
+    !matches!(
+        app,
+        SupportedApp::MistralVibe | SupportedApp::Goose | SupportedApp::CommandCode
+    )
 }
 
 /// Clients `server` is enabled for, at any scope.
@@ -984,6 +989,7 @@ pub fn adapters() -> Vec<Box<dyn AppAdapter>> {
         Box::new(FactoryDroidAdapter),
         Box::new(KimiCliAdapter),
         Box::new(AgentsAdapter),
+        Box::new(CommandCodeAdapter),
         Box::new(CodeBuddyAdapter),
         Box::new(AuggieAdapter),
         Box::new(ZedAdapter),

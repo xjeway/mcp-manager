@@ -35,6 +35,7 @@ storage path, merge behavior, and precedence.
 | Kilo Code | `~/.config/kilo/kilo.json` (or `kilo.jsonc`) | `kilo.json(c)`, `.kilo/kilo.json(c)` | None | Direct project support; same `mcp` schema as OpenCode. Kilo also reads `opencode.json`, which is left to the OpenCode adapter |
 | Factory Droid | `~/.factory/mcp.json` | `.factory/mcp.json` | Ancestor-folder `.factory/mcp.json` (not read) | Direct project support. Project files are committed, so keep tokens out of them |
 | Auggie (Augment CLI) | `~/.augment/settings.json` | `.augment/settings.json` | `.augment/settings.local.json` (private, local > project > user); organization-managed settings (read-only, not imported) | Direct project support. JSONC `mcpServers` edited in place; remote entries use `type: http` / `type: sse` and `headers`. Imported local entries are written back to their private file. New project entries use the shared file |
+| Command Code | `~/.commandcode/mcp.json` | `.mcp.json`, managed through Claude Code | Private `~/.commandcode/projects/<slug>/mcp.json` (not managed) | User only in direct controls; project via Claude Code. Strict JSON `mcpServers`; canonical `transport: stdio` / `transport: http` with `type` accepted on import. Preserves environment references, enabled flags and same-transport OAuth metadata |
 | CodeBuddy Code | First existing: `~/.codebuddy/.mcp.json`, `~/.codebuddy/mcp.json`, `~/.codebuddy.json`; default to the first path for new installs | `.mcp.json`, managed through Claude Code | Private local entries in `~/.codebuddy.json.projects[path]` and deprecated project `mcp.json` (not managed) | User only in direct controls; project via Claude Code. JSONC `mcpServers` edited in place. Read and write only the active user file; do not merge deprecated files. Remote entries use `type: http` / `type: sse` and `headers` |
 | Shared `.agents` (Codebuff / Freebuff) | `~/.agents/mcp.json` | `.agents/mcp.json` | Immediate parent's `.agents/mcp.json` (read-only import) | One shared-file target, with CLI aliases `codebuff` / `freebuff`. Global > parent > project for same-name servers, matching the upstream loader's actual merge order. HTTP/SSE use `type`, `url`, `headers`; `params` are retained. Parent files are never apply targets. Project secrets warn; supported `$VAR` references are retained without local expansion |
 | Kimi CLI | `~/.kimi/mcp.json` | Unsupported | None | User only; remote servers are written without `type` |
@@ -160,3 +161,24 @@ Parent entries are imported as unmanaged read-only placements. Their paths and
 priority are not displayed in the dashboard; edit the parent file to change them. Applied writes are restricted
 to the current project's and user's file. ZCode fallback handling remains #59.
 Remote query parameters and other unmodeled fields survive managed rewrites.
+
+## Command Code format verification (2026-11-08)
+
+The [official MCP documentation](https://commandcode.ai/docs/mcp) now publishes
+user, project and local paths together with the `mcpServers` schema. The
+canonical transport key is `transport`; `type` is a documented alias. Only
+stdio and HTTP are supported by this adapter, matching the documented CLI
+transport choices. An incidental reference to SSE in the OAuth guidance is not
+treated as confirmation of an SSE configuration schema.
+
+The user file has one Command Code writer. Shared project `.mcp.json` remains
+owned by Claude Code, as for CodeBuddy, and is available through that client's
+project controls. Private local files are not discovered or modified: the slug
+algorithm is not specified. Local > project > user precedence can therefore
+make a private local definition override a managed definition.
+
+Raw `${VAR}`, `${VAR:-default}` and `$${VAR}` values are preserved without local
+expansion. Existing `enabled: false` is retained, including transport switches;
+manager enablement and the client's own switch remain separate. Windows uses
+configuration markers for detection because the OS `cmd.exe` is not evidence
+that Command Code is installed. The official favicon is used for the client icon.

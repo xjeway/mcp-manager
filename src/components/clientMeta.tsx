@@ -122,6 +122,12 @@ export const CLIENTS: ClientMeta[] = [
     icon: <ClientLogo src="/logos/apps/auggie.svg" alt="Auggie" />,
   },
   {
+    id: 'commandCode',
+    label: 'Command Code',
+    accent: 'client-cursor',
+    icon: <ClientLogo src="/logos/apps/command-code.ico" alt="Command Code" />,
+  },
+  {
     id: 'codeBuddy',
     label: 'CodeBuddy Code',
     accent: 'client-codebuddy',

@@ -60,3 +60,11 @@ it('leaves CodeBuddy shared project configuration to Claude Code', () => {
   expect(capability.scopes.map((scope) => scope.id)).toEqual(['user'])
   expect(getProjectConfigurableApps()).not.toContain('codeBuddy')
 })
+
+it('leaves Command Code shared project configuration to Claude Code', () => {
+  const capability = getClientCapability('commandCode')
+  expect(capability.projectManagement).toBe('viaOtherClient')
+  expect(capability.projectViaApp).toBe('claudeCode')
+  expect(capability.scopes.map((scope) => scope.id)).toEqual(['user'])
+  expect(getProjectConfigurableApps()).not.toContain('commandCode')
+})

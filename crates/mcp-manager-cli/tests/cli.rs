@@ -878,3 +878,44 @@ fn agents_retained_secret_warnings_include_servers_outside_the_command_focus() {
         "nonfocus-private"
     );
 }
+
+#[test]
+fn command_code_uses_canonical_transport_and_one_project_writer() {
+    let sandbox = Sandbox::new();
+    let shared_path = sandbox.project.join(".mcp.json");
+    let shared = r#"{"mcpServers":{"shared":{"command":"keep"}}}"#;
+    fs::write(&shared_path, shared).unwrap();
+    sandbox.ok(&[
+        "add",
+        "api",
+        "--url",
+        "https://example.com/mcp",
+        "-a",
+        "command-code",
+        "--global",
+        "-y",
+    ]);
+    let path = sandbox.home.join(".commandcode/mcp.json");
+    let config = sandbox.read_json(&path);
+    assert_eq!(config["mcpServers"]["api"]["transport"], "http");
+    assert!(config["mcpServers"]["api"].get("type").is_none());
+    assert_eq!(fs::read_to_string(&shared_path).unwrap(), shared);
+    sandbox.ok(&[
+        "add",
+        "local",
+        "-a",
+        "cmd",
+        "--global",
+        "-y",
+        "--",
+        "node",
+        "server.js",
+    ]);
+    let config = sandbox.read_json(&path);
+    assert_eq!(config["mcpServers"]["local"]["transport"], "stdio");
+    assert_eq!(
+        config["mcpServers"]["local"]["args"],
+        serde_json::json!(["server.js"])
+    );
+    assert!(!sandbox.home.join(".commandcode/projects").exists());
+}

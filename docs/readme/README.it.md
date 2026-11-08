@@ -97,6 +97,7 @@ Ogni client qui sotto supporta sia l'**importazione** (lettura dei server MCP es
   <a href="https://kilo.ai"><kbd><img src="../../public/logos/apps/kilocode.svg" alt="Kilo Code logo" width="16" valign="middle" /> Kilo Code</kbd></a> &nbsp;
   <a href="https://factory.ai"><kbd><img src="../../public/logos/apps/factorydroid.svg" alt="Factory Droid logo" width="16" valign="middle" /> Factory Droid</kbd></a> &nbsp;
   <a href="https://docs.augmentcode.com/cli/overview"><kbd><img src="../../public/logos/apps/auggie.svg" alt="Auggie logo" width="16" valign="middle" /> Auggie</kbd></a> &nbsp;
+  <a href="https://commandcode.ai/docs/mcp"><kbd><img src="../../public/logos/apps/command-code.ico" alt="Command Code logo" width="16" valign="middle" /> Command Code</kbd></a> &nbsp;
   <a href="https://www.codebuddy.ai/cli"><kbd><img src="../../public/logos/apps/codebuddy.svg" alt="CodeBuddy Code logo" width="16" valign="middle" /> CodeBuddy Code</kbd></a> &nbsp;
   <a href="https://www.codebuff.com/docs/tips/mcp-servers"><kbd><img src="../../public/logos/apps/agents.svg" alt="Shared .agents config" width="16" valign="middle" /> .agents (Codebuff / Freebuff)</kbd></a> &nbsp;
   <a href="https://github.com/MoonshotAI/kimi-cli"><kbd><img src="../../public/logos/apps/kimi.svg" alt="Kimi CLI logo" width="16" valign="middle" /> Kimi CLI</kbd></a> &nbsp;
