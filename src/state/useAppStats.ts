@@ -27,6 +27,7 @@ export function useAppStats(config: MCPConfig): Record<SupportedApp, number> {
       factoryDroid: 0,
       kimiCli: 0,
       agents: 0,
+      museCode: 0,
       codeBuddy: 0,
       auggie: 0,
       zed: 0,

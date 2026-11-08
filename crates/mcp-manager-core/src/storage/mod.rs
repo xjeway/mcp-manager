@@ -474,6 +474,35 @@ fn apply_merge_json_object_entries(
     atomic_write(path, &updated)
 }
 
+/// Initializes Muse's required schema only for a new file, then commits one atomic merge.
+fn apply_merge_muse_entries(
+    path: &Path,
+    content: &str,
+    remove_keys: Option<&[String]>,
+) -> Result<(), String> {
+    let existing = if path.exists() {
+        let existing = fs::read_to_string(path).map_err(|error| error.to_string())?;
+        crate::adapters::validate_muse_document(&existing)
+            .map_err(|error| unreadable(path, error))?;
+        existing
+    } else {
+        "{\n  \"schema_version\": 1\n}\n".into()
+    };
+    let entries: Value = serde_json::from_str(content).map_err(|error| error.to_string())?;
+    let entries = entries
+        .as_object()
+        .ok_or("Muse MCP entries must be an object")?;
+    let updated = jsonc::merge_object_entries(
+        &existing,
+        "mcp_servers",
+        entries,
+        remove_keys.unwrap_or_default(),
+        carry_unmanaged_json_fields,
+    )
+    .map_err(|error| unreadable(path, error))?;
+    atomic_write(path, &updated)
+}
+
 fn apply_merge_toml_field(path: &Path, field: &str, content: &str) -> Result<(), String> {
     let field_value: Value = serde_json::from_str(content).map_err(|e| e.to_string())?;
     let existing = if path.exists() {
@@ -580,6 +609,9 @@ pub fn apply_operation(path: &Path, item: &WriteOperation) -> Result<(), String>
     };
     match item.mode.as_str() {
         "replace_json" => apply_replace_json(path, &item.content),
+        "merge_muse_mcp_entries" => {
+            apply_merge_muse_entries(path, &item.content, item.remove_keys.as_deref())
+        }
         "merge_json_field" => apply_merge_json_field(path, field("JSON")?, &item.content),
         "merge_json_object_entries" => apply_merge_json_object_entries(
             path,

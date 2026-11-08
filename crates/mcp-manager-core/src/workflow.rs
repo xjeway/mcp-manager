@@ -202,6 +202,7 @@ pub fn apply(
     previous_config: Option<&MCPConfig>,
 ) -> Result<ApplyResult, String> {
     validate_inherited_agents(ctx, config, previous_config)?;
+    crate::adapters::validate_muse_context(ctx, config, previous_config)?;
     apply_plan(ctx, config, plan(ctx, config, previous_config), None)
 }
 
@@ -308,6 +309,7 @@ pub fn prepare(
     previous: Option<&MCPConfig>,
 ) -> Result<PreparedApply, String> {
     validate_inherited_agents(ctx, config, previous)?;
+    crate::adapters::validate_muse_context(ctx, config, previous)?;
     let by_app = plan_by_app(ctx, config, previous);
     let operations = by_app
         .iter()
@@ -413,7 +415,7 @@ fn preview_plan(
 /// fields MCP Manager does not model.
 fn with_kept_fields(current: &Value, desired: &Value, mode: &str) -> Value {
     let mut written = desired.clone();
-    if mode == "merge_json_object_entries" {
+    if matches!(mode, "merge_json_object_entries" | "merge_muse_mcp_entries") {
         crate::storage::carry_unmanaged_json_fields(current, &mut written);
     } else {
         crate::storage::carry_unmanaged_fields(current, &mut written);
@@ -425,6 +427,7 @@ fn is_entry_merge(mode: &str) -> bool {
     matches!(
         mode,
         "merge_json_object_entries"
+            | "merge_muse_mcp_entries"
             | "merge_toml_table_entries"
             | "merge_toml_array_entries"
             | "merge_yaml_mapping_entries"

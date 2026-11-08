@@ -878,3 +878,46 @@ fn agents_retained_secret_warnings_include_servers_outside_the_command_focus() {
         "nonfocus-private"
     );
 }
+
+#[test]
+fn muse_new_file_has_required_schema_and_native_transport() {
+    let sandbox = Sandbox::new();
+    sandbox.ok(&[
+        "add",
+        "api",
+        "-a",
+        "muse",
+        "--global",
+        "--url",
+        "https://example.com/mcp",
+        "-y",
+    ]);
+    let path = sandbox.home.join(".config/muse/settings.json");
+    let config = sandbox.read_json(&path);
+    assert_eq!(config["schema_version"], 1);
+    assert_eq!(config["mcp_servers"]["api"]["transport"], "streamable_http");
+    assert!(config.get("mcpServers").is_none());
+    assert!(!sandbox.project.join(".mcp.json").exists());
+}
+
+#[test]
+fn muse_legacy_key_is_rejected_without_changing_either_client_or_shared_store() {
+    let sandbox = Sandbox::new();
+    let path = sandbox.home.join(".config/muse/settings.json");
+    fs::create_dir_all(path.parent().unwrap()).unwrap();
+    let original = r#"{"schema_version":1,"mcpServers":{"old":{"command":"keep"}}}"#;
+    fs::write(&path, original).unwrap();
+    let output = sandbox.run(&[
+        "add",
+        "api",
+        "-a",
+        "muse-code",
+        "--global",
+        "--url",
+        "https://example.com/mcp",
+        "-y",
+    ]);
+    assert!(!output.status.success());
+    assert_eq!(fs::read_to_string(path).unwrap(), original);
+    assert!(!sandbox.servers_yaml().exists());
+}

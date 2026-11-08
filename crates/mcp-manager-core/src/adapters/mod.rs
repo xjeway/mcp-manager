@@ -19,6 +19,7 @@ mod kilo_code;
 mod kimi_cli;
 mod kiro;
 mod mistral_vibe;
+mod muse_code;
 mod opencode;
 mod qoder;
 mod qwen_code;
@@ -55,6 +56,8 @@ pub use kilo_code::KiloCodeAdapter;
 pub use kimi_cli::KimiCliAdapter;
 pub use kiro::KiroAdapter;
 pub use mistral_vibe::MistralVibeAdapter;
+pub use muse_code::MuseCodeAdapter;
+pub(crate) use muse_code::{validate_document as validate_muse_document, validate_muse_context};
 pub use opencode::OpenCodeAdapter;
 pub use qoder::QoderAdapter;
 pub use qwen_code::QwenCodeAdapter;
@@ -540,7 +543,10 @@ pub fn http_headers_supported(app: SupportedApp) -> bool {
 /// Clients that can only reach a remote server over streamable HTTP. An SSE
 /// server is not written to them.
 fn sse_supported(app: SupportedApp) -> bool {
-    !matches!(app, SupportedApp::MistralVibe | SupportedApp::Goose)
+    !matches!(
+        app,
+        SupportedApp::MistralVibe | SupportedApp::Goose | SupportedApp::MuseCode
+    )
 }
 
 /// Clients `server` is enabled for, at any scope.
@@ -984,6 +990,7 @@ pub fn adapters() -> Vec<Box<dyn AppAdapter>> {
         Box::new(FactoryDroidAdapter),
         Box::new(KimiCliAdapter),
         Box::new(AgentsAdapter),
+        Box::new(MuseCodeAdapter),
         Box::new(CodeBuddyAdapter),
         Box::new(AuggieAdapter),
         Box::new(ZedAdapter),

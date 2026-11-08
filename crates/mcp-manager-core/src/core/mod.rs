@@ -23,6 +23,7 @@ pub enum SupportedApp {
     FactoryDroid,
     KimiCli,
     Agents,
+    MuseCode,
     CodeBuddy,
     Auggie,
     Zed,
@@ -34,7 +35,7 @@ pub enum SupportedApp {
 }
 
 impl SupportedApp {
-    pub const ALL: [SupportedApp; 27] = [
+    pub const ALL: [SupportedApp; 28] = [
         SupportedApp::Vscode,
         SupportedApp::Cursor,
         SupportedApp::ClaudeCode,
@@ -54,6 +55,7 @@ impl SupportedApp {
         SupportedApp::FactoryDroid,
         SupportedApp::KimiCli,
         SupportedApp::Agents,
+        SupportedApp::MuseCode,
         SupportedApp::CodeBuddy,
         SupportedApp::Auggie,
         SupportedApp::Zed,
@@ -85,6 +87,7 @@ impl SupportedApp {
             SupportedApp::FactoryDroid => "factoryDroid",
             SupportedApp::KimiCli => "kimiCli",
             SupportedApp::Agents => "agents",
+            SupportedApp::MuseCode => "museCode",
             SupportedApp::CodeBuddy => "codeBuddy",
             SupportedApp::Auggie => "auggie",
             SupportedApp::Zed => "zed",
@@ -120,6 +123,7 @@ impl SupportedApp {
             SupportedApp::FactoryDroid => "Factory Droid",
             SupportedApp::KimiCli => "Kimi CLI",
             SupportedApp::Agents => ".agents (Codebuff / Freebuff)",
+            SupportedApp::MuseCode => "Muse Code",
             SupportedApp::CodeBuddy => "CodeBuddy Code",
             SupportedApp::Auggie => "Auggie",
             SupportedApp::Zed => "Zed",
@@ -153,6 +157,7 @@ impl SupportedApp {
             SupportedApp::FactoryDroid => "factory-droid",
             SupportedApp::KimiCli => "kimi-cli",
             SupportedApp::Agents => "agents",
+            SupportedApp::MuseCode => "muse-code",
             SupportedApp::CodeBuddy => "codebuddy",
             SupportedApp::Auggie => "auggie",
             SupportedApp::Zed => "zed",
@@ -174,6 +179,7 @@ impl SupportedApp {
     /// Other names a client is known by.
     fn aliases(self) -> &'static [&'static str] {
         match self {
+            SupportedApp::MuseCode => &["muse"],
             SupportedApp::Windsurf => &["devin-desktop", "devin-cli"],
             SupportedApp::Auggie => &["augment", "augment-cli"],
             SupportedApp::Agents => &["codebuff", "freebuff", "agents-mcp"],
@@ -434,6 +440,7 @@ pub fn empty_apps() -> HashMap<SupportedApp, bool> {
         (SupportedApp::FactoryDroid, false),
         (SupportedApp::KimiCli, false),
         (SupportedApp::Agents, false),
+        (SupportedApp::MuseCode, false),
         (SupportedApp::CodeBuddy, false),
         (SupportedApp::Auggie, false),
         (SupportedApp::Zed, false),

@@ -176,6 +176,7 @@ impl PlatformContext {
             SupportedApp::FactoryDroid => self.home_dir.join(".factory/mcp.json"),
             SupportedApp::KimiCli => self.home_dir.join(".kimi/mcp.json"),
             SupportedApp::Agents => self.home_dir.join(".agents/mcp.json"),
+            SupportedApp::MuseCode => self.home_dir.join(".config/muse/settings.json"),
             SupportedApp::CodeBuddy => self.codebuddy_config_path(),
             SupportedApp::Auggie => self.home_dir.join(".augment/settings.json"),
             SupportedApp::Zed => match self.os {
@@ -280,6 +281,7 @@ impl PlatformContext {
             SupportedApp::FactoryDroid => (&["droid"][..], &[][..], &[][..]),
             SupportedApp::KimiCli => (&["kimi"][..], &[][..], &[][..]),
             SupportedApp::Agents => (&["codebuff", "freebuff"][..], &[][..], &[][..]),
+            SupportedApp::MuseCode => (&["muse"][..], &[][..], &[][..]),
             SupportedApp::CodeBuddy => (&["codebuddy"][..], &[][..], &[][..]),
             SupportedApp::Auggie => (&["auggie"][..], &[][..], &[][..]),
             SupportedApp::Zed => (
@@ -400,6 +402,7 @@ impl PlatformContext {
             | SupportedApp::Qoder
             | SupportedApp::KiloCode
             | SupportedApp::FactoryDroid
+            | SupportedApp::MuseCode
             | SupportedApp::KimiCli
             | SupportedApp::CodeBuddy
             | SupportedApp::Auggie

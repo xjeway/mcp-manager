@@ -37,6 +37,7 @@ storage path, merge behavior, and precedence.
 | Auggie (Augment CLI) | `~/.augment/settings.json` | `.augment/settings.json` | `.augment/settings.local.json` (private, local > project > user); organization-managed settings (read-only, not imported) | Direct project support. JSONC `mcpServers` edited in place; remote entries use `type: http` / `type: sse` and `headers`. Imported local entries are written back to their private file. New project entries use the shared file |
 | CodeBuddy Code | First existing: `~/.codebuddy/.mcp.json`, `~/.codebuddy/mcp.json`, `~/.codebuddy.json`; default to the first path for new installs | `.mcp.json`, managed through Claude Code | Private local entries in `~/.codebuddy.json.projects[path]` and deprecated project `mcp.json` (not managed) | User only in direct controls; project via Claude Code. JSONC `mcpServers` edited in place. Read and write only the active user file; do not merge deprecated files. Remote entries use `type: http` / `type: sse` and `headers` |
 | Shared `.agents` (Codebuff / Freebuff) | `~/.agents/mcp.json` | `.agents/mcp.json` | Immediate parent's `.agents/mcp.json` (read-only import) | One shared-file target, with CLI aliases `codebuff` / `freebuff`. Global > parent > project for same-name servers, matching the upstream loader's actual merge order. HTTP/SSE use `type`, `url`, `headers`; `params` are retained. Parent files are never apply targets. Project secrets warn; supported `$VAR` references are retained without local expansion |
+| Muse Code | `~/.config/muse/settings.json` | — | — | User only. Strict JSON, `schema_version: 1`, root `mcp_servers`; `transport: stdio` / `streamable_http`. New settings are initialized atomically. Legacy `mcpServers` or an unsupported schema blocks apply. Retains client enabled flags, mode, same-transport framing and unrelated settings |
 | Kimi CLI | `~/.kimi/mcp.json` | Unsupported | None | User only; remote servers are written without `type` |
 | Zed | `~/.config/zed/settings.json` (Windows: `%APPDATA%\\Zed\\settings.json`) | `.zed/settings.json` | None | Direct project support. Servers live under `context_servers` in the editor settings file, which is edited in place. No `type` field; older nested `command: {path, args, env}` entries are read and rewritten flat. Extension-provided servers (only `settings`) are left alone |
 | Mistral Vibe | `~/.vibe/config.toml` | `.vibe/config.toml` (trusted folders only) | None | Direct project support. Servers are a `[[mcp_servers]]` list keyed by `name`, edited in place. Remote servers are written as `streamable-http` with headers in a static `auth` table; SSE servers are not written (Vibe has no SSE client) and the apply reports it. Vibe rejects unknown fields, so no `type` is written |
@@ -160,3 +161,20 @@ Parent entries are imported as unmanaged read-only placements. Their paths and
 priority are not displayed in the dashboard; edit the parent file to change them. Applied writes are restricted
 to the current project's and user's file. ZCode fallback handling remains #59.
 Remote query parameters and other unmodeled fields survive managed rewrites.
+
+## Muse Code verification (2026-11-08)
+
+The current [official settings documentation](https://dev.meta.ai/docs/muse-code/configuration)
+requires `schema_version: 1`, and the [MCP documentation](https://dev.meta.ai/docs/muse-code/extending)
+explicitly uses `mcp_servers` with `transport: stdio` (command, args, env) or
+`transport: streamable_http` (url, headers). This is the settings schema, not
+the SDK's separate protocol representation.
+
+Only the user file is managed. Raw `${VAR}` strings remain unexpanded. Client
+`enabled` and `mode` survive writes, including transport changes; framing is
+retained only for the same transport. A new file receives its schema and MCP
+entries in one atomic write. Existing missing/unknown schema versions and any
+legacy `mcpServers` key fail import/apply before writes, requiring the user to
+resolve the version conflict instead of creating two conflicting server maps.
+Unrelated hooks, runtime capabilities and settings remain intact. SSE is not
+written to Muse because only streamable HTTP is documented for remote servers.
