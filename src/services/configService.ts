@@ -40,7 +40,12 @@ function defaultConfig(): MCPConfig {
           kiloCode: false,
           factoryDroid: false,
           kimiCli: false,
+          zCode: false,
           agents: false,
+          miMoCode: false,
+          commandCode: false,
+          museCode: false,
+          rovoDev: false,
           codeBuddy: false,
           auggie: false,
           zed: false,
@@ -75,7 +80,12 @@ function defaultConfig(): MCPConfig {
           kiloCode: false,
           factoryDroid: false,
           kimiCli: false,
+          zCode: false,
           agents: false,
+          miMoCode: false,
+          commandCode: false,
+          museCode: false,
+          rovoDev: false,
           codeBuddy: false,
           auggie: false,
           zed: false,
@@ -115,7 +125,12 @@ function defaultConfig(): MCPConfig {
           kiloCode: false,
           factoryDroid: false,
           kimiCli: false,
+          zCode: false,
           agents: false,
+          miMoCode: false,
+          commandCode: false,
+          museCode: false,
+          rovoDev: false,
           codeBuddy: false,
           auggie: false,
           zed: false,
@@ -332,6 +347,8 @@ export async function projectSecretWarnings(config: MCPConfig): Promise<(Omit<Ap
 export async function applyConfig(
   config: MCPConfig,
   previousConfig: MCPConfig = config,
+  workspace?: WorkspaceContext,
+  previousWorkspace: WorkspaceContext | undefined = workspace,
 ): Promise<ApplyResult> {
   if (!isDesktopRuntime()) {
     window.localStorage.setItem(BROWSER_CONFIG_KEY, JSON.stringify(config))
@@ -346,6 +363,12 @@ export async function applyConfig(
       config,
       previousConfig,
       expectedFingerprint: loadedFingerprint,
+      expectedMimoProjectPath: (() => {
+        const isProject = (placement: import('../types/config').ServerPlacement) => placement.app === 'miMoCode' && placement.scope === 'workspace'
+        const removing = previousConfig.servers.some((server) => server.enabled && server.placements?.some((placement) => isProject(placement) && placement.enabled && !config.servers.some((next) => next.id === server.id && next.enabled && next.placements?.some((item) => isProject(item) && item.path === placement.path && item.enabled))))
+        const involved = [...config.servers, ...previousConfig.servers].some((server) => server.placements?.some(isProject))
+        return involved ? (removing ? previousWorkspace : workspace)?.placementPaths.miMoCode : undefined
+      })(),
     })
   } catch (error) {
     if (String(error).startsWith(CONFLICT_ERROR)) {

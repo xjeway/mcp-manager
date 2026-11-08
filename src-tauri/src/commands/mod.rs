@@ -255,19 +255,31 @@ pub fn project_secret_warnings(config: MCPConfig) -> Vec<mcp_manager_core::core:
 }
 
 #[tauri::command]
+/// Apply the approved configuration under the shared-store lock with a bound MiMo project alias.
 pub fn apply_config(
     config: MCPConfig,
     previous_config: Option<MCPConfig>,
     expected_fingerprint: Option<String>,
+    expected_mimo_project_path: Option<String>,
 ) -> Result<ApplyResult, String> {
     let ctx = PlatformContext::current();
     match previous_config {
         // Recorded, so it can be undone with `rollback_last_change`. Refused
         // if servers.yaml changed since the caller saved `config`.
-        Some(previous) => {
-            history::apply_recorded(&ctx, &config, &previous, expected_fingerprint.as_deref())
-        }
-        None => workflow::apply(&ctx, &config, None),
+        Some(previous) => history::apply_recorded_with_mimo_project_path(
+            &ctx,
+            &config,
+            &previous,
+            expected_fingerprint.as_deref(),
+            expected_mimo_project_path.as_deref(),
+        ),
+        None => workflow::prepare_with_mimo_project_path(
+            &ctx,
+            &config,
+            None,
+            expected_mimo_project_path.as_deref(),
+        )?
+        .apply(&ctx),
     }
 }
 

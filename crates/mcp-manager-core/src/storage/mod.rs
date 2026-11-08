@@ -16,8 +16,28 @@ fn base_dir() -> PathBuf {
     PlatformContext::current().app_data_dir()
 }
 
+/// Resolve a stored path using the current runtime home and application data directory.
 pub fn resolve_path(path: &str) -> PathBuf {
     PlatformContext::current().resolve_path(path)
+}
+
+/// Canonicalize existing prefixes so aliases share one batch ownership key.
+pub(crate) fn target_identity(path: &Path) -> PathBuf {
+    if let Ok(path) = path.canonicalize() {
+        return path;
+    }
+    match (path.parent(), path.file_name()) {
+        (Some(parent), Some(name)) if parent != path && !parent.as_os_str().is_empty() => {
+            target_identity(parent).join(name)
+        }
+        _ => path.to_path_buf(),
+    }
+}
+
+#[derive(Debug)]
+pub struct BatchCommit {
+    pub backups: Vec<String>,
+    pub files: std::collections::BTreeMap<PathBuf, Vec<u8>>,
 }
 
 pub fn resolve_relative_path(relative_path: &str) -> PathBuf {
@@ -180,6 +200,8 @@ fn remove_stale_temp_files(path: &Path) {
 /// directories that had to be created for it (when they are left empty).
 #[derive(Debug, Default)]
 pub struct Snapshot {
+    aliases: std::collections::BTreeMap<PathBuf, PathBuf>,
+    presence: std::collections::BTreeMap<PathBuf, bool>,
     files: Vec<(PathBuf, Option<Vec<u8>>)>,
     /// Directories that did not exist, parents before children.
     new_dirs: Vec<PathBuf>,
@@ -188,6 +210,9 @@ pub struct Snapshot {
 impl Snapshot {
     /// Records `path` unless it is already recorded, so the first state wins.
     pub fn capture(&mut self, path: &Path) -> Result<(), String> {
+        let identity = target_identity(path);
+        self.aliases.insert(path.to_path_buf(), identity.clone());
+        let path = identity.as_path();
         if self.files.iter().any(|(seen, _)| seen == path) {
             return Ok(());
         }
@@ -208,6 +233,40 @@ impl Snapshot {
             None
         };
         self.files.push((path.to_path_buf(), content));
+        Ok(())
+    }
+
+    /// Watch path selection without reading inactive client files.
+    pub(crate) fn capture_presence(&mut self, path: &Path) {
+        self.presence.insert(path.to_path_buf(), path.exists());
+    }
+
+    /// Recheck original dependency aliases and precedence markers, not just canonical contents.
+    pub(crate) fn verify_bindings(&self) -> Result<(), String> {
+        self.verify_bindings_except(|_| false)
+    }
+
+    /// Presence changes to approved write targets are checked against batch-owned bytes instead.
+    fn verify_bindings_except(
+        &self,
+        ignore_presence: impl Fn(&Path) -> bool,
+    ) -> Result<(), String> {
+        for (alias, identity) in &self.aliases {
+            if target_identity(alias) != *identity {
+                return Err(format!(
+                    "Client configuration alias changed before writing {}",
+                    alias.display()
+                ));
+            }
+        }
+        for (path, existed) in &self.presence {
+            if !ignore_presence(path) && path.exists() != *existed {
+                return Err(format!(
+                    "Client configuration active path changed before writing {}",
+                    path.display()
+                ));
+            }
+        }
         Ok(())
     }
 
@@ -246,6 +305,8 @@ impl Snapshot {
 
     /// Checks a planned target against its captured bytes just before a batch write.
     pub fn verify_path(&self, path: &Path) -> Result<(), String> {
+        let identity = target_identity(path);
+        let path = identity.as_path();
         let expected = self
             .files
             .iter()
@@ -260,6 +321,68 @@ impl Snapshot {
             return Err(format!("Client configuration changed before writing {}. Run the command again to review it.", path.display()));
         }
         Ok(())
+    }
+
+    /// Compare ownership immediately before restoring each individual file.
+    /// As with forward writes, uncooperative writers may still race the final atomic replacement.
+    pub fn restore_owned(
+        &self,
+        written: &std::collections::BTreeMap<PathBuf, Vec<u8>>,
+    ) -> Result<Vec<PathBuf>, String> {
+        self.restore_owned_with(written, |_| {})
+    }
+
+    /// Check ownership separately at each restoration boundary, allowing deterministic race injection.
+    fn restore_owned_with(
+        &self,
+        written: &std::collections::BTreeMap<PathBuf, Vec<u8>>,
+        before: impl FnMut(&Path),
+    ) -> Result<Vec<PathBuf>, String> {
+        self.restore_owned_using(written, before, |path, original| match original {
+            Some(content) => atomic_write_bytes(path, content),
+            None => fs::remove_file(path).map_err(|e| e.to_string()),
+        })
+    }
+
+    /// Keep ownership checks and combined reporting shared with deterministic restore-failure tests.
+    fn restore_owned_using(
+        &self,
+        written: &std::collections::BTreeMap<PathBuf, Vec<u8>>,
+        mut before: impl FnMut(&Path),
+        mut restore: impl FnMut(&Path, &Option<Vec<u8>>) -> Result<(), String>,
+    ) -> Result<Vec<PathBuf>, String> {
+        let mut failures = Vec::new();
+        let mut skipped = Vec::new();
+        for (path, original) in self.files.iter().rev() {
+            before(path);
+            let Some(bytes) = written.get(path) else {
+                continue;
+            };
+            if !fs::read(path).is_ok_and(|current| current == *bytes) {
+                skipped.push(path.clone());
+                continue;
+            }
+            let result = restore(path, original);
+            if let Err(error) = result {
+                failures.push(format!("{}: {error}", path.display()));
+            }
+        }
+        remove_empty_dirs(&self.new_dirs);
+        if failures.is_empty() {
+            Ok(skipped)
+        } else {
+            if !skipped.is_empty() {
+                failures.push(format!(
+                    "external edits were preserved in {}",
+                    skipped
+                        .iter()
+                        .map(|p| p.display().to_string())
+                        .collect::<Vec<_>>()
+                        .join(", ")
+                ));
+            }
+            Err(failures.join("; "))
+        }
     }
 
     /// Puts every recorded file back, newest first, and reports each failure.
@@ -296,6 +419,7 @@ pub fn remove_empty_dirs(dirs: &[PathBuf]) {
     }
 }
 
+/// Convert modeled JSON values into the corresponding TOML representation.
 fn json_value_to_toml(value: &Value) -> Result<toml::Value, String> {
     match value {
         Value::Null => Err("null cannot be represented in TOML".to_string()),
@@ -327,10 +451,27 @@ fn json_value_to_toml(value: &Value) -> Result<toml::Value, String> {
     }
 }
 
-fn apply_replace_json(path: &Path, content: &str) -> Result<(), String> {
+/// Return the exact committed payload, without rereading a possibly externally edited target.
+fn commit_text(path: &Path, content: &str) -> Result<Vec<u8>, String> {
+    commit_text_with(path, content, || {})
+}
+
+/// Explicit post-commit seam for deterministic concurrency tests.
+fn commit_text_with(
+    path: &Path,
+    content: &str,
+    after_commit: impl FnOnce(),
+) -> Result<Vec<u8>, String> {
+    atomic_write(path, content)?;
+    after_commit();
+    Ok(content.as_bytes().to_vec())
+}
+
+/// Validate and render replacement JSON, returning the exact bytes committed.
+fn apply_replace_json(path: &Path, content: &str) -> Result<Vec<u8>, String> {
     let parsed: Value = serde_json::from_str(content).map_err(|e| e.to_string())?;
     let pretty = serde_json::to_string_pretty(&parsed).map_err(|e| e.to_string())?;
-    atomic_write(path, &pretty)
+    commit_text(path, &pretty)
 }
 
 fn read_existing(path: &Path) -> Result<String, String> {
@@ -350,12 +491,13 @@ fn unreadable(path: &Path, error: String) -> String {
     )
 }
 
-fn apply_merge_json_field(path: &Path, field: &str, content: &str) -> Result<(), String> {
+/// Replace one JSON field while preserving unrelated configuration and returning committed bytes.
+fn apply_merge_json_field(path: &Path, field: &str, content: &str) -> Result<Vec<u8>, String> {
     let field_value: Value = serde_json::from_str(content).map_err(|e| e.to_string())?;
     let existing = read_existing(path)?;
     let updated = jsonc::set_root_member(&existing, field, &field_value)
         .map_err(|error| unreadable(path, error))?;
-    atomic_write(path, &updated)
+    commit_text(path, &updated)
 }
 
 /// Fields MCP Manager models and rewrites on every apply. Anything else on an
@@ -441,6 +583,14 @@ pub(crate) fn carry_unmanaged_fields(old: &Value, new: &mut Value) {
 /// Carries JSON client fields, including CodeBuddy's unmodeled per-tool map.
 /// TOML/YAML clients keep their existing transport-field rules.
 pub(crate) fn carry_unmanaged_json_fields(old: &Value, new: &mut Value) {
+    // ZCode's client-owned switch is independent of the transport kind.
+    if let (Some(enable), Some(new)) = (
+        old.get("enable").filter(|value| value.is_boolean()),
+        new.as_object_mut(),
+    ) {
+        new.entry("enable".to_string())
+            .or_insert_with(|| enable.clone());
+    }
     carry_unmanaged_fields(old, new);
     let (Some(old), Some(new)) = (old.as_object(), new.as_object_mut()) else {
         return;
@@ -452,12 +602,14 @@ pub(crate) fn carry_unmanaged_json_fields(old: &Value, new: &mut Value) {
     }
 }
 
+/// Merge managed JSON entries, optionally honoring MiMo native enable transitions.
 fn apply_merge_json_object_entries(
     path: &Path,
     field: &str,
     content: &str,
     remove_keys: Option<&[String]>,
-) -> Result<(), String> {
+    native_enabled: bool,
+) -> Result<Vec<u8>, String> {
     let field_value: Value = serde_json::from_str(content).map_err(|e| e.to_string())?;
     let Some(new_entries) = field_value.as_object() else {
         return Err(format!("{field} merge content must be a JSON object"));
@@ -468,13 +620,81 @@ fn apply_merge_json_object_entries(
         field,
         new_entries,
         remove_keys.unwrap_or_default(),
+        |old, new| {
+            let enabled = native_enabled
+                .then(|| new.get("enabled").cloned())
+                .flatten();
+            carry_unmanaged_json_fields(old, new);
+            if let Some(enabled) = enabled {
+                new["enabled"] = enabled;
+            }
+        },
+    )
+    .map_err(|error| unreadable(path, error))?;
+    commit_text(path, &updated)
+}
+
+/// Uses a JSON Pointer to distinguish nested paths from literal dotted client keys.
+fn apply_merge_json_object_path_entries(
+    path: &Path,
+    field: &str,
+    content: &str,
+    remove_keys: Option<&[String]>,
+) -> Result<Vec<u8>, String> {
+    let entries = merge_content(field, content)?;
+    let pointer = field
+        .strip_prefix('/')
+        .ok_or_else(|| "nested JSON field must be a JSON Pointer".to_string())?;
+    let keys = pointer
+        .split('/')
+        .map(|key| key.replace("~1", "/").replace("~0", "~"))
+        .collect::<Vec<_>>();
+    if keys.iter().any(String::is_empty) {
+        return Err("nested JSON field contains an empty segment".into());
+    }
+    let existing = read_existing(path)?;
+    let updated = jsonc::merge_object_entries_at_path(
+        &existing,
+        &keys,
+        &entries,
+        remove_keys.unwrap_or_default(),
         carry_unmanaged_json_fields,
     )
     .map_err(|error| unreadable(path, error))?;
-    atomic_write(path, &updated)
+    commit_text(path, &updated)
 }
 
-fn apply_merge_toml_field(path: &Path, field: &str, content: &str) -> Result<(), String> {
+/// Initializes Muse's required schema only for a new file, then commits one atomic merge.
+fn apply_merge_muse_entries(
+    path: &Path,
+    content: &str,
+    remove_keys: Option<&[String]>,
+) -> Result<Vec<u8>, String> {
+    let existing = if path.exists() {
+        let existing = fs::read_to_string(path).map_err(|error| error.to_string())?;
+        crate::adapters::validate_muse_document(&existing)
+            .map_err(|error| unreadable(path, error))?;
+        existing
+    } else {
+        "{\n  \"schema_version\": 1\n}\n".into()
+    };
+    let entries: Value = serde_json::from_str(content).map_err(|error| error.to_string())?;
+    let entries = entries
+        .as_object()
+        .ok_or("Muse MCP entries must be an object")?;
+    let updated = jsonc::merge_object_entries(
+        &existing,
+        "mcp_servers",
+        entries,
+        remove_keys.unwrap_or_default(),
+        carry_unmanaged_json_fields,
+    )
+    .map_err(|error| unreadable(path, error))?;
+    commit_text(path, &updated)
+}
+
+/// Replace one TOML field while preserving unrelated document content.
+fn apply_merge_toml_field(path: &Path, field: &str, content: &str) -> Result<Vec<u8>, String> {
     let field_value: Value = serde_json::from_str(content).map_err(|e| e.to_string())?;
     let existing = if path.exists() {
         fs::read_to_string(path).map_err(|e| e.to_string())?
@@ -488,15 +708,16 @@ fn apply_merge_toml_field(path: &Path, field: &str, content: &str) -> Result<(),
     };
     host.insert(field.to_string(), json_value_to_toml(&field_value)?);
     let rendered = toml::to_string_pretty(&host).map_err(|e| e.to_string())?;
-    atomic_write(path, &rendered)
+    commit_text(path, &rendered)
 }
 
+/// Update managed TOML tables while carrying forward client-owned fields.
 fn apply_merge_toml_table_entries(
     path: &Path,
     field: &str,
     content: &str,
     remove_keys: Option<&[String]>,
-) -> Result<(), String> {
+) -> Result<Vec<u8>, String> {
     let new_entries = merge_content(field, content)?;
     let existing = read_existing(path)?;
     let updated = toml_doc::merge_table_entries(
@@ -507,15 +728,16 @@ fn apply_merge_toml_table_entries(
         carry_unmanaged_fields,
     )
     .map_err(|error| unreadable_toml(path, error))?;
-    atomic_write(path, &updated)
+    commit_text(path, &updated)
 }
 
+/// Update managed YAML entries and return their committed document payload.
 fn apply_merge_yaml_mapping_entries(
     path: &Path,
     field: &str,
     content: &str,
     remove_keys: Option<&[String]>,
-) -> Result<(), String> {
+) -> Result<Vec<u8>, String> {
     let new_entries = merge_content(field, content)?;
     let existing = read_existing(path)?;
     let updated = yaml_doc::merge_mapping_entries(
@@ -531,18 +753,19 @@ fn apply_merge_yaml_mapping_entries(
             path.to_string_lossy()
         )
     })?;
-    atomic_write(path, &updated)
+    commit_text(path, &updated)
 }
 
 /// Key that identifies an entry of a `merge_toml_array_entries` list.
 const TOML_ARRAY_ENTRY_KEY: &str = "name";
 
+/// Update managed array entries without deleting unrelated TOML settings.
 fn apply_merge_toml_array_entries(
     path: &Path,
     field: &str,
     content: &str,
     remove_keys: Option<&[String]>,
-) -> Result<(), String> {
+) -> Result<Vec<u8>, String> {
     let new_entries = merge_content(field, content)?;
     let existing = read_existing(path)?;
     let updated = toml_doc::merge_array_entries(
@@ -554,7 +777,7 @@ fn apply_merge_toml_array_entries(
         carry_unmanaged_fields,
     )
     .map_err(|error| unreadable_toml(path, error))?;
-    atomic_write(path, &updated)
+    commit_text(path, &updated)
 }
 
 fn merge_content(field: &str, content: &str) -> Result<serde_json::Map<String, Value>, String> {
@@ -573,6 +796,11 @@ fn unreadable_toml(path: &Path, error: String) -> String {
 
 /// Applies one write to `path` without taking a backup.
 pub fn apply_operation(path: &Path, item: &WriteOperation) -> Result<(), String> {
+    apply_operation_committed(path, item).map(|_| ())
+}
+
+/// Render and commit one operation, retaining ownership of the exact written bytes.
+fn apply_operation_committed(path: &Path, item: &WriteOperation) -> Result<Vec<u8>, String> {
     let field = |kind: &str| {
         item.field
             .as_deref()
@@ -580,12 +808,22 @@ pub fn apply_operation(path: &Path, item: &WriteOperation) -> Result<(), String>
     };
     match item.mode.as_str() {
         "replace_json" => apply_replace_json(path, &item.content),
+        "merge_muse_mcp_entries" => {
+            apply_merge_muse_entries(path, &item.content, item.remove_keys.as_deref())
+        }
         "merge_json_field" => apply_merge_json_field(path, field("JSON")?, &item.content),
-        "merge_json_object_entries" => apply_merge_json_object_entries(
+        "merge_json_object_path_entries" => apply_merge_json_object_path_entries(
+            path,
+            field("JSON path")?,
+            &item.content,
+            item.remove_keys.as_deref(),
+        ),
+        "merge_json_object_entries" | "merge_mimo_entries" => apply_merge_json_object_entries(
             path,
             field("JSON")?,
             &item.content,
             item.remove_keys.as_deref(),
+            item.mode == "merge_mimo_entries",
         ),
         "merge_toml_field" => apply_merge_toml_field(path, field("TOML")?, &item.content),
         "merge_toml_table_entries" => apply_merge_toml_table_entries(
@@ -610,9 +848,9 @@ pub fn apply_operation(path: &Path, item: &WriteOperation) -> Result<(), String>
     }
 }
 
-/// Applies every operation, backing up each existing file first. If one
-/// fails, every file already written by this batch is put back as it was
-/// (and files it created are removed), so clients never end up half-applied.
+/// Apply operations with backups and compensating restoration on failure.
+/// Restore only revisions still owned by the batch; report and preserve observed
+/// external edits. Checks are optimistic against uncooperative external writers.
 pub fn apply_operations(artifacts: Vec<WriteOperation>) -> Result<Vec<String>, String> {
     apply_operations_guarded(artifacts, None)
 }
@@ -626,40 +864,100 @@ pub fn apply_operations_checked(
     apply_operations_guarded(artifacts, Some(expected))
 }
 
+/// Read-only planning inputs are checked before every write and never enter rollback state.
+pub fn apply_operations_checked_with_inputs(
+    artifacts: Vec<WriteOperation>,
+    expected: &Snapshot,
+    inputs: &Snapshot,
+    mut check_context: impl FnMut() -> Result<(), String>,
+) -> Result<BatchCommit, String> {
+    apply_operations_guarded_with(artifacts, Some(expected), |_, _| {
+        check_context()?;
+        inputs.verify_bindings_except(|path| {
+            expected
+                .paths()
+                .any(|target| target == target_identity(path))
+        })?;
+        for path in inputs
+            .paths()
+            .filter(|path| !expected.paths().any(|target| target == *path))
+        {
+            inputs.verify_path(path)?;
+        }
+        Ok(())
+    })
+}
+
 /// Shared batch rollback implementation with an optional per-target precondition.
 fn apply_operations_guarded(
     artifacts: Vec<WriteOperation>,
     expected: Option<&Snapshot>,
 ) -> Result<Vec<String>, String> {
+    apply_operations_guarded_with(artifacts, expected, |_, _| Ok(())).map(|commit| commit.backups)
+}
+
+/// A batch owns its prior writes, while an edit between operations remains external.
+fn apply_operations_guarded_with(
+    artifacts: Vec<WriteOperation>,
+    expected: Option<&Snapshot>,
+    mut before: impl FnMut(usize, &Path) -> Result<(), String>,
+) -> Result<BatchCommit, String> {
     let mut backups = Vec::new();
     let mut originals = Snapshot::default();
-
-    for item in artifacts {
-        let path = resolve_path(&item.path);
+    let mut written = std::collections::BTreeMap::<PathBuf, Vec<u8>>::new();
+    for (index, item) in artifacts.into_iter().enumerate() {
+        let path = target_identity(&resolve_path(&item.path));
         let result = (|| {
-            // Check before capturing this file for rollback: a rejected external
-            // edit must not be overwritten when earlier writes are restored.
+            before(index, &path)?;
             if let Some(expected) = expected {
-                expected.verify_path(&path)?;
+                expected.verify_bindings()?;
+                if !expected.paths().any(|target| target == path) {
+                    return Err(format!("unapproved target: {}", path.display()));
+                }
+                // Dependencies may themselves be later write targets. Validate every
+                // approved target against either its initial or this batch's version.
+                for target in expected.paths() {
+                    if let Some(bytes) = written.get(target) {
+                        if !fs::read(target).is_ok_and(|current| current == *bytes) {
+                            return Err(format!("Client configuration changed between batch writes to {}. Nothing further was written.",target.display()));
+                        }
+                    } else {
+                        expected.verify_path(target)?;
+                    }
+                }
             }
             originals.capture(&path)?;
-            if let Some(backup) = backup_file(&path)? {
-                backups.push(backup);
+            if !written.contains_key(&path) {
+                if let Some(backup) = backup_file(&path)? {
+                    backups.push(backup);
+                }
             }
-            apply_operation(&path, &item)
+            let committed = apply_operation_committed(&path, &item)?;
+            written.insert(path.clone(), committed);
+            Ok(())
         })();
-
         if let Err(error) = result {
-            return Err(match originals.restore() {
-                Ok(()) => error,
+            // Restore only versions still owned by this batch, even if failure was elsewhere.
+            return Err(match originals.restore_owned(&written) {
+                Ok(skipped) if skipped.is_empty() => error,
+                Ok(skipped) => format!(
+                    "{error}; external edits were preserved during rollback: {}",
+                    skipped
+                        .iter()
+                        .map(|p| p.display().to_string())
+                        .collect::<Vec<_>>()
+                        .join(", ")
+                ),
                 Err(restore_error) => format!(
                     "{error}; restoring the files written before it also failed: {restore_error}"
                 ),
             });
         }
     }
-
-    Ok(backups)
+    Ok(BatchCommit {
+        backups,
+        files: written,
+    })
 }
 
 /// The file a backup made by [`backup_file`] was taken of.
@@ -1207,5 +1505,207 @@ mod tests {
         restored.expect("rollback");
         assert_eq!(fs::read_to_string(&target).expect("read"), "original");
         assert!(!target.with_file_name("mcp").exists());
+    }
+    #[test]
+    fn checked_batches_accept_their_own_prior_writes_but_preserve_external_edits() {
+        let _guard = env_lock().lock().unwrap();
+        let temp = tempfile::tempdir().unwrap();
+        let home = temp.path().join("home");
+        fs::create_dir_all(&home).unwrap();
+        let runtime = set_test_runtime(&home, temp.path());
+        let a = temp.path().join("a.json");
+        let b = temp.path().join("b.json");
+        fs::write(&a, "{}").unwrap();
+        fs::write(&b, "{}").unwrap();
+        let operation = |path: &Path, field: &str| WriteOperation {
+            path: path.to_string_lossy().into(),
+            mode: "merge_json_field".into(),
+            field: Some(field.into()),
+            content: "1".into(),
+            remove_keys: None,
+        };
+        let mut expected = super::Snapshot::default();
+        expected.capture(&a).unwrap();
+        expected.capture(&b).unwrap();
+        let result = super::apply_operations_checked(
+            vec![operation(&a, "first"), operation(&a, "second")],
+            &expected,
+        );
+        let accepted = fs::read_to_string(&a).unwrap();
+        fs::write(&a, "{}").unwrap();
+        let failed = super::apply_operations_guarded_with(
+            vec![
+                operation(&b, "first"),
+                operation(&a, "first"),
+                operation(&a, "second"),
+            ],
+            Some(&expected),
+            |index, path| {
+                if index == 2 {
+                    fs::write(path, r#"{"external":true}"#).unwrap();
+                }
+                Ok(())
+            },
+        );
+        let external = fs::read_to_string(&a).unwrap();
+        let restored = fs::read_to_string(&b).unwrap();
+        restore_test_runtime(runtime.0, runtime.1);
+        assert!(result.is_ok(), "{result:?}");
+        let value: serde_json::Value = serde_json::from_str(&accepted).unwrap();
+        assert_eq!(value["first"], 1);
+        assert_eq!(value["second"], 1);
+        assert!(failed.is_err());
+        assert_eq!(external, r#"{"external":true}"#);
+        assert_eq!(restored, "{}");
+    }
+    #[test]
+    fn rollback_checks_all_written_targets_even_when_a_dependency_check_fails_elsewhere() {
+        let _guard = env_lock().lock().unwrap();
+        let temp = tempfile::tempdir().unwrap();
+        let home = temp.path().join("home");
+        fs::create_dir_all(&home).unwrap();
+        let runtime = set_test_runtime(&home, temp.path());
+        let a = temp.path().join("a.json");
+        let b = temp.path().join("b.json");
+        fs::write(&a, "{}").unwrap();
+        fs::write(&b, "{}").unwrap();
+        let operation = |path: &Path| WriteOperation {
+            path: path.to_string_lossy().into(),
+            mode: "merge_json_field".into(),
+            field: Some("owned".into()),
+            content: "true".into(),
+            remove_keys: None,
+        };
+        let mut expected = super::Snapshot::default();
+        expected.capture(&a).unwrap();
+        expected.capture(&b).unwrap();
+        let result = super::apply_operations_guarded_with(
+            vec![operation(&a), operation(&b), operation(&b)],
+            Some(&expected),
+            |index, _| {
+                if index == 2 {
+                    fs::write(&a, r#"{"external":true}"#).unwrap();
+                    return Err("read dependency changed".into());
+                }
+                Ok(())
+            },
+        );
+        let external = fs::read_to_string(&a).unwrap();
+        let restored = fs::read_to_string(&b).unwrap();
+        restore_test_runtime(runtime.0, runtime.1);
+        assert!(result.is_err());
+        assert_eq!(external, r#"{"external":true}"#);
+        assert_eq!(restored, "{}");
+    }
+
+    #[test]
+    fn rollback_checks_ownership_at_each_restore_instead_of_a_batch_filter() {
+        let temp = tempfile::tempdir().unwrap();
+        let a = temp.path().join("a");
+        let b = temp.path().join("b");
+        fs::write(&a, "original-a").unwrap();
+        fs::write(&b, "original-b").unwrap();
+        let mut snapshot = super::Snapshot::default();
+        snapshot.capture(&a).unwrap();
+        snapshot.capture(&b).unwrap();
+        fs::write(&a, "owned").unwrap();
+        fs::write(&b, "owned").unwrap();
+        let written = snapshot
+            .paths()
+            .map(|p| (p.to_path_buf(), b"owned".to_vec()))
+            .collect();
+        snapshot
+            .restore_owned_with(&written, |path| {
+                if path.ends_with("a") {
+                    fs::write(path, "external").unwrap();
+                }
+            })
+            .unwrap();
+        assert_eq!(fs::read_to_string(a).unwrap(), "external");
+        assert_eq!(fs::read_to_string(b).unwrap(), "original-b");
+    }
+
+    #[test]
+    fn compensation_reports_both_skipped_external_edits_and_restore_failures() {
+        let temp = tempfile::tempdir().unwrap();
+        let external = temp.path().join("external.json");
+        let failed = temp.path().join("failed.json");
+        fs::write(&external, "original").unwrap();
+        fs::write(&failed, "original").unwrap();
+        let mut snapshot = super::Snapshot::default();
+        snapshot.capture(&external).unwrap();
+        snapshot.capture(&failed).unwrap();
+        let written = snapshot
+            .paths()
+            .map(|p| (p.to_path_buf(), b"owned".to_vec()))
+            .collect();
+        fs::write(&external, "external edit").unwrap();
+        fs::write(&failed, "owned").unwrap();
+        let error = snapshot
+            .restore_owned_using(
+                &written,
+                |_| {},
+                |_, _| Err("injected restoration failure".into()),
+            )
+            .unwrap_err();
+        assert!(error.contains("external.json"), "{error}");
+        assert!(error.contains("external edits were preserved"));
+        assert!(error.contains("failed.json"));
+        assert!(error.contains("injected restoration failure"));
+        assert_eq!(fs::read_to_string(external).unwrap(), "external edit");
+    }
+
+    #[test]
+    fn aliases_share_a_single_checked_target() {
+        let _guard = env_lock().lock().unwrap();
+        let temp = tempfile::tempdir().unwrap();
+        let home = temp.path().join("home");
+        fs::create_dir_all(&home).unwrap();
+        let runtime = set_test_runtime(&home, temp.path());
+        let path = temp.path().join("client.json");
+        fs::write(&path, "{}").unwrap();
+        fs::create_dir(temp.path().join("nested")).unwrap();
+        let alias = temp.path().join("nested/../client.json");
+        let mut snapshot = super::Snapshot::default();
+        snapshot.capture(&path).unwrap();
+        snapshot.capture(&alias).unwrap();
+        let op = |path: &Path, field: &str| WriteOperation {
+            path: path.to_string_lossy().into(),
+            mode: "merge_json_field".into(),
+            field: Some(field.into()),
+            content: "true".into(),
+            remove_keys: None,
+        };
+        let result = super::apply_operations_checked(
+            vec![op(&path, "first"), op(&alias, "second")],
+            &snapshot,
+        );
+        restore_test_runtime(runtime.0, runtime.1);
+        assert!(result.is_ok(), "{result:?}");
+        assert_eq!(snapshot.paths().count(), 1);
+        let value: serde_json::Value =
+            serde_json::from_str(&fs::read_to_string(path).unwrap()).unwrap();
+        assert_eq!(value["first"], true);
+        assert_eq!(value["second"], true);
+    }
+
+    #[test]
+    fn operation_returns_the_payload_it_committed_not_a_later_external_revision() {
+        let temp = tempfile::tempdir().unwrap();
+        let path = temp.path().join("config.json");
+        let operation = WriteOperation {
+            path: path.to_string_lossy().into(),
+            mode: "replace_json".into(),
+            field: None,
+            remove_keys: None,
+            content: r#"{"owned":true}"#.into(),
+        };
+        let committed = super::commit_text_with(&path, &operation.content, || {
+            fs::write(&path, r#"{"external":true}"#).unwrap();
+        })
+        .unwrap();
+        let value: serde_json::Value = serde_json::from_slice(&committed).unwrap();
+        assert_eq!(value["owned"], true);
+        assert_ne!(committed, fs::read(path).unwrap());
     }
 }

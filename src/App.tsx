@@ -65,6 +65,7 @@ import { deriveVisibleApps } from './services/visibleApps'
 import { resolveWindowSurface } from './services/windowSurface'
 import {
   inheritedAgentsRemovalPath,
+  refreshMiMoProjectPaths,
   deleteServerFromConfig,
   importServersIntoConfig,
   importConfigOnLaunch,
@@ -554,15 +555,27 @@ function MainApp() {
     nextConfig,
     successKind = 'success',
     successMessage,
+    editedServerIds = [],
   }: {
     nextConfig: MCPConfig
     successKind?: FeedbackItem['kind']
     successMessage?: string
+    editedServerIds?: string[]
   }): Promise<boolean> => {
     if (configCommitInFlightRef.current) return false
     configCommitInFlightRef.current = true
     try {
-      const inheritedPath = inheritedAgentsRemovalPath(config, nextConfig, currentWorkspace)
+      let workspaceForSave = currentWorkspace
+      try {
+        if (editedServerIds.length > 0 || nextConfig.servers.some((server) => server.placements?.some((placement) => placement.app === 'miMoCode' && placement.scope === 'workspace' && placement.managed !== false))) {
+          workspaceForSave = await getCurrentWorkspace()
+          nextConfig = refreshMiMoProjectPaths(nextConfig, currentWorkspace, workspaceForSave, nextConfig.servers.map((server) => server.id))
+        }
+      } catch (error) {
+        pushFeedback('error', String(error))
+        return false
+      }
+      const inheritedPath = inheritedAgentsRemovalPath(config, nextConfig, workspaceForSave)
       if (inheritedPath) {
         pushFeedback('warning', t('inheritedAgentsReadOnly', { path: inheritedPath }))
         return false
@@ -575,15 +588,15 @@ function MainApp() {
         return false
       }
 
-      const secretWarnings = sharedProjectSecretWarnings(nextConfig.servers, currentWorkspace, t)
+      const secretWarnings = sharedProjectSecretWarnings(nextConfig.servers, workspaceForSave, t)
       try {
         for (const warning of await projectSecretWarnings(nextConfig)) {
-          if (!warning.key?.startsWith('params')) continue
-          secretWarnings.push(t('sharedProjectSecretWarning', {
-            server: nextConfig.servers.find((server) => server.id === warning.serverId)?.name ?? warning.serverId,
-            client: 'Codebuff / Freebuff', path: warning.path, key: warning.key,
-            advice: t('secretAdviceDollarInterpolation'),
-          }))
+          const message = t('sharedProjectSecretWarning', {
+            server: nextConfig.servers.find((server) => server.id === warning.serverId)?.name || warning.serverId,
+            client: CLIENTS.find((client) => client.id === warning.app)?.label ?? warning.app, path: warning.path, key: warning.key,
+            advice: t(warning.app === 'agents' ? 'secretAdviceDollarInterpolation' : warning.app === 'windsurf' ? 'secretAdviceDevin' : ['grok', 'claudeCode', 'factoryDroid'].includes(warning.app) ? 'secretAdviceInterpolation' : 'secretAdvicePrivate'),
+          })
+          if (!secretWarnings.includes(message)) secretWarnings.push(message)
         }
       } catch (error) {
         pushFeedback('error', String(error))
@@ -602,13 +615,14 @@ function MainApp() {
       setActionState('saving')
       try {
         const result = await saveAndSyncConfig({
-          applyConfig,
+          applyConfig: (next, previous) => applyConfig(next, previous, workspaceForSave, currentWorkspace),
           nextConfig,
           previousConfig: config,
           saveConfig,
-          workspace: currentWorkspace,
+          workspace: workspaceForSave,
         })
         setConfig(nextConfig)
+        setCurrentWorkspace(workspaceForSave)
         void refreshRollbackDepth()
         for (const message of applyWarningMessages(result, nextConfig.servers, t)) {
           pushFeedback('warning', message)
@@ -821,6 +835,7 @@ function MainApp() {
     const saved = await commitConfigChange({
       nextConfig,
       successMessage: t(editingServer ? 'serverUpdated' : 'serverCreated', { name: server.name }),
+      editedServerIds: [server.id],
     })
 
     if (!saved) {
@@ -836,6 +851,7 @@ function MainApp() {
     const saved = await commitConfigChange({
       nextConfig,
       successMessage: t('batchImportSummary', { added: added.length, updated: updated.length }),
+      editedServerIds: servers.map((server) => server.id),
     })
 
     if (!saved) {

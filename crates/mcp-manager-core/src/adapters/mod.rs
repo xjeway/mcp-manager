@@ -7,6 +7,7 @@ mod claude_desktop;
 mod cline;
 mod codebuddy;
 mod codex;
+mod command_code;
 mod cursor;
 mod factory_droid;
 mod gemini_cli;
@@ -18,12 +19,16 @@ mod iflow;
 mod kilo_code;
 mod kimi_cli;
 mod kiro;
+mod mimo_code;
 mod mistral_vibe;
+mod muse_code;
 mod opencode;
 mod qoder;
 mod qwen_code;
+mod rovo_dev;
 mod vscode;
 mod windsurf;
+mod zcode;
 mod zed;
 
 use crate::core::{
@@ -43,6 +48,8 @@ pub use claude_desktop::ClaudeDesktopAdapter;
 pub use cline::ClineAdapter;
 pub use codebuddy::CodeBuddyAdapter;
 pub use codex::CodexAdapter;
+pub(crate) use command_code::validate_command_context;
+pub use command_code::CommandCodeAdapter;
 pub use cursor::CursorAdapter;
 pub use factory_droid::FactoryDroidAdapter;
 pub use gemini_cli::GeminiCliAdapter;
@@ -54,12 +61,23 @@ pub use iflow::IFlowAdapter;
 pub use kilo_code::KiloCodeAdapter;
 pub use kimi_cli::KimiCliAdapter;
 pub use kiro::KiroAdapter;
+pub(crate) use mimo_code::validate_mimo_context;
+pub use mimo_code::MiMoCodeAdapter;
 pub use mistral_vibe::MistralVibeAdapter;
+pub use muse_code::MuseCodeAdapter;
+pub(crate) use muse_code::{validate_document as validate_muse_document, validate_muse_context};
 pub use opencode::OpenCodeAdapter;
 pub use qoder::QoderAdapter;
 pub use qwen_code::QwenCodeAdapter;
+pub(crate) use rovo_dev::validate_rovo_context;
+pub use rovo_dev::RovoDevAdapter;
 pub use vscode::VSCodeAdapter;
 pub use windsurf::WindsurfAdapter;
+pub use zcode::ZCodeAdapter;
+pub(crate) use zcode::{
+    fallback_input_paths as zcode_fallback_input_paths,
+    plan_with_fallback as plan_zcode_with_fallback, validate_project_fallback,
+};
 pub use zed::ZedAdapter;
 
 pub struct ParsedSources {
@@ -116,7 +134,11 @@ pub fn workspace_scope_path(ctx: &PlatformContext, app: SupportedApp) -> Option<
         // Amp asks before it runs servers from workspace settings.
         SupportedApp::Amp => ".amp/settings.json",
         SupportedApp::Grok => ".grok/config.toml",
+        SupportedApp::ZCode => ".zcode/config.json",
         SupportedApp::Agents => ".agents/mcp.json",
+        SupportedApp::MiMoCode => {
+            return Some(ctx.mimo_project_path().to_string_lossy().to_string())
+        }
         SupportedApp::Auggie => ".augment/settings.json",
         // Devin's shared, committed project file. Its gitignored
         // `.devin/mcp_config.local.json` is written only for servers imported
@@ -540,7 +562,13 @@ pub fn http_headers_supported(app: SupportedApp) -> bool {
 /// Clients that can only reach a remote server over streamable HTTP. An SSE
 /// server is not written to them.
 fn sse_supported(app: SupportedApp) -> bool {
-    !matches!(app, SupportedApp::MistralVibe | SupportedApp::Goose)
+    !matches!(
+        app,
+        SupportedApp::MistralVibe
+            | SupportedApp::Goose
+            | SupportedApp::CommandCode
+            | SupportedApp::MuseCode
+    )
 }
 
 /// Clients `server` is enabled for, at any scope.
@@ -621,9 +649,40 @@ pub fn shared_project_secret_warnings(
                             .and_then(|m| m.get(&server.id))
                             .and_then(|entry| entry.get("params"))
                         {
-                            collect_agents_param_warnings(
+                            collect_retained_secret_warnings(
                                 params,
                                 "params",
+                                placement.app,
+                                server,
+                                &path,
+                                &mut warnings,
+                            );
+                        }
+                    }
+                }
+            }
+            if placement.app == SupportedApp::ZCode {
+                for value in zcode::retained_project_entries(ctx, &path, &server.id) {
+                    if let Some(params) = value.get("params") {
+                        collect_retained_secret_warnings(
+                            params,
+                            "params",
+                            placement.app,
+                            server,
+                            &path,
+                            &mut warnings,
+                        );
+                    }
+                }
+            }
+            if placement.app == SupportedApp::MiMoCode {
+                if let Some(entry) = mimo_code::retained_project_entry(ctx, &path, &server.id) {
+                    for field in ["environment", "headers"] {
+                        if let Some(value) = entry.get(field) {
+                            collect_retained_secret_warnings(
+                                value,
+                                field,
+                                placement.app,
                                 server,
                                 &path,
                                 &mut warnings,
@@ -670,26 +729,29 @@ pub fn shared_project_secret_warnings(
 }
 
 /// Inspects retained parameter objects without including values in diagnostics.
-fn collect_agents_param_warnings(
+fn collect_retained_secret_warnings(
     value: &Value,
     key: &str,
+    app: SupportedApp,
     server: &MCPServer,
     path: &str,
     warnings: &mut Vec<ApplyWarning>,
 ) {
     match value {
-        Value::Number(number) => collect_agents_param_warnings(
+        Value::Number(number) => collect_retained_secret_warnings(
             &Value::String(number.to_string()),
             key,
+            app,
             server,
             path,
             warnings,
         ),
         Value::Object(fields) => {
             for (name, value) in fields {
-                collect_agents_param_warnings(
+                collect_retained_secret_warnings(
                     value,
                     &format!("{key}.{name}"),
+                    app,
                     server,
                     path,
                     warnings,
@@ -698,13 +760,13 @@ fn collect_agents_param_warnings(
         }
         Value::Array(values) => {
             for value in values {
-                collect_agents_param_warnings(value, key, server, path, warnings);
+                collect_retained_secret_warnings(value, key, app, server, path, warnings);
             }
         }
-        Value::String(value) if project_literal_secret(SupportedApp::Agents, key, value, true) => {
+        Value::String(value) if project_literal_secret(app, key, value, true) => {
             let warning = ApplyWarning {
                 kind: "sharedProjectSecret".into(),
-                app: SupportedApp::Agents,
+                app,
                 server_id: server.id.clone(),
                 path: Some(path.into()),
                 key: Some(key.into()),
@@ -808,6 +870,7 @@ fn standard_json_transport_type(kind: &str) -> &'static str {
     }
 }
 
+/// Serialize only managed, enabled entries for this client/path, omitting unsupported transports.
 pub fn standard_mcp_servers_at(
     config: &MCPConfig,
     app: SupportedApp,
@@ -818,7 +881,10 @@ pub fn standard_mcp_servers_at(
     let profile = standard_json_app_profile(app);
 
     for server in &config.servers {
-        if server.enabled && server_enabled_for_path(ctx, server, app, path) {
+        if server.enabled
+            && server_enabled_for_path(ctx, server, app, path)
+            && (server.transport.kind != "sse" || sse_supported(app))
+        {
             let mut value = if server.transport.kind == "stdio" {
                 Map::from_iter([
                     (
@@ -877,7 +943,10 @@ pub fn standard_mcp_servers_at(
                     Value::String(
                         if matches!(
                             app,
-                            SupportedApp::Auggie | SupportedApp::CodeBuddy | SupportedApp::Agents
+                            SupportedApp::Auggie
+                                | SupportedApp::CodeBuddy
+                                | SupportedApp::Agents
+                                | SupportedApp::ZCode
                         ) && server.transport.kind == "streamable-http"
                         {
                             "http".to_string()
@@ -963,6 +1032,7 @@ pub fn opencode_mcp_servers_at(
     Value::Object(servers)
 }
 
+/// Return the single registered writer for each supported client.
 pub fn adapters() -> Vec<Box<dyn AppAdapter>> {
     vec![
         Box::new(VSCodeAdapter),
@@ -983,7 +1053,12 @@ pub fn adapters() -> Vec<Box<dyn AppAdapter>> {
         Box::new(KiloCodeAdapter),
         Box::new(FactoryDroidAdapter),
         Box::new(KimiCliAdapter),
+        Box::new(ZCodeAdapter),
         Box::new(AgentsAdapter),
+        Box::new(MiMoCodeAdapter),
+        Box::new(CommandCodeAdapter),
+        Box::new(MuseCodeAdapter),
+        Box::new(RovoDevAdapter),
         Box::new(CodeBuddyAdapter),
         Box::new(AuggieAdapter),
         Box::new(ZedAdapter),
@@ -1415,5 +1490,39 @@ mod tests {
             managed: true,
         });
         assert_eq!(apply_warnings(&config(vec![server])).len(), 1);
+    }
+    #[test]
+    fn native_http_only_adapters_do_not_serialize_sse_as_http() {
+        let temp = tempfile::tempdir().unwrap();
+        let ctx = crate::platform::PlatformContext {
+            os: crate::platform::PlatformOs::MacOS,
+            home_dir: temp.path().join("home"),
+            workspace_root: temp.path().join("project"),
+        };
+        let mut server = remote(
+            "events",
+            true,
+            &[SupportedApp::CommandCode, SupportedApp::MuseCode],
+        );
+        server.transport.kind = "sse".into();
+        let config = config(vec![server]);
+        assert_eq!(
+            super::apply_warnings(&config)
+                .iter()
+                .filter(|warning| warning.kind == "sseUnsupported")
+                .count(),
+            2
+        );
+        for adapter in super::adapters().into_iter().filter(|adapter| {
+            matches!(
+                adapter.app(),
+                SupportedApp::CommandCode | SupportedApp::MuseCode
+            )
+        }) {
+            for operation in adapter.plan_apply(&ctx, &config, None) {
+                let value: serde_json::Value = serde_json::from_str(&operation.content).unwrap();
+                assert!(value.get("events").is_none());
+            }
+        }
     }
 }

@@ -171,6 +171,13 @@ export const CLIENT_CAPABILITIES: Record<SupportedApp, ClientCapability> = {
     scopes: [projectScope(20), userScope(10)],
   },
   kimiCli: userOnly('kimiCli', 'json', 'mergeJsonField'),
+  zCode: {
+    app: 'zCode',
+    configFormat: 'json',
+    mergePolicy: 'mergeJsonField',
+    projectManagement: 'direct',
+    scopes: [userScope(30), projectScope(10)],
+  },
   agents: {
     app: 'agents',
     configFormat: 'json',
@@ -179,6 +186,20 @@ export const CLIENT_CAPABILITIES: Record<SupportedApp, ClientCapability> = {
     // Codebuff's loader reads global last, so it overrides project definitions.
     scopes: [userScope(30), projectScope(10)],
   },
+  miMoCode: {
+    app: 'miMoCode',
+    configFormat: 'jsonc',
+    mergePolicy: 'mergeJsonField',
+    projectManagement: 'direct',
+    scopes: [projectScope(20), userScope(10)],
+  },
+  commandCode: {
+    ...userOnly('commandCode', 'json', 'mergeJsonField'),
+    projectManagement: 'viaOtherClient',
+    projectViaApp: 'claudeCode',
+  },
+  museCode: userOnly('museCode', 'json', 'mergeJsonField'),
+  rovoDev: userOnly('rovoDev', 'json', 'mergeJsonField'),
   // CodeBuddy's project .mcp.json is owned by Claude Code's adapter.
   codeBuddy: {
     ...userOnly('codeBuddy', 'jsonc', 'mergeJsonField'),

@@ -29,6 +29,7 @@ pub struct FileChange {
 }
 
 impl FileChange {
+    /// Whether undo should remove this file instead of restoring an existing version.
     pub fn was_created(&self) -> bool {
         self.before == ABSENT_FINGERPRINT
     }
@@ -49,11 +50,12 @@ pub struct ChangeRecord {
 }
 
 impl ChangeRecord {
-    /// Call after the change was applied. `snapshot` is what
-    /// [`workflow::snapshot`] took before it.
+    /// Record pre-apply snapshot fingerprints and exact committed payloads.
+    /// No client file is reread, so external edits cannot become an owned revision.
     pub fn new(
         snapshot: &Snapshot,
         backups: Vec<String>,
+        committed: &std::collections::BTreeMap<PathBuf, Vec<u8>>,
         previous_config: MCPConfig,
         applied_config: MCPConfig,
     ) -> Result<Self, String> {
@@ -62,7 +64,9 @@ impl ChangeRecord {
             .into_iter()
             .map(|(path, before)| {
                 Ok(FileChange {
-                    after: store::fingerprint(&path)?,
+                    after: store::fingerprint_of_bytes(committed.get(&path).ok_or_else(|| {
+                        format!("Missing committed payload for {}", path.display())
+                    })?)?,
                     path: path.to_string_lossy().to_string(),
                     before,
                 })
@@ -169,6 +173,17 @@ pub fn apply_recorded(
     previous_config: &MCPConfig,
     expected_fingerprint: Option<&str>,
 ) -> Result<ApplyResult, String> {
+    apply_recorded_with_mimo_project_path(ctx, config, previous_config, expected_fingerprint, None)
+}
+
+/// Record the exact frozen plan associated with a validated editor project alias.
+pub fn apply_recorded_with_mimo_project_path(
+    ctx: &PlatformContext,
+    config: &MCPConfig,
+    previous_config: &MCPConfig,
+    expected_fingerprint: Option<&str>,
+    expected_mimo_path: Option<&str>,
+) -> Result<ApplyResult, String> {
     let config_path = store::config_path(ctx);
     store::with_lock(&config_path, || {
         if let Some(expected) = expected_fingerprint {
@@ -180,14 +195,21 @@ pub fn apply_recorded(
                 ));
             }
         }
-        let snapshot = workflow::snapshot(ctx, config, Some(previous_config))?;
-        let mut result = workflow::apply(ctx, config, Some(previous_config))?;
+        let prepared = workflow::prepare_with_mimo_project_path(
+            ctx,
+            config,
+            Some(previous_config),
+            expected_mimo_path,
+        )?;
+        let snapshot = prepared.snapshot(ctx)?;
+        let mut result = prepared.apply(ctx)?;
         // The change is applied, so failing to record it is not an error: it
         // only costs the undo, which the caller is told about through
         // `history_error`.
         let recorded = ChangeRecord::new(
             &snapshot,
             result.backups.clone(),
+            &result.committed_files,
             previous_config.clone(),
             config.clone(),
         )
@@ -217,9 +239,11 @@ pub struct RollbackReport {
 /// them and backups map back with the platform's separators, so on Windows
 /// `/` versus `\\` and letter case must not matter.
 fn same_path(a: &str, b: &str) -> bool {
+    let a = storage::target_identity(Path::new(a));
+    let b = storage::target_identity(Path::new(b));
     if cfg!(windows) {
-        let normalize = |p: &str| p.replace('\\', "/").to_ascii_lowercase();
-        normalize(a) == normalize(b)
+        a.to_string_lossy()
+            .eq_ignore_ascii_case(&b.to_string_lossy())
     } else {
         a == b
     }
@@ -350,12 +374,49 @@ pub fn rollback_last(ctx: &PlatformContext) -> Result<RollbackReport, String> {
 
 #[cfg(test)]
 mod tests {
-    use super::{apply_recorded, depth, path};
+    use super::{apply_recorded, depth, path, ChangeRecord};
     use crate::core::MCPConfig;
     use crate::platform::{PlatformContext, PlatformOs};
+    use crate::storage::Snapshot;
     use crate::store;
     use std::fs;
     use tempfile::tempdir;
+
+    #[test]
+    fn backup_targets_match_canonical_history_paths() {
+        let temp = tempfile::tempdir().unwrap();
+        let path = temp.path().join("client.json");
+        fs::write(&path, "{}").unwrap();
+        assert!(super::same_path(
+            path.to_str().unwrap(),
+            path.canonicalize().unwrap().to_str().unwrap()
+        ));
+    }
+
+    #[test]
+    fn history_uses_committed_payload_even_if_external_edit_arrives_before_recording() {
+        let temp = tempfile::tempdir().unwrap();
+        let path = temp.path().join("client.json");
+        fs::write(&path, "{}").unwrap();
+        let mut snapshot = Snapshot::default();
+        snapshot.capture(&path).unwrap();
+        let committed = snapshot
+            .paths()
+            .map(|p| (p.to_path_buf(), b"{\"batch\":true}".to_vec()))
+            .collect();
+        fs::write(&path, r#"{"external":true}"#).unwrap();
+        let empty = MCPConfig {
+            version: 1,
+            servers: vec![],
+        };
+        let record =
+            ChangeRecord::new(&snapshot, vec![], &committed, empty.clone(), empty).unwrap();
+        assert_ne!(record.files[0].after, store::fingerprint(&path).unwrap());
+        assert_eq!(
+            record.files[0].after,
+            store::fingerprint_of_bytes(b"{\"batch\":true}").unwrap()
+        );
+    }
 
     fn ctx(root: &std::path::Path) -> PlatformContext {
         PlatformContext {

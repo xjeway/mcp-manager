@@ -233,3 +233,36 @@ describe('configService with an unreadable servers.yaml', () => {
     await expect(saveConfig(EMPTY)).rejects.toBeInstanceOf(ConfigUnreadableError)
   })
 })
+
+describe('MiMo apply path binding', () => {
+  beforeEach(() => invokeMock.mockReset())
+  const cached = { root: '/project', placementPaths: { miMoCode: '/project/mimocode.jsonc' } }
+  const fresh = { root: '/project', placementPaths: { miMoCode: '/project/.mimocode/mimocode.jsonc' } }
+  const config = (): import('../types/config').MCPConfig => ({ version: 1, servers: [{
+    id: 'mimo', name: 'mimo', enabled: true, transport: { type: 'stdio' }, command: { program: 'node', args: [], env: {} }, apps: {} as never,
+    placements: [{ app: 'miMoCode', scope: 'workspace', path: cached.placementPaths.miMoCode, enabled: true, managed: true }],
+  }] })
+  it('checks the cached path when deleting the last project placement', async () => {
+    const { applyConfig } = await freshService()
+    invokeMock.mockResolvedValueOnce({ backups: [] })
+    await applyConfig(EMPTY, config(), fresh, cached)
+    expect(invokeMock.mock.calls[0][1]).toMatchObject({ expectedMimoProjectPath: cached.placementPaths.miMoCode })
+  })
+  it('checks the cached path when disabling a project placement', async () => {
+    const { applyConfig } = await freshService()
+    const previous = config(), next = config()
+    next.servers[0].placements![0].enabled = false
+    invokeMock.mockResolvedValueOnce({ backups: [] })
+    await applyConfig(next, previous, fresh, cached)
+    expect(invokeMock.mock.calls[0][1]).toMatchObject({ expectedMimoProjectPath: cached.placementPaths.miMoCode })
+  })
+  it('allows an already disabled placement to refresh against the new alias', async () => {
+    const { applyConfig } = await freshService()
+    const previous = config(), next = config()
+    previous.servers[0].placements![0].enabled = false
+    next.servers[0].placements![0] = { ...next.servers[0].placements![0], path: fresh.placementPaths.miMoCode, enabled: false }
+    invokeMock.mockResolvedValueOnce({ backups: [] })
+    await applyConfig(next, previous, fresh, cached)
+    expect(invokeMock.mock.calls[0][1]).toMatchObject({ expectedMimoProjectPath: fresh.placementPaths.miMoCode })
+  })
+})

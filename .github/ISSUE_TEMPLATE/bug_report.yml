@@ -33,6 +33,8 @@ body:
         - Claude Code
         - Claude Desktop
         - Cline
+        - Command Code
+        - Rovo Dev CLI
         - CodeBuddy Code
         - Codex
         - Cursor
@@ -44,14 +46,17 @@ body:
         - Hermes Agent
         - iFlow
         - Kilo Code
+        - Muse Code
         - Kimi CLI
         - Kiro
+        - MiMo Code
         - Mistral Vibe
         - OpenCode
         - Qoder
         - Qwen Code
         - VS Code
         - Devin (Desktop / CLI)
+        - ZCode
         - Zed
         - 其他 / Other
   - type: textarea

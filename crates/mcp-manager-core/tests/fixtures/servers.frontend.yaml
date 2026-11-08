@@ -25,7 +25,12 @@ servers:
       kiloCode: false
       factoryDroid: false
       kimiCli: false
+      zCode: false
       agents: false
+      miMoCode: false
+      commandCode: false
+      museCode: false
+      rovoDev: false
       codeBuddy: false
       auggie: false
       zed: false
@@ -66,7 +71,12 @@ servers:
       kiloCode: false
       factoryDroid: false
       kimiCli: false
+      zCode: false
       agents: false
+      miMoCode: false
+      commandCode: false
+      museCode: false
+      rovoDev: false
       codeBuddy: false
       auggie: false
       zed: false

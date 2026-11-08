@@ -122,6 +122,18 @@ export const CLIENTS: ClientMeta[] = [
     icon: <ClientLogo src="/logos/apps/auggie.svg" alt="Auggie" />,
   },
   {
+    id: 'commandCode',
+    label: 'Command Code',
+    accent: 'client-cursor',
+    icon: <ClientLogo src="/logos/apps/command-code.ico" alt="Command Code" />,
+  },
+  {
+    id: 'rovoDev',
+    label: 'Rovo Dev CLI',
+    accent: 'client-cursor',
+    icon: <ClientLogo src="/logos/apps/rovo-dev.svg" alt="Rovo Dev CLI" />,
+  },
+  {
     id: 'codeBuddy',
     label: 'CodeBuddy Code',
     accent: 'client-codebuddy',
@@ -132,6 +144,24 @@ export const CLIENTS: ClientMeta[] = [
     label: '.agents (Codebuff / Freebuff)',
     accent: 'client-agents',
     icon: <ClientLogo src="/logos/apps/agents.svg" alt="Shared .agents configuration" />,
+  },
+  {
+    id: 'zCode',
+    label: 'ZCode',
+    accent: 'client-zcode',
+    icon: <ClientLogo src="/logos/apps/zcode.png" alt="ZCode" />,
+  },
+  {
+    id: 'miMoCode',
+    label: 'MiMo Code',
+    accent: 'client-mimo',
+    icon: <ClientLogo src="/logos/apps/mimo.ico" alt="MiMo Code" />,
+  },
+  {
+    id: 'museCode',
+    label: 'Muse Code',
+    accent: 'client-cursor',
+    icon: <ClientLogo src="/logos/apps/muse.ico" alt="Muse Code" />,
   },
   {
     id: 'kimiCli',

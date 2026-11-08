@@ -2,19 +2,20 @@
 //! preview a new config, and apply it. The app's commands and the CLI both call
 //! these, so they behave the same.
 
-use crate::adapters::{adapters, scope_for_path, workspace_scope_path};
+use crate::adapters::{adapters, scope_for_path, workspace_scope_path, AppAdapter};
 use crate::core::{
     build_import_result, ApplyResult, DetectedServer, ImportResult, LocalConfigSource, MCPConfig,
     PlacementScope, SupportedApp, WriteOperation,
 };
 use crate::parser::parse_yaml_config;
 use crate::platform::PlatformContext;
-use crate::storage::{apply_operations, Snapshot};
+use crate::storage::Snapshot;
 use crate::store::config_path;
 use serde::Serialize;
 use serde_json::{Map, Value};
 use std::collections::{BTreeSet, HashMap};
 use std::fs;
+use std::path::{Path, PathBuf};
 
 /// Reads the unified `servers.yaml` and every client's config files.
 pub fn import_detected(ctx: &PlatformContext) -> Result<ImportResult, String> {
@@ -105,12 +106,13 @@ pub fn plan(
         .collect()
 }
 
+/// Build client operations and reconcile ZCode migration with projected same-batch Agents changes.
 fn plan_by_app(
     ctx: &PlatformContext,
     config: &MCPConfig,
     previous_config: Option<&MCPConfig>,
 ) -> Vec<(SupportedApp, WriteOperation)> {
-    adapters()
+    let mut operations: Vec<_> = adapters()
         .into_iter()
         .flat_map(|adapter| {
             let app = adapter.app();
@@ -119,7 +121,18 @@ fn plan_by_app(
                 .into_iter()
                 .map(move |operation| (app, operation))
         })
-        .collect()
+        .collect();
+    let native =
+        crate::adapters::plan_zcode_with_fallback(ctx, config, previous_config, &operations);
+    let mut native = native.into_iter();
+    for (app, operation) in &mut operations {
+        if *app == SupportedApp::ZCode {
+            if let Some(reconciled) = native.next() {
+                *operation = reconciled;
+            }
+        }
+    }
+    operations
 }
 
 /// Every client file [`apply`] would write, as it is now, so a caller can put
@@ -201,8 +214,7 @@ pub fn apply(
     config: &MCPConfig,
     previous_config: Option<&MCPConfig>,
 ) -> Result<ApplyResult, String> {
-    validate_inherited_agents(ctx, config, previous_config)?;
-    apply_plan(ctx, config, plan(ctx, config, previous_config), None)
+    prepare(ctx, config, previous_config)?.apply(ctx)
 }
 
 /// Applies exactly these operations without resolving client paths again.
@@ -210,7 +222,9 @@ fn apply_plan(
     ctx: &PlatformContext,
     config: &MCPConfig,
     operations: Vec<WriteOperation>,
-    expected: Option<&Snapshot>,
+    expected: &Snapshot,
+    inputs: &Snapshot,
+    bound_mimo_path: Option<&Path>,
 ) -> Result<ApplyResult, String> {
     for operation in &operations {
         let path = ctx.resolve_path(&operation.path);
@@ -222,12 +236,13 @@ fn apply_plan(
         }
     }
 
-    let backups = match expected {
-        Some(expected) => crate::storage::apply_operations_checked(operations, expected)?,
-        None => apply_operations(operations)?,
-    };
+    let committed =
+        crate::storage::apply_operations_checked_with_inputs(operations, expected, inputs, || {
+            validate_mimo_binding(ctx, bound_mimo_path)
+        })?;
     Ok(ApplyResult {
-        backups,
+        backups: committed.backups,
+        committed_files: committed.files,
         warnings: crate::adapters::apply_warnings(config),
         history_error: None,
     })
@@ -259,6 +274,8 @@ pub struct PlannedChange {
 pub struct PreparedApply {
     operations: Vec<WriteOperation>,
     snapshot: Snapshot,
+    inputs: Snapshot,
+    bound_mimo_path: Option<PathBuf>,
     config: MCPConfig,
     previous: Option<MCPConfig>,
     pub changes: Vec<PlannedChange>,
@@ -267,7 +284,16 @@ pub struct PreparedApply {
 impl PreparedApply {
     /// Rejects changed contents or active paths before any write is attempted.
     pub fn validate(&self, ctx: &PlatformContext) -> Result<(), String> {
+        self.inputs.verify_bindings()?;
+        self.snapshot.verify_bindings()?;
+        validate_mimo_binding(ctx, self.bound_mimo_path.as_deref())?;
         validate_inherited_agents(ctx, &self.config, self.previous.as_ref())?;
+        crate::adapters::validate_command_context(ctx, &self.config, self.previous.as_ref())?;
+        let inputs = planning_inputs(ctx, &self.config, self.previous.as_ref())?;
+        if self.inputs.fingerprints()? != inputs.fingerprints()? {
+            return Err("Client configuration inputs (contents or active path) changed after the preview. Nothing was written; review the new configuration.".into());
+        }
+        crate::adapters::validate_rovo_context(ctx, &self.config, self.previous.as_ref())?;
         let current = snapshot(ctx, &self.config, self.previous.as_ref())?;
         if self.snapshot.fingerprints()? != current.fingerprints()? {
             return Err("Client configuration changed after the preview (contents or active path). Nothing was written; run the command again to review the new target.".into());
@@ -296,9 +322,92 @@ impl PreparedApply {
             ctx,
             &self.config,
             self.operations.clone(),
-            Some(&self.snapshot),
+            &self.snapshot,
+            &self.inputs,
+            self.bound_mimo_path.as_deref(),
         )
     }
+}
+
+/// Fingerprint read-only dependencies separately from files eligible for rollback.
+fn planning_inputs(
+    ctx: &PlatformContext,
+    config: &MCPConfig,
+    previous: Option<&MCPConfig>,
+) -> Result<Snapshot, String> {
+    let mut inputs = Snapshot::default();
+    let footprint = plan_by_app(ctx, config, previous);
+    for (_, operation) in &footprint {
+        inputs.capture(&ctx.resolve_path(&operation.path))?;
+    }
+    if footprint
+        .iter()
+        .any(|(app, _)| *app == SupportedApp::CodeBuddy)
+    {
+        let active = ctx.user_app_config_path(SupportedApp::CodeBuddy);
+        for path in [
+            ".codebuddy/.mcp.json",
+            ".codebuddy/mcp.json",
+            ".codebuddy.json",
+        ] {
+            let path = ctx.home_dir.join(path);
+            inputs.capture_presence(&path);
+            if active.exists() && path == active {
+                break;
+            }
+        }
+    }
+    for path in crate::adapters::zcode_fallback_input_paths(ctx, &footprint) {
+        inputs.capture(&ctx.resolve_path(&path))?;
+    }
+    if footprint
+        .iter()
+        .any(|(app, _)| *app == SupportedApp::MiMoCode)
+    {
+        if previous.is_none() && config_path(ctx).exists() {
+            inputs.capture(&config_path(ctx))?;
+        }
+        for (path, _) in crate::adapters::MiMoCodeAdapter.detect_sources(ctx) {
+            inputs.capture(&ctx.resolve_path(&path))?;
+        }
+    }
+    if footprint
+        .iter()
+        .any(|(app, _)| *app == SupportedApp::RovoDev)
+    {
+        inputs.capture(&ctx.home_dir.join(".rovodev/config.yml"))?;
+    }
+    Ok(inputs)
+}
+
+/// A validated primary alias is part of the approved context, not a later lookup.
+fn validate_mimo_binding(ctx: &PlatformContext, path: Option<&Path>) -> Result<(), String> {
+    if let Some(path) = path {
+        if !ctx.has_workspace() || ctx.mimo_project_path() != path {
+            return Err("MiMo project configuration priority changed. Refresh the project selection before applying.".into());
+        }
+    }
+    Ok(())
+}
+
+/// Freeze implicit project placements to the same alias validated for this transaction.
+fn bind_mimo_placements(config: &MCPConfig, path: Option<&Path>) -> MCPConfig {
+    let mut config = config.clone();
+    if let Some(path) = path {
+        for placement in config
+            .servers
+            .iter_mut()
+            .flat_map(|server| &mut server.placements)
+            .filter(|placement| {
+                placement.app == SupportedApp::MiMoCode
+                    && placement.scope == PlacementScope::Workspace
+                    && placement.path.is_none()
+            })
+        {
+            placement.path = Some(path.to_string_lossy().to_string());
+        }
+    }
+    config
 }
 
 /// Prepares the preview, file fingerprints and writes from one resolved plan.
@@ -307,8 +416,57 @@ pub fn prepare(
     config: &MCPConfig,
     previous: Option<&MCPConfig>,
 ) -> Result<PreparedApply, String> {
+    prepare_with_mimo_project_path(ctx, config, previous, None)
+}
+
+/// Prepare one bound project selection for native commands and the history transaction.
+pub fn prepare_with_mimo_project_path(
+    ctx: &PlatformContext,
+    config: &MCPConfig,
+    previous: Option<&MCPConfig>,
+    expected: Option<&str>,
+) -> Result<PreparedApply, String> {
+    prepare_with_capture_hook(ctx, config, previous, expected, || {})
+}
+
+/// Keep the semantic-validation/input-capture boundary explicit for concurrency regressions.
+fn prepare_with_capture_hook(
+    ctx: &PlatformContext,
+    config: &MCPConfig,
+    previous: Option<&MCPConfig>,
+    expected: Option<&str>,
+    before_capture: impl FnOnce(),
+) -> Result<PreparedApply, String> {
+    let implicit = std::iter::once(config)
+        .chain(previous)
+        .flat_map(|config| &config.servers)
+        .flat_map(|server| &server.placements)
+        .any(|placement| {
+            placement.app == SupportedApp::MiMoCode
+                && placement.scope == PlacementScope::Workspace
+                && placement.managed
+                && placement.path.is_none()
+        });
+    let bound_mimo_path = expected
+        .map(PathBuf::from)
+        .or_else(|| (implicit && ctx.has_workspace()).then(|| ctx.mimo_project_path()));
+    validate_mimo_binding(ctx, bound_mimo_path.as_deref())?;
+    let bound_config = bind_mimo_placements(config, bound_mimo_path.as_deref());
+    let bound_previous =
+        previous.map(|previous| bind_mimo_placements(previous, bound_mimo_path.as_deref()));
+    let config = &bound_config;
+    let previous = bound_previous.as_ref();
     validate_inherited_agents(ctx, config, previous)?;
+    crate::adapters::validate_command_context(ctx, config, previous)?;
+    crate::adapters::validate_mimo_context(ctx, config, previous)?;
+    crate::adapters::validate_muse_context(ctx, config, previous)?;
+    crate::adapters::validate_rovo_context(ctx, config, previous)?;
+    before_capture();
+    let inputs = planning_inputs(ctx, config, previous)?;
+    // Validate native semantics against already captured dependencies; later edits fail fingerprints.
+    crate::adapters::validate_mimo_context(ctx, config, previous)?;
     let by_app = plan_by_app(ctx, config, previous);
+    crate::adapters::validate_project_fallback(ctx, &by_app)?;
     let operations = by_app
         .iter()
         .map(|(_, operation)| operation.clone())
@@ -321,6 +479,8 @@ pub fn prepare(
         changes: preview_plan(ctx, &by_app, previous),
         operations,
         snapshot,
+        inputs,
+        bound_mimo_path,
         config: config.clone(),
         previous: previous.cloned(),
     };
@@ -413,18 +573,33 @@ fn preview_plan(
 /// fields MCP Manager does not model.
 fn with_kept_fields(current: &Value, desired: &Value, mode: &str) -> Value {
     let mut written = desired.clone();
-    if mode == "merge_json_object_entries" {
+    if matches!(
+        mode,
+        "merge_json_object_entries"
+            | "merge_mimo_entries"
+            | "merge_json_object_path_entries"
+            | "merge_muse_mcp_entries"
+    ) {
         crate::storage::carry_unmanaged_json_fields(current, &mut written);
     } else {
         crate::storage::carry_unmanaged_fields(current, &mut written);
     }
+    if mode == "merge_mimo_entries" {
+        if let Some(enabled) = desired.get("enabled") {
+            written["enabled"] = enabled.clone();
+        }
+    }
     written
 }
 
+/// Whether preview comparisons operate on individual entries rather than a whole field.
 fn is_entry_merge(mode: &str) -> bool {
     matches!(
         mode,
         "merge_json_object_entries"
+            | "merge_mimo_entries"
+            | "merge_json_object_path_entries"
+            | "merge_muse_mcp_entries"
             | "merge_toml_table_entries"
             | "merge_toml_array_entries"
             | "merge_yaml_mapping_entries"
@@ -456,7 +631,13 @@ fn existing_entries(
     } else {
         crate::parser::parse_jsonc(&content).ok()
     };
-    match host.as_ref().and_then(|host| host.get(field)) {
+    match host.as_ref().and_then(|host| {
+        if operation.mode == "merge_json_object_path_entries" {
+            host.pointer(field)
+        } else {
+            host.get(field)
+        }
+    }) {
         Some(Value::Object(entries)) => entries.clone(),
         // `[[field]]` entries, keyed by the `name` the operation uses.
         Some(Value::Array(entries)) => entries
@@ -549,7 +730,10 @@ mod tests {
         let preferred = ctx.home_dir.join(".codebuddy/.mcp.json");
         fs::write(&preferred, "{}").unwrap();
         let rollback = prepared.snapshot(&ctx).unwrap();
-        assert_eq!(rollback.paths().collect::<Vec<_>>(), vec![legacy.as_path()]);
+        assert_eq!(
+            rollback.paths().collect::<Vec<_>>(),
+            vec![legacy.canonicalize().unwrap().as_path()]
+        );
         assert!(prepared.apply(&ctx).unwrap_err().contains("active path"));
         assert_eq!(fs::read_to_string(&preferred).unwrap(), "{}");
         assert_eq!(fs::read_to_string(&legacy).unwrap(), original);
@@ -591,8 +775,7 @@ mod tests {
         // Injection at the exact boundary between final validation and storage write.
         let preferred = ctx.home_dir.join(".codebuddy/.mcp.json");
         fs::write(&preferred, "{}").unwrap();
-        let edited = original.replace("old", "external-edit");
-        fs::write(&legacy, &edited).unwrap();
+        let edited = original.to_string();
         assert!(prepared
             .apply_validated(&ctx)
             .unwrap_err()
@@ -832,5 +1015,259 @@ mod tests {
             action_for(&changes, "ctx", codex),
             Some(ChangeAction::Unchanged)
         );
+    }
+    #[test]
+    fn fallback_changed_after_final_validation_is_rejected_at_the_write_boundary() {
+        use crate::adapters::{AppAdapter, ZCodeAdapter};
+        let temp = tempdir().unwrap();
+        let ctx = PlatformContext {
+            os: PlatformOs::MacOS,
+            home_dir: temp.path().join("home"),
+            workspace_root: temp.path().join("project"),
+        };
+        let fallback = ctx.home_dir.join(".agents/mcp.json");
+        fs::create_dir_all(fallback.parent().unwrap()).unwrap();
+        let content = r#"{"mcpServers":{"fixture-fallback":{"command":"node"}}}"#;
+        fs::write(&fallback, content).unwrap();
+        let parsed = ZCodeAdapter.parse_source(&ctx, fallback.to_str().unwrap(), 8, content);
+        let config = MCPConfig {
+            version: 1,
+            servers: parsed
+                .servers
+                .into_iter()
+                .map(|(server, _)| server)
+                .collect(),
+        };
+        let prepared = super::prepare(&ctx, &config, None).unwrap();
+        prepared.validate(&ctx).unwrap();
+        let external = r#"{"mcpServers":{"fixture-fallback":{"command":"external"}}}"#;
+        fs::write(&fallback, external).unwrap();
+        assert!(prepared.apply_validated(&ctx).is_err());
+        assert_eq!(fs::read_to_string(&fallback).unwrap(), external);
+        assert!(!ctx.user_app_config_path(SupportedApp::ZCode).exists());
+    }
+    #[test]
+    fn global_cursor_apply_does_not_capture_an_unrelated_unreadable_project_source() {
+        let temp = tempdir().unwrap();
+        let ctx = PlatformContext {
+            os: PlatformOs::MacOS,
+            home_dir: temp.path().join("home"),
+            workspace_root: temp.path().join("project"),
+        };
+        fs::create_dir_all(ctx.workspace_file(".cursor/mcp.json")).unwrap();
+        let mut server =
+            crate::parser::parse_mcp_json(r#"{"mcpServers":{"global":{"command":"node"}}}"#)
+                .servers
+                .remove(0);
+        server.apps.insert(SupportedApp::Cursor, true);
+        let prepared = super::prepare(
+            &ctx,
+            &MCPConfig {
+                version: 1,
+                servers: vec![server],
+            },
+            None,
+        )
+        .unwrap();
+        assert!(prepared
+            .inputs
+            .paths()
+            .all(|path| path != ctx.workspace_file(".cursor/mcp.json")));
+    }
+
+    #[test]
+    fn codebuddy_ignores_inactive_lower_priority_directories() {
+        use crate::adapters::{AppAdapter, CodeBuddyAdapter};
+        let temp = tempdir().unwrap();
+        let ctx = PlatformContext {
+            os: PlatformOs::MacOS,
+            home_dir: temp.path().join("home"),
+            workspace_root: temp.path().join("project"),
+        };
+        let path = ctx.home_dir.join(".codebuddy/.mcp.json");
+        fs::create_dir_all(path.parent().unwrap()).unwrap();
+        let content = r#"{"mcpServers":{"active":{"command":"node"}}}"#;
+        fs::write(&path, content).unwrap();
+        fs::create_dir(ctx.home_dir.join(".codebuddy/mcp.json")).unwrap();
+        let config = MCPConfig {
+            version: 1,
+            servers: CodeBuddyAdapter
+                .parse_source(&ctx, path.to_str().unwrap(), 20, content)
+                .servers
+                .into_iter()
+                .map(|(s, _)| s)
+                .collect(),
+        };
+        super::prepare(&ctx, &config, None)
+            .unwrap()
+            .validate(&ctx)
+            .unwrap();
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn zcode_fallback_symlink_retarget_is_rejected_at_the_write_boundary() {
+        use crate::adapters::{AppAdapter, ZCodeAdapter};
+        let temp = tempdir().unwrap();
+        let ctx = PlatformContext {
+            os: PlatformOs::MacOS,
+            home_dir: temp.path().join("home"),
+            workspace_root: temp.path().join("project"),
+        };
+        let fallback = ctx.workspace_file(".agents/mcp.json");
+        fs::create_dir_all(fallback.parent().unwrap()).unwrap();
+        let first = temp.path().join("first.json");
+        let second = temp.path().join("second.json");
+        let content = r#"{"mcpServers":{"link":{"command":"first"}}}"#;
+        fs::write(&first, content).unwrap();
+        fs::write(&second, content.replace("first", "second")).unwrap();
+        std::os::unix::fs::symlink(&first, &fallback).unwrap();
+        let config = MCPConfig {
+            version: 1,
+            servers: ZCodeAdapter
+                .parse_source(&ctx, fallback.to_str().unwrap(), 13, content)
+                .servers
+                .into_iter()
+                .map(|(s, _)| s)
+                .collect(),
+        };
+        let prepared = super::prepare(&ctx, &config, None).unwrap();
+        prepared.validate(&ctx).unwrap();
+        fs::remove_file(&fallback).unwrap();
+        std::os::unix::fs::symlink(&second, &fallback).unwrap();
+        assert!(prepared
+            .apply_validated(&ctx)
+            .unwrap_err()
+            .contains("alias changed"));
+        assert!(!ctx.workspace_file(".zcode/config.json").exists());
+        assert_eq!(fs::read_to_string(&first).unwrap(), content);
+        assert!(fs::read_to_string(&second).unwrap().contains("second"));
+    }
+
+    #[test]
+    fn mimo_deletion_between_semantic_validation_and_capture_is_rejected() {
+        use crate::adapters::{AppAdapter, MiMoCodeAdapter};
+        let temp = tempdir().unwrap();
+        let ctx = PlatformContext {
+            os: PlatformOs::MacOS,
+            home_dir: temp.path().join("home"),
+            workspace_root: temp.path().join("project"),
+        };
+        fs::create_dir_all(&ctx.workspace_root).unwrap();
+        let project = ctx.workspace_file("mimocode.jsonc");
+        let content = r#"{"mcp":{"capture-race":{"type":"local","command":["public"]}}}"#;
+        fs::write(&project, content).unwrap();
+        let private = ctx.home_dir.join(".mimocode/mimocode.jsonc");
+        fs::create_dir_all(private.parent().unwrap()).unwrap();
+        let private_content = r#"{"mcp":{"capture-race":{"type":"local","command":["private"],"environment":{"TOKEN":"secret"}}}}"#;
+        fs::write(&private, private_content).unwrap();
+        let config = MCPConfig {
+            version: 1,
+            servers: MiMoCodeAdapter
+                .parse_source(&ctx, project.to_str().unwrap(), 13, content)
+                .servers
+                .into_iter()
+                .map(|(s, _)| s)
+                .collect(),
+        };
+        for previous in [Some(&config), None] {
+            fs::write(&project, content).unwrap();
+            let result = super::prepare_with_capture_hook(&ctx, &config, previous, None, || {
+                fs::write(&project, "{}").unwrap()
+            });
+            assert!(result.err().unwrap().contains("no longer exists"));
+            assert_eq!(fs::read_to_string(&project).unwrap(), "{}");
+            assert_eq!(fs::read_to_string(&private).unwrap(), private_content);
+        }
+    }
+
+    #[test]
+    fn implicit_mimo_placements_use_the_bound_alias_and_reject_a_later_priority_change() {
+        let temp = tempdir().unwrap();
+        let ctx = PlatformContext {
+            os: PlatformOs::MacOS,
+            home_dir: temp.path().join("home"),
+            workspace_root: temp.path().join("project"),
+        };
+        let mut server =
+            crate::parser::parse_mcp_json(r#"{"mcpServers":{"fixture-bound":{"command":"node"}}}"#)
+                .servers
+                .remove(0);
+        server.placements.push(crate::core::ServerPlacement {
+            app: SupportedApp::MiMoCode,
+            scope: PlacementScope::Workspace,
+            path: None,
+            enabled: true,
+            managed: true,
+        });
+        let config = MCPConfig {
+            version: 1,
+            servers: vec![server],
+        };
+        let previous = MCPConfig {
+            version: 1,
+            servers: vec![],
+        };
+        let expected = ctx.mimo_project_path();
+        let prepared = super::prepare_with_mimo_project_path(
+            &ctx,
+            &config,
+            Some(&previous),
+            Some(expected.to_str().unwrap()),
+        )
+        .unwrap();
+        assert_eq!(
+            prepared.config.servers[0].placements[0].path.as_deref(),
+            Some(expected.to_str().unwrap())
+        );
+        assert!(prepared
+            .operations
+            .iter()
+            .any(|operation| std::path::Path::new(&operation.path) == expected));
+        let higher = ctx.workspace_file(".mimocode/mimocode.jsonc");
+        fs::create_dir_all(higher.parent().unwrap()).unwrap();
+        fs::write(&higher, "{}").unwrap();
+        assert!(prepared.apply_validated(&ctx).is_err());
+        assert!(!expected.exists());
+        assert_eq!(fs::read_to_string(higher).unwrap(), "{}");
+    }
+    #[test]
+    fn a_targeted_fallback_is_checked_before_the_first_dependent_native_write() {
+        let temp = tempdir().unwrap();
+        let ctx = PlatformContext {
+            os: PlatformOs::MacOS,
+            home_dir: temp.path().join("home"),
+            workspace_root: temp.path().join("project"),
+        };
+        let fallback = ctx.home_dir.join(".agents/mcp.json");
+        fs::create_dir_all(fallback.parent().unwrap()).unwrap();
+        fs::write(&fallback, r#"{"mcpServers":{"agents":{"command":"old"}}}"#).unwrap();
+        let mut servers = crate::parser::parse_mcp_json(
+            r#"{"mcpServers":{"agents":{"command":"new"},"native":{"command":"node"}}}"#,
+        )
+        .servers;
+        servers
+            .iter_mut()
+            .find(|server| server.id == "agents")
+            .unwrap()
+            .apps
+            .insert(SupportedApp::Agents, true);
+        servers
+            .iter_mut()
+            .find(|server| server.id == "native")
+            .unwrap()
+            .apps
+            .insert(SupportedApp::ZCode, true);
+        let config = MCPConfig {
+            version: 1,
+            servers,
+        };
+        let prepared = super::prepare(&ctx, &config, None).unwrap();
+        prepared.validate(&ctx).unwrap();
+        let external = r#"{"mcpServers":{"agents":{"command":"external"}}}"#;
+        fs::write(&fallback, external).unwrap();
+        assert!(prepared.apply_validated(&ctx).is_err());
+        assert!(!ctx.user_app_config_path(SupportedApp::ZCode).exists());
+        assert_eq!(fs::read_to_string(fallback).unwrap(), external);
     }
 }
