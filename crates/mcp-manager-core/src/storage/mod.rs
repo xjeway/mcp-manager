@@ -16,6 +16,7 @@ fn base_dir() -> PathBuf {
     PlatformContext::current().app_data_dir()
 }
 
+/// Resolve a stored path using the current runtime home and application data directory.
 pub fn resolve_path(path: &str) -> PathBuf {
     PlatformContext::current().resolve_path(path)
 }
@@ -294,6 +295,7 @@ impl Snapshot {
         self.restore_owned_with(written, |_| {})
     }
 
+    /// Check ownership separately at each restoration boundary, allowing deterministic race injection.
     fn restore_owned_with(
         &self,
         written: &std::collections::BTreeMap<PathBuf, Vec<u8>>,
@@ -358,6 +360,7 @@ pub fn remove_empty_dirs(dirs: &[PathBuf]) {
     }
 }
 
+/// Convert modeled JSON values into the corresponding TOML representation.
 fn json_value_to_toml(value: &Value) -> Result<toml::Value, String> {
     match value {
         Value::Null => Err("null cannot be represented in TOML".to_string()),
@@ -405,6 +408,7 @@ fn commit_text_with(
     Ok(content.as_bytes().to_vec())
 }
 
+/// Validate and render replacement JSON, returning the exact bytes committed.
 fn apply_replace_json(path: &Path, content: &str) -> Result<Vec<u8>, String> {
     let parsed: Value = serde_json::from_str(content).map_err(|e| e.to_string())?;
     let pretty = serde_json::to_string_pretty(&parsed).map_err(|e| e.to_string())?;
@@ -428,6 +432,7 @@ fn unreadable(path: &Path, error: String) -> String {
     )
 }
 
+/// Replace one JSON field while preserving unrelated configuration and returning committed bytes.
 fn apply_merge_json_field(path: &Path, field: &str, content: &str) -> Result<Vec<u8>, String> {
     let field_value: Value = serde_json::from_str(content).map_err(|e| e.to_string())?;
     let existing = read_existing(path)?;
@@ -538,6 +543,7 @@ pub(crate) fn carry_unmanaged_json_fields(old: &Value, new: &mut Value) {
     }
 }
 
+/// Merge managed JSON entries, optionally honoring MiMo native enable transitions.
 fn apply_merge_json_object_entries(
     path: &Path,
     field: &str,
@@ -628,6 +634,7 @@ fn apply_merge_muse_entries(
     commit_text(path, &updated)
 }
 
+/// Replace one TOML field while preserving unrelated document content.
 fn apply_merge_toml_field(path: &Path, field: &str, content: &str) -> Result<Vec<u8>, String> {
     let field_value: Value = serde_json::from_str(content).map_err(|e| e.to_string())?;
     let existing = if path.exists() {
@@ -645,6 +652,7 @@ fn apply_merge_toml_field(path: &Path, field: &str, content: &str) -> Result<Vec
     commit_text(path, &rendered)
 }
 
+/// Update managed TOML tables while carrying forward client-owned fields.
 fn apply_merge_toml_table_entries(
     path: &Path,
     field: &str,
@@ -664,6 +672,7 @@ fn apply_merge_toml_table_entries(
     commit_text(path, &updated)
 }
 
+/// Update managed YAML entries and return their committed document payload.
 fn apply_merge_yaml_mapping_entries(
     path: &Path,
     field: &str,
@@ -691,6 +700,7 @@ fn apply_merge_yaml_mapping_entries(
 /// Key that identifies an entry of a `merge_toml_array_entries` list.
 const TOML_ARRAY_ENTRY_KEY: &str = "name";
 
+/// Update managed array entries without deleting unrelated TOML settings.
 fn apply_merge_toml_array_entries(
     path: &Path,
     field: &str,

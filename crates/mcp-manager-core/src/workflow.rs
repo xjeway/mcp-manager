@@ -106,6 +106,7 @@ pub fn plan(
         .collect()
 }
 
+/// Build client operations and reconcile ZCode migration with projected same-batch Agents changes.
 fn plan_by_app(
     ctx: &PlatformContext,
     config: &MCPConfig,
@@ -581,6 +582,7 @@ fn with_kept_fields(current: &Value, desired: &Value, mode: &str) -> Value {
     written
 }
 
+/// Whether preview comparisons operate on individual entries rather than a whole field.
 fn is_entry_merge(mode: &str) -> bool {
     matches!(
         mode,

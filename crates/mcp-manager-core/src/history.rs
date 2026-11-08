@@ -29,6 +29,7 @@ pub struct FileChange {
 }
 
 impl FileChange {
+    /// Whether undo should remove this file instead of restoring an existing version.
     pub fn was_created(&self) -> bool {
         self.before == ABSENT_FINGERPRINT
     }

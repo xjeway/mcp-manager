@@ -217,6 +217,7 @@ impl PlatformContext {
         Err("Relative Rovo mcpConfigPath is not managed; use an absolute path or ~/".into())
     }
 
+    /// Resolve the active user configuration path according to client precedence.
     pub fn user_app_config_path(&self, app: SupportedApp) -> PathBuf {
         match app {
             SupportedApp::Vscode => match self.os {
@@ -322,6 +323,7 @@ impl PlatformContext {
             .collect()
     }
 
+    /// Use client-specific binaries, bundles and configuration markers to detect an installation.
     fn is_app_installed(&self, app: SupportedApp) -> bool {
         let (commands, macos_bundles, windows_paths) = match app {
             SupportedApp::Vscode => (
@@ -497,6 +499,7 @@ impl PlatformContext {
             .any(|path| self.resolve_path(&path).exists())
     }
 
+    /// List supported configuration locations without treating unrelated shared binaries as installed clients.
     fn config_markers(&self, app: SupportedApp) -> Vec<String> {
         match app {
             SupportedApp::Vscode => vec![

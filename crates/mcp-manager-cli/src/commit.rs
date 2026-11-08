@@ -284,6 +284,7 @@ pub fn scope_label(scope: PlacementScope) -> &'static str {
     }
 }
 
+/// Format the preview with scope labels and per-client changes before confirmation.
 fn summary(session: &Session, changes: &[PlannedChange]) -> String {
     let mut by_server: BTreeMap<&str, Vec<&PlannedChange>> = BTreeMap::new();
     for change in changes {

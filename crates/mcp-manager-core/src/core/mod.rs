@@ -74,6 +74,7 @@ impl SupportedApp {
         SupportedApp::Grok,
     ];
 
+    /// Return the stable persisted client identifier used by Rust and the frontend.
     pub fn as_str(self) -> &'static str {
         match self {
             SupportedApp::Vscode => "vscode",
@@ -357,6 +358,7 @@ where
         .collect())
 }
 
+/// Ignore unknown future clients while preserving placements this version understands.
 fn known_placements<'de, D>(deserializer: D) -> Result<Vec<ServerPlacement>, D::Error>
 where
     D: serde::Deserializer<'de>,
@@ -445,6 +447,7 @@ pub struct DetectedServer {
     pub priority: u32,
 }
 
+/// Initialize every supported client as unselected.
 pub fn empty_apps() -> HashMap<SupportedApp, bool> {
     HashMap::from([
         (SupportedApp::Vscode, false),
@@ -496,6 +499,7 @@ fn clone_server(server: &MCPServer) -> MCPServer {
     }
 }
 
+/// Merge detected definitions with client precedence while retaining installations and placements.
 pub fn merge_servers(current: Option<&MCPServer>, incoming: &MCPServer) -> MCPServer {
     let Some(current) = current else {
         return clone_server(incoming);

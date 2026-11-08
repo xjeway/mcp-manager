@@ -870,6 +870,7 @@ fn standard_json_transport_type(kind: &str) -> &'static str {
     }
 }
 
+/// Serialize only managed, enabled entries for this client/path, omitting unsupported transports.
 pub fn standard_mcp_servers_at(
     config: &MCPConfig,
     app: SupportedApp,
@@ -1031,6 +1032,7 @@ pub fn opencode_mcp_servers_at(
     Value::Object(servers)
 }
 
+/// Return the single registered writer for each supported client.
 pub fn adapters() -> Vec<Box<dyn AppAdapter>> {
     vec![
         Box::new(VSCodeAdapter),

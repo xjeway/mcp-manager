@@ -255,6 +255,7 @@ pub fn project_secret_warnings(config: MCPConfig) -> Vec<mcp_manager_core::core:
 }
 
 #[tauri::command]
+/// Apply the approved configuration under the shared-store lock with a bound MiMo project alias.
 pub fn apply_config(
     config: MCPConfig,
     previous_config: Option<MCPConfig>,
