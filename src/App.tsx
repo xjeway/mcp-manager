@@ -32,6 +32,7 @@ import {
   applyConfig,
   ConfigConflictError,
   ConfigTooNewError,
+  projectSecretWarnings,
   detectInstalledApps,
   hasExternalConfigChange,
   getCurrentWorkspace,
@@ -63,6 +64,7 @@ import { UPDATE_INSTALL_REQUEST_EVENT, UPDATE_SYNC_REQUEST_EVENT } from './servi
 import { deriveVisibleApps } from './services/visibleApps'
 import { resolveWindowSurface } from './services/windowSurface'
 import {
+  inheritedAgentsRemovalPath,
   deleteServerFromConfig,
   importServersIntoConfig,
   importConfigOnLaunch,
@@ -142,6 +144,7 @@ function MainApp() {
   const [rollbackDepth, setRollbackDepth] = useState(0)
   const [visibleApps, setVisibleApps] = useState<SupportedApp[]>([...SUPPORTED_APPS])
   const [editorDirty, setEditorDirty] = useState(false)
+  const configCommitInFlightRef = useRef(false)
   const closeConfirmedRef = useRef(false)
   const updateStateRef = useRef(getUpdateState())
   const [updateState, setUpdateState] = useState(getUpdateState)
@@ -556,56 +559,81 @@ function MainApp() {
     successKind?: FeedbackItem['kind']
     successMessage?: string
   }): Promise<boolean> => {
-    const summary = evaluateApplyRisks(nextConfig.servers)
-    if (summary.blockingErrors.length > 0) {
-      for (const error of summary.blockingErrors) {
-        pushFeedback('error', error)
-      }
-      return false
-    }
-
-    const secretWarnings = sharedProjectSecretWarnings(nextConfig.servers, currentWorkspace, t)
-    if (secretWarnings.length > 0) {
-      const confirmed = await confirmDialog({
-        cancelLabel: t('cancel'),
-        kind: 'warning',
-        message: secretWarnings.join('\n\n'),
-        title: t('sharedProjectSecretTitle'),
-      })
-      if (!confirmed) return false
-    }
-
-    setActionState('saving')
+    if (configCommitInFlightRef.current) return false
+    configCommitInFlightRef.current = true
     try {
-      const result = await saveAndSyncConfig({
-        applyConfig,
-        nextConfig,
-        previousConfig: config,
-        saveConfig,
-      })
-      setConfig(nextConfig)
-      void refreshRollbackDepth()
-      for (const message of applyWarningMessages(result, nextConfig.servers, t)) {
-        pushFeedback('warning', message)
+      const inheritedPath = inheritedAgentsRemovalPath(config, nextConfig, currentWorkspace)
+      if (inheritedPath) {
+        pushFeedback('warning', t('inheritedAgentsReadOnly', { path: inheritedPath }))
+        return false
       }
-      if (successMessage) {
-        pushFeedback(successKind, successMessage)
+      const summary = evaluateApplyRisks(nextConfig.servers)
+      if (summary.blockingErrors.length > 0) {
+        for (const error of summary.blockingErrors) {
+          pushFeedback('error', error)
+        }
+        return false
       }
-      return true
-    } catch (error) {
-      if (error instanceof ConfigUnreadableError) {
-        setConfigProblem(error)
-        pushFeedback('error', t('configUnreadableNotSaved'))
-      } else if (error instanceof ConfigConflictError) {
-        await reloadConfigFromDisk('warning', t('configConflictReloaded'))
-      } else if (error instanceof ConfigTooNewError) {
-        pushFeedback('error', t('configTooNew'))
-      } else {
-        pushFeedback('error', t('syncFailedDetail', { error: String(error) }))
+
+      const secretWarnings = sharedProjectSecretWarnings(nextConfig.servers, currentWorkspace, t)
+      try {
+        for (const warning of await projectSecretWarnings(nextConfig)) {
+          if (!warning.key?.startsWith('params')) continue
+          secretWarnings.push(t('sharedProjectSecretWarning', {
+            server: nextConfig.servers.find((server) => server.id === warning.serverId)?.name ?? warning.serverId,
+            client: 'Codebuff / Freebuff', path: warning.path, key: warning.key,
+            advice: t('secretAdviceDollarInterpolation'),
+          }))
+        }
+      } catch (error) {
+        pushFeedback('error', String(error))
+        return false
       }
-      return false
+      if (secretWarnings.length > 0) {
+        const confirmed = await confirmDialog({
+          cancelLabel: t('cancel'),
+          kind: 'warning',
+          message: secretWarnings.join('\n\n'),
+          title: t('sharedProjectSecretTitle'),
+        })
+        if (!confirmed) return false
+      }
+
+      setActionState('saving')
+      try {
+        const result = await saveAndSyncConfig({
+          applyConfig,
+          nextConfig,
+          previousConfig: config,
+          saveConfig,
+          workspace: currentWorkspace,
+        })
+        setConfig(nextConfig)
+        void refreshRollbackDepth()
+        for (const message of applyWarningMessages(result, nextConfig.servers, t)) {
+          pushFeedback('warning', message)
+        }
+        if (successMessage) {
+          pushFeedback(successKind, successMessage)
+        }
+        return true
+      } catch (error) {
+        if (error instanceof ConfigUnreadableError) {
+          setConfigProblem(error)
+          pushFeedback('error', t('configUnreadableNotSaved'))
+        } else if (error instanceof ConfigConflictError) {
+          await reloadConfigFromDisk('warning', t('configConflictReloaded'))
+        } else if (error instanceof ConfigTooNewError) {
+          pushFeedback('error', t('configTooNew'))
+        } else {
+          pushFeedback('error', t('syncFailedDetail', { error: String(error) }))
+        }
+        return false
+      } finally {
+        setActionState('idle')
+      }
     } finally {
-      setActionState('idle')
+      configCommitInFlightRef.current = false
     }
   }
 

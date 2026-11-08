@@ -250,6 +250,8 @@ const ptBR: LocaleMessages = {
   sharedProjectSecretWarning: "{{server}} → {{client}}: {{path}} conterá um valor literal para {{key}}. Um commit pode expor um segredo. {{advice}} Continuar?",
   secretAdviceDevin: "Use .devin/mcp_config.local.json para valores privados.",
   secretAdviceInterpolation: "Use uma referência de ambiente como ${VAR}.",
+  inheritedAgentsReadOnly: 'Este servidor é herdado de {{path}}. Edite esse arquivo para desativá-lo ou removê-lo.',
+  secretAdviceDollarInterpolation: "Use uma referência de ambiente como $VAR.",
   secretAdvicePrivate: "Mantenha segredos em uma configuração de usuário privada.",
   applyWarningSseUnsupported: '{{client}} não oferece suporte a SSE, então o servidor SSE {{server}} não foi gravado nele. Use o endpoint Streamable HTTP do servidor, se houver.',
   addArg: 'Adicionar argumento',

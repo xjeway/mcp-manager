@@ -1,5 +1,5 @@
 import type { ApplyResult } from './configService'
-import type { ImportDetectedResult, MCPConfig, MCPServer, ServerPlacement, SupportedApp } from '../types/config'
+import type { ImportDetectedResult, MCPConfig, MCPServer, ServerPlacement, SupportedApp, WorkspaceContext } from '../types/config'
 import { isServerAppEnabled, setServerAppEnabled } from '../view-models/workspace'
 
 interface SaveAndSyncConfigOptions {
@@ -7,6 +7,7 @@ interface SaveAndSyncConfigOptions {
   nextConfig: MCPConfig
   previousConfig: MCPConfig
   saveConfig: (config: MCPConfig) => Promise<void>
+  workspace?: WorkspaceContext
 }
 
 interface ImportConfigOnLaunchOptions {
@@ -19,7 +20,10 @@ export async function saveAndSyncConfig({
   nextConfig,
   previousConfig,
   saveConfig,
+  workspace,
 }: SaveAndSyncConfigOptions): Promise<ApplyResult> {
+  const inherited = workspace && inheritedAgentsRemovalPath(previousConfig, nextConfig, workspace)
+  if (inherited) throw new Error(`Edit inherited parent configuration: ${inherited}`)
   await saveConfig(nextConfig)
 
   try {
@@ -128,4 +132,24 @@ export function importServersIntoConfig(
   }
 
   return { config: { ...config, servers: nextServers }, added, updated }
+}
+
+/** A parent Agents file remains active until it is edited directly. */
+export function inheritedAgentsRemovalPath(config: MCPConfig, nextConfig: MCPConfig, workspace: WorkspaceContext): string | undefined {
+  const normalize = (path: string) => path.replace(/\\/g, '/').replace(/\/+$/, '')
+  const root = normalize(workspace.root)
+  if (!root) return undefined
+  const parent = root.slice(0, root.lastIndexOf('/'))
+  const activePath = `${parent}/.agents/mcp.json`
+
+  for (const server of config.servers) {
+    const inherited = (server.placements ?? []).find((placement) => placement.app === 'agents' && placement.enabled && placement.managed === false && normalize(placement.path ?? '') === activePath)
+    if (!inherited) continue
+    const next = nextConfig.servers.find((item) => item.id === server.id)
+    if (!next || (server.enabled && !next.enabled)
+      || !(next.placements ?? []).some((placement) => placement.app === 'agents' && placement.enabled && placement.managed === false && normalize(placement.path ?? '') === activePath)) {
+      return inherited.path ?? '.agents/mcp.json'
+    }
+  }
+  return undefined
 }

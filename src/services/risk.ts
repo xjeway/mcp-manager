@@ -101,7 +101,7 @@ export function sharedProjectSecretWarnings(servers: MCPServer[], workspace: Wor
   const warnings = new Set<string>()
   for (const server of servers.filter((item) => item.enabled)) {
     for (const placement of server.placements ?? []) {
-      if (!placement.enabled || placement.scope !== 'workspace') continue
+      if (!placement.enabled || placement.managed === false || placement.scope !== 'workspace') continue
       const sharedScope = CLIENT_CAPABILITIES[placement.app].scopes.some(
         (scope) => scope.placementScope === 'workspace' && scope.sharedWithTeam && scope.writable,
       )
@@ -111,8 +111,12 @@ export function sharedProjectSecretWarnings(servers: MCPServer[], workspace: Wor
       if (placement.app === 'auggie' && /(?:^|[/\\])\.augment[/\\]settings\.local\.json$/.test(path)) continue
       const values = server.transport.type === 'stdio' ? server.command?.env : server.transport.headers
       for (const [key, value] of Object.entries(values ?? {})) {
-        if (!isLiteralSecret(key, value)) continue
-        const advice = placement.app === 'windsurf' ? t('secretAdviceDevin')
+        const dollarReference = placement.app === 'agents' && (server.transport.type === 'stdio'
+          ? /^\$[A-Za-z_][A-Za-z0-9_]*$/.test(value)
+          : /^(?:Bearer )?\$[A-Z_][A-Z0-9_]*$/.test(value))
+        if (!(placement.app === 'agents' ? isLiteralSecret(key, 'literal') && value.trim().length > 0 : isLiteralSecret(key, value)) || dollarReference) continue
+        const advice = placement.app === 'agents' ? t('secretAdviceDollarInterpolation')
+          : placement.app === 'windsurf' ? t('secretAdviceDevin')
           : ['grok', 'claudeCode', 'factoryDroid'].includes(placement.app) ? t('secretAdviceInterpolation') : t('secretAdvicePrivate')
         warnings.add(t('sharedProjectSecretWarning', {
           server: server.name || server.id,

@@ -128,6 +128,12 @@ export const CLIENTS: ClientMeta[] = [
     icon: <ClientLogo src="/logos/apps/codebuddy.svg" alt="CodeBuddy Code" />,
   },
   {
+    id: 'agents',
+    label: '.agents (Codebuff / Freebuff)',
+    accent: 'client-agents',
+    icon: <ClientLogo src="/logos/apps/agents.svg" alt="Shared .agents configuration" />,
+  },
+  {
     id: 'kimiCli',
     label: 'Kimi CLI',
     accent: 'client-cursor',

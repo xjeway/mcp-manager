@@ -250,6 +250,8 @@ const deDE: LocaleMessages = {
   sharedProjectSecretWarning: "{{server}} → {{client}}: {{path}} wird einen direkten Wert für {{key}} enthalten. Ein Commit könnte Geheimnisse offenlegen. {{advice}} Fortfahren?",
   secretAdviceDevin: "Private Werte in .devin/mcp_config.local.json speichern.",
   secretAdviceInterpolation: "Eine Umgebungsreferenz wie ${VAR} verwenden.",
+  inheritedAgentsReadOnly: 'Dieser Server wird aus {{path}} geerbt. Bearbeiten Sie diese Datei, um ihn zu deaktivieren oder zu entfernen.',
+  secretAdviceDollarInterpolation: "Eine Umgebungsreferenz wie $VAR verwenden.",
   secretAdvicePrivate: "Geheimnisse in einer privaten Benutzerkonfiguration speichern.",
   applyWarningSseUnsupported: '{{client}} unterstützt kein SSE, daher wurde der SSE-Server {{server}} dort nicht eingetragen. Verwenden Sie stattdessen den Streamable-HTTP-Endpunkt des Servers, falls vorhanden.',
   addArg: 'Argument hinzufügen',

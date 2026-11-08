@@ -1,5 +1,6 @@
 import { describe, expect, it, vi } from 'vitest'
 import {
+  inheritedAgentsRemovalPath,
   importConfigOnLaunch,
   importServersIntoConfig,
   persistImportedConfig,
@@ -36,6 +37,7 @@ const previousConfig = {
         kiloCode: false,
         factoryDroid: false,
         kimiCli: false,
+        agents: false,
         codeBuddy: false,
         auggie: false,
         zed: false,
@@ -223,4 +225,24 @@ describe('workspacePersistence', () => {
     expect(result.config.servers[0].apps.vscode).toBe(true)
     expect(result.config.servers[0].apps.cursor).toBe(true)
   })
+})
+
+it('prevents claiming inherited Agents servers were disabled or deleted', () => {
+  const config: import('../types/config').MCPConfig = structuredClone(previousConfig)
+  config.servers[0].placements = [{ app: 'agents', scope: 'workspace', path: '/parent/.agents/mcp.json', enabled: true, managed: false }]
+  expect(inheritedAgentsRemovalPath(config, { ...config, servers: [] }, { root: '/parent/project', placementPaths: {} })).toBe('/parent/.agents/mcp.json')
+  expect(inheritedAgentsRemovalPath(config, toggleServerAppInConfig(config, 'server-1', 'agents'), { root: '/parent/project', placementPaths: {} })).toBe('/parent/.agents/mcp.json')
+  expect(inheritedAgentsRemovalPath(config, toggleServerAppInConfig(config, 'server-1', 'cursor'), { root: '/parent/project', placementPaths: {} })).toBeUndefined()
+})
+
+it('ignores inherited placements saved by another workspace and rejects before save in the active one', async () => {
+  const config: import('../types/config').MCPConfig = structuredClone(previousConfig)
+  config.servers[0].placements = [{ app: 'agents', scope: 'workspace', path: '/parent/.agents/mcp.json', enabled: true, managed: false }]
+  const nextConfig = { ...config, servers: [] }
+  expect(inheritedAgentsRemovalPath(config, nextConfig, { root: '/other/project', placementPaths: {} })).toBeUndefined()
+  const saveConfig = vi.fn().mockResolvedValue(undefined)
+  const applyConfig = vi.fn().mockResolvedValue({ backups: [] })
+  await expect(saveAndSyncConfig({ nextConfig, previousConfig: config, saveConfig, applyConfig, workspace: { root: '/parent/project', placementPaths: {} } })).rejects.toThrow('/parent/.agents/mcp.json')
+  expect(saveConfig).not.toHaveBeenCalled()
+  expect(applyConfig).not.toHaveBeenCalled()
 })

@@ -55,7 +55,7 @@ pub fn commit(session: &Session, change: Change, dry_run: bool) -> Outcome<bool>
             &session.ctx,
             &change.after,
         ))
-        .filter(|w| change.focus.contains(&w.server_id))
+        .filter(|w| w.kind == "sharedProjectSecret" || change.focus.contains(&w.server_id))
         .collect::<Vec<_>>();
 
     if !session.json {
@@ -197,6 +197,7 @@ fn describe_warning(warning: &ApplyWarning) -> String {
             let path = warning.path.as_deref().unwrap_or_default();
             let key = warning.key.as_deref().unwrap_or_default();
             let advice = match warning.app {
+                mcp_manager_core::core::SupportedApp::Agents => "Use a $VAR environment reference.",
                 mcp_manager_core::core::SupportedApp::Windsurf => {
                     "Use .devin/mcp_config.local.json for private values."
                 }

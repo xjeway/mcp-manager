@@ -22,6 +22,7 @@ pub enum SupportedApp {
     KiloCode,
     FactoryDroid,
     KimiCli,
+    Agents,
     CodeBuddy,
     Auggie,
     Zed,
@@ -33,7 +34,7 @@ pub enum SupportedApp {
 }
 
 impl SupportedApp {
-    pub const ALL: [SupportedApp; 26] = [
+    pub const ALL: [SupportedApp; 27] = [
         SupportedApp::Vscode,
         SupportedApp::Cursor,
         SupportedApp::ClaudeCode,
@@ -52,6 +53,7 @@ impl SupportedApp {
         SupportedApp::KiloCode,
         SupportedApp::FactoryDroid,
         SupportedApp::KimiCli,
+        SupportedApp::Agents,
         SupportedApp::CodeBuddy,
         SupportedApp::Auggie,
         SupportedApp::Zed,
@@ -82,6 +84,7 @@ impl SupportedApp {
             SupportedApp::KiloCode => "kiloCode",
             SupportedApp::FactoryDroid => "factoryDroid",
             SupportedApp::KimiCli => "kimiCli",
+            SupportedApp::Agents => "agents",
             SupportedApp::CodeBuddy => "codeBuddy",
             SupportedApp::Auggie => "auggie",
             SupportedApp::Zed => "zed",
@@ -116,6 +119,7 @@ impl SupportedApp {
             SupportedApp::KiloCode => "Kilo Code",
             SupportedApp::FactoryDroid => "Factory Droid",
             SupportedApp::KimiCli => "Kimi CLI",
+            SupportedApp::Agents => ".agents (Codebuff / Freebuff)",
             SupportedApp::CodeBuddy => "CodeBuddy Code",
             SupportedApp::Auggie => "Auggie",
             SupportedApp::Zed => "Zed",
@@ -148,6 +152,7 @@ impl SupportedApp {
             SupportedApp::KiloCode => "kilo-code",
             SupportedApp::FactoryDroid => "factory-droid",
             SupportedApp::KimiCli => "kimi-cli",
+            SupportedApp::Agents => "agents",
             SupportedApp::CodeBuddy => "codebuddy",
             SupportedApp::Auggie => "auggie",
             SupportedApp::Zed => "zed",
@@ -171,6 +176,7 @@ impl SupportedApp {
         match self {
             SupportedApp::Windsurf => &["devin-desktop", "devin-cli"],
             SupportedApp::Auggie => &["augment", "augment-cli"],
+            SupportedApp::Agents => &["codebuff", "freebuff", "agents-mcp"],
             _ => &[],
         }
     }
@@ -427,6 +433,7 @@ pub fn empty_apps() -> HashMap<SupportedApp, bool> {
         (SupportedApp::KiloCode, false),
         (SupportedApp::FactoryDroid, false),
         (SupportedApp::KimiCli, false),
+        (SupportedApp::Agents, false),
         (SupportedApp::CodeBuddy, false),
         (SupportedApp::Auggie, false),
         (SupportedApp::Zed, false),
@@ -490,15 +497,34 @@ pub fn merge_servers(current: Option<&MCPServer>, incoming: &MCPServer) -> MCPSe
         }
     }
 
-    if merged.command.is_none() && incoming.command.is_some() {
+    // .agents files replace whole server definitions by scope. Do not borrow
+    // a lower-priority URL/headers into a winning stdio or header-free entry.
+    let uses_agents = |server: &MCPServer| {
+        server
+            .apps
+            .get(&SupportedApp::Agents)
+            .copied()
+            .unwrap_or(false)
+            || server
+                .placements
+                .iter()
+                .any(|p| p.app == SupportedApp::Agents && p.enabled)
+    };
+    if uses_agents(incoming) && !uses_agents(current) {
         merged.command = incoming.command.clone();
-    }
-
-    if merged.transport.url.is_none() && incoming.transport.url.is_some() {
         merged.transport = incoming.transport.clone();
-    } else if merged.transport.headers.is_empty() && merged.transport.url == incoming.transport.url
-    {
-        merged.transport.headers = incoming.transport.headers.clone();
+    } else if !uses_agents(current) {
+        if merged.command.is_none() && incoming.command.is_some() {
+            merged.command = incoming.command.clone();
+        }
+
+        if merged.transport.url.is_none() && incoming.transport.url.is_some() {
+            merged.transport = incoming.transport.clone();
+        } else if merged.transport.headers.is_empty()
+            && merged.transport.url == incoming.transport.url
+        {
+            merged.transport.headers = incoming.transport.headers.clone();
+        }
     }
 
     merged

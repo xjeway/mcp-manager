@@ -136,12 +136,72 @@ pub fn snapshot(
     Ok(snapshot)
 }
 
+/// An inherited parent file cannot be disabled by removing its saved placement.
+pub fn validate_inherited_agents(
+    ctx: &PlatformContext,
+    next: &MCPConfig,
+    previous: Option<&MCPConfig>,
+) -> Result<(), String> {
+    if !ctx.has_workspace() {
+        return Ok(());
+    }
+    let Some(parent) = ctx.workspace_root.parent() else {
+        return Ok(());
+    };
+    let inherited_path = parent.join(".agents/mcp.json");
+    let inherited_path = inherited_path.canonicalize().unwrap_or(inherited_path);
+    let loaded;
+    let previous = match previous {
+        Some(previous) => previous,
+        None => {
+            loaded = crate::store::load(ctx)?;
+            &loaded
+        }
+    };
+    for server in &previous.servers {
+        let inherited = server.placements.iter().find(|placement| {
+            placement.app == SupportedApp::Agents
+                && placement.scope == PlacementScope::Workspace
+                && placement.enabled
+                && !placement.managed
+                && placement.path.as_ref().is_some_and(|path| {
+                    let path = ctx.resolve_path(path);
+                    path.canonicalize().unwrap_or(path) == inherited_path
+                })
+        });
+        if inherited.is_none() {
+            continue;
+        }
+        let retained = next
+            .servers
+            .iter()
+            .find(|next| next.id == server.id)
+            .is_some_and(|next| {
+                (!server.enabled || next.enabled)
+                    && next.placements.iter().any(|placement| {
+                        placement.app == SupportedApp::Agents
+                            && placement.enabled
+                            && !placement.managed
+                            && placement.path.as_ref().is_some_and(|path| {
+                                let path = ctx.resolve_path(path);
+                                path.canonicalize().unwrap_or(path) == inherited_path
+                            })
+                    })
+            });
+        if !retained {
+            return Err(format!("Server {} is inherited from {}. Edit that parent file to disable or remove it. Nothing was written.", server.id, inherited_path.display()));
+        }
+    }
+    Ok(())
+}
+
 /// Writes `config` to every client, backing up each file first.
 pub fn apply(
     ctx: &PlatformContext,
     config: &MCPConfig,
     previous_config: Option<&MCPConfig>,
 ) -> Result<ApplyResult, String> {
+    validate_inherited_agents(ctx, config, previous_config)?;
     apply_plan(ctx, config, plan(ctx, config, previous_config), None)
 }
 
@@ -207,6 +267,7 @@ pub struct PreparedApply {
 impl PreparedApply {
     /// Rejects changed contents or active paths before any write is attempted.
     pub fn validate(&self, ctx: &PlatformContext) -> Result<(), String> {
+        validate_inherited_agents(ctx, &self.config, self.previous.as_ref())?;
         let current = snapshot(ctx, &self.config, self.previous.as_ref())?;
         if self.snapshot.fingerprints()? != current.fingerprints()? {
             return Err("Client configuration changed after the preview (contents or active path). Nothing was written; run the command again to review the new target.".into());
@@ -246,6 +307,7 @@ pub fn prepare(
     config: &MCPConfig,
     previous: Option<&MCPConfig>,
 ) -> Result<PreparedApply, String> {
+    validate_inherited_agents(ctx, config, previous)?;
     let by_app = plan_by_app(ctx, config, previous);
     let operations = by_app
         .iter()

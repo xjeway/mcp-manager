@@ -246,6 +246,8 @@ const zhTW: LocaleMessages = {
   sharedProjectSecretWarning: "{{server}} → {{client}}：{{path}} 將寫入 {{key}} 的字面值，可能包含金鑰。提交此檔案可能洩漏該值。{{advice}} 是否繼續？",
   secretAdviceDevin: "請將私密值放入 .devin/mcp_config.local.json。",
   secretAdviceInterpolation: "請使用 ${VAR} 等環境變數引用。",
+  inheritedAgentsReadOnly: '此服務繼承自 {{path}}。請編輯該父目錄檔案以停用或刪除它。',
+  secretAdviceDollarInterpolation: "請使用 $VAR 等環境變數引用。",
   secretAdvicePrivate: "請將金鑰保存在私人使用者設定中。",
   applyWarningSseUnsupported: '{{client}} 不支援 SSE，SSE 伺服器 {{server}} 未寫入該用戶端。若該伺服器提供 Streamable HTTP 位址，請改用該位址。',
   addArg: '新增參數',

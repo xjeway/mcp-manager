@@ -33,6 +33,11 @@ pub fn save_yaml_config(
     content: String,
     expected_fingerprint: Option<String>,
 ) -> Result<String, String> {
+    let ctx = PlatformContext::current();
+    if resolve_relative_path(&relative_path) == store::config_path(&ctx) {
+        let next: MCPConfig = mcp_manager_core::parser::parse_yaml_config(&content)?;
+        workflow::validate_inherited_agents(&ctx, &next, None)?;
+    }
     store::write_text_checked(
         &resolve_relative_path(&relative_path),
         &content,
@@ -241,6 +246,12 @@ pub fn detect_installed_apps() -> Result<Vec<String>, String> {
 #[tauri::command]
 pub fn current_workspace() -> Result<WorkspaceInfo, String> {
     Ok(workflow::workspace_info(&PlatformContext::current()))
+}
+
+/// Preflight includes retained client fields absent from the editable server model.
+#[tauri::command]
+pub fn project_secret_warnings(config: MCPConfig) -> Vec<mcp_manager_core::core::ApplyWarning> {
+    mcp_manager_core::adapters::shared_project_secret_warnings(&PlatformContext::current(), &config)
 }
 
 #[tauri::command]

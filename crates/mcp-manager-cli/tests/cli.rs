@@ -749,3 +749,132 @@ fn codebuddy_new_install_defaults_to_preferred_path_and_leaves_shared_project_fi
     assert!(!sandbox.home.join(".codebuddy/mcp.json").exists());
     assert!(!sandbox.home.join(".codebuddy.json").exists());
 }
+
+#[test]
+fn shared_agents_aliases_write_scoped_files_and_never_the_parent() {
+    let sandbox = Sandbox::new();
+    let parent = sandbox.project.parent().unwrap().join(".agents/mcp.json");
+    fs::create_dir_all(parent.parent().unwrap()).unwrap();
+    let parent_text = r#"{"mcpServers":{"parent-only":{"command":"do-not-edit"}}}"#;
+    fs::write(&parent, parent_text).unwrap();
+    sandbox.ok(&[
+        "add",
+        "global",
+        "-a",
+        "codebuff",
+        "--global",
+        "-y",
+        "--",
+        "node",
+        "global.js",
+    ]);
+    let user = sandbox.read_json(&sandbox.home.join(".agents/mcp.json"));
+    assert_eq!(user["mcpServers"]["global"]["command"], "node");
+    let report = sandbox.json(&[
+        "add",
+        "project",
+        "-a",
+        "freebuff",
+        "--project",
+        "--env",
+        "API_KEY=$TOKEN",
+        "-y",
+        "--json",
+        "--",
+        "node",
+        "project.js",
+    ]);
+    assert_eq!(report["warnings"], serde_json::json!([]));
+    let project = sandbox.read_json(&sandbox.project.join(".agents/mcp.json"));
+    assert_eq!(project["mcpServers"]["project"]["env"]["API_KEY"], "$TOKEN");
+    assert_eq!(fs::read_to_string(&parent).unwrap(), parent_text);
+    let report = sandbox.json(&[
+        "add",
+        "secret",
+        "-a",
+        "agents",
+        "--project",
+        "--env",
+        "API_KEY=literal-secret",
+        "-y",
+        "--json",
+        "--",
+        "node",
+        "secret.js",
+    ]);
+    assert_eq!(report["warnings"][0]["kind"], "sharedProjectSecret");
+    assert_eq!(report["warnings"][0]["app"], "agents");
+    assert_eq!(report["warnings"][0]["key"], "API_KEY");
+    assert!(!report["warnings"].to_string().contains("literal-secret"));
+    assert_eq!(fs::read_to_string(parent).unwrap(), parent_text);
+}
+
+#[test]
+fn inherited_agents_removal_is_rejected_before_the_shared_store_is_saved() {
+    let sandbox = Sandbox::new();
+    let parent = sandbox.project.parent().unwrap().join(".agents/mcp.json");
+    fs::create_dir_all(parent.parent().unwrap()).unwrap();
+    let parent_text = r#"{"mcpServers":{"inherited":{"command":"keep"}}}"#;
+    fs::write(&parent, parent_text).unwrap();
+    let config = serde_json::json!({"version":1,"servers":[{
+        "id":"inherited","name":"inherited","enabled":true,
+        "transport":{"type":"stdio"},"command":{"program":"keep","args":[],"env":{}},"apps":{},
+        "placements":[{"app":"agents","scope":"workspace","path":parent,"enabled":true,"managed":false}]
+    }]});
+    let store = sandbox.servers_yaml();
+    fs::create_dir_all(store.parent().unwrap()).unwrap();
+    let before = config.to_string();
+    fs::write(&store, &before).unwrap();
+    for args in [
+        vec!["remove", "inherited", "-y"],
+        vec!["remove", "inherited", "-a", "agents", "-y"],
+    ] {
+        let output = sandbox.run(&args);
+        assert!(!output.status.success());
+        assert!(String::from_utf8_lossy(&output.stderr).contains("inherited"));
+        assert_eq!(fs::read_to_string(&store).unwrap(), before);
+        assert_eq!(fs::read_to_string(&parent).unwrap(), parent_text);
+    }
+}
+
+#[test]
+fn agents_retained_secret_warnings_include_servers_outside_the_command_focus() {
+    let sandbox = Sandbox::new();
+    sandbox.ok(&[
+        "add",
+        "retained",
+        "-a",
+        "agents",
+        "--project",
+        "-y",
+        "--",
+        "node",
+        "keep.js",
+    ]);
+    let path = sandbox.project.join(".agents/mcp.json");
+    let mut value = sandbox.read_json(&path);
+    value["mcpServers"]["retained"]["params"] =
+        serde_json::json!({"api_key":"nonfocus-private","token":"$TOKEN"});
+    fs::write(&path, value.to_string()).unwrap();
+    let report = sandbox.json(&[
+        "add",
+        "other",
+        "-a",
+        "cursor",
+        "--global",
+        "--url",
+        "https://example.com/mcp",
+        "-y",
+        "--json",
+    ]);
+    assert!(report["warnings"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .any(|warning| warning["serverId"] == "retained" && warning["key"] == "params.api_key"));
+    assert!(!report.to_string().contains("nonfocus-private"));
+    assert_eq!(
+        sandbox.read_json(&path)["mcpServers"]["retained"]["params"]["api_key"],
+        "nonfocus-private"
+    );
+}

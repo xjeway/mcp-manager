@@ -1,0 +1,12 @@
+{
+  "mcpServers": {
+    "remote": {
+      "type": "sse",
+      "url": "https://mcp.example.com/events",
+      "headers": { "Authorization": "Bearer fixture-token", "X-Api-Key": "fixture-key" },
+      "params": { "workspace": "demo" }
+    },
+    "other": { "command": "node", "args": ["server.js"], "env": { "TOKEN": "$TOKEN" } }
+  },
+  "metadata": { "owner": "fixture" }
+}

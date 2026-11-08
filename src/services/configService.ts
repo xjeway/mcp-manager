@@ -40,6 +40,7 @@ function defaultConfig(): MCPConfig {
           kiloCode: false,
           factoryDroid: false,
           kimiCli: false,
+          agents: false,
           codeBuddy: false,
           auggie: false,
           zed: false,
@@ -74,6 +75,7 @@ function defaultConfig(): MCPConfig {
           kiloCode: false,
           factoryDroid: false,
           kimiCli: false,
+          agents: false,
           codeBuddy: false,
           auggie: false,
           zed: false,
@@ -113,6 +115,7 @@ function defaultConfig(): MCPConfig {
           kiloCode: false,
           factoryDroid: false,
           kimiCli: false,
+          agents: false,
           codeBuddy: false,
           auggie: false,
           zed: false,
@@ -318,6 +321,12 @@ export interface ApplyResult {
   warnings?: ApplyWarning[]
   /** Set when the change was applied but could not be recorded, so it cannot be undone. */
   historyError?: string
+}
+
+/** Inspect retained fields in native client files before asking to apply. */
+export async function projectSecretWarnings(config: MCPConfig): Promise<(Omit<ApplyWarning, 'kind'> & { kind: 'sharedProjectSecret'; path?: string; key?: string })[]> {
+  if (!isDesktopRuntime()) return []
+  return invoke<(Omit<ApplyWarning, 'kind'> & { kind: 'sharedProjectSecret'; path?: string; key?: string })[]>('project_secret_warnings', { config })
 }
 
 export async function applyConfig(

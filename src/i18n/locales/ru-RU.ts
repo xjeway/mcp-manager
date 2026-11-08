@@ -252,6 +252,8 @@ const ruRU: LocaleMessages = {
   sharedProjectSecretWarning: "{{server}} → {{client}}: {{path}} будет содержать прямое значение {{key}}. Коммит может раскрыть секрет. {{advice}} Продолжить?",
   secretAdviceDevin: "Храните личные значения в .devin/mcp_config.local.json.",
   secretAdviceInterpolation: "Используйте ссылку на переменную, например ${VAR}.",
+  inheritedAgentsReadOnly: 'Этот сервер унаследован из {{path}}. Измените этот файл, чтобы отключить или удалить сервер.',
+  secretAdviceDollarInterpolation: "Используйте ссылку на переменную, например $VAR.",
   secretAdvicePrivate: "Храните секреты в личной конфигурации пользователя.",
   applyWarningSseUnsupported: '{{client}} не поддерживает SSE, поэтому SSE-сервер {{server}} туда не записан. Используйте вместо него эндпоинт Streamable HTTP этого сервера, если он есть.',
   addArg: 'Добавить аргумент',
