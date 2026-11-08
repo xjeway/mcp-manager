@@ -63,8 +63,10 @@ export interface MCPServer {
   placements?: ServerPlacement[]
 }
 
-/** The project the app was started from, as reported by the backend. */
+/** The explicitly selected project, or the startup project before a selection is saved. */
 export interface WorkspaceContext {
+  /** Saved path aliases that the backend resolved into this context. */
+  contextPaths?: string[]
   /** Empty when there is no current project. */
   root: string
   /** Project-level config file per app that supports one. */

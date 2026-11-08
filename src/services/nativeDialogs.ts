@@ -55,3 +55,9 @@ function isAccepted(result: unknown, okText: string): boolean {
       : result
   return label === true || label === 'Ok' || label === 'Yes' || label === okText
 }
+
+/** The native plugin validates the folder; canceling makes no project-state change. */
+export async function chooseProjectDirectory(title: string): Promise<string | null> {
+  if (!isDesktopRuntime()) return null
+  return invoke<string | null>('plugin:dialog|open', { options: { directory: true, multiple: false, title } })
+}

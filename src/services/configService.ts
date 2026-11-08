@@ -289,7 +289,7 @@ export async function startOverConfig(
   }
 }
 
-export async function saveConfig(config: MCPConfig): Promise<void> {
+export async function saveConfig(config: MCPConfig, workspace?: WorkspaceContext): Promise<void> {
   if (!isDesktopRuntime()) {
     window.localStorage.setItem(BROWSER_CONFIG_KEY, JSON.stringify(config))
     return
@@ -305,6 +305,7 @@ export async function saveConfig(config: MCPConfig): Promise<void> {
       relativePath: CONFIG_PATH,
       content: text,
       expectedFingerprint: loadedFingerprint,
+      ...(workspace ? { workspaceRoot: workspace.root } : {}),
     })
   } catch (error) {
     if (String(error).startsWith(CONFLICT_ERROR)) {
@@ -339,9 +340,9 @@ export interface ApplyResult {
 }
 
 /** Inspect retained fields in native client files before asking to apply. */
-export async function projectSecretWarnings(config: MCPConfig): Promise<(Omit<ApplyWarning, 'kind'> & { kind: 'sharedProjectSecret'; path?: string; key?: string })[]> {
+export async function projectSecretWarnings(config: MCPConfig, workspace?: WorkspaceContext): Promise<(Omit<ApplyWarning, 'kind'> & { kind: 'sharedProjectSecret'; path?: string; key?: string })[]> {
   if (!isDesktopRuntime()) return []
-  return invoke<(Omit<ApplyWarning, 'kind'> & { kind: 'sharedProjectSecret'; path?: string; key?: string })[]>('project_secret_warnings', { config })
+  return invoke<(Omit<ApplyWarning, 'kind'> & { kind: 'sharedProjectSecret'; path?: string; key?: string })[]>('project_secret_warnings', { config, ...(workspace ? { workspaceRoot: workspace.root } : {}) })
 }
 
 export async function applyConfig(
@@ -360,6 +361,7 @@ export async function applyConfig(
     // The fingerprint `saveConfig` just got back: the backend refuses to apply
     // if another program saved servers.yaml in between.
     return await invoke<ApplyResult>('apply_config', {
+      ...(workspace ? { workspaceRoot: workspace.root } : {}),
       config,
       previousConfig,
       expectedFingerprint: loadedFingerprint,
@@ -403,7 +405,7 @@ export async function rollback(): Promise<void> {
   await invoke('rollback_last_change')
 }
 
-export async function importDetectedConfigs(): Promise<ImportDetectedResult> {
+export async function importDetectedConfigs(workspace?: WorkspaceContext): Promise<ImportDetectedResult> {
   if (!isDesktopRuntime()) {
     const config = defaultConfig()
     window.localStorage.setItem(BROWSER_CONFIG_KEY, JSON.stringify(config))
@@ -418,21 +420,21 @@ export async function importDetectedConfigs(): Promise<ImportDetectedResult> {
     }
   }
 
-  return invoke<ImportDetectedResult>('import_detected_configs')
+  return invoke<ImportDetectedResult>('import_detected_configs', workspace ? { workspaceRoot: workspace.root } : undefined)
 }
 
-export async function detectInstalledApps(): Promise<SupportedApp[]> {
+export async function detectInstalledApps(workspace?: WorkspaceContext): Promise<SupportedApp[]> {
   if (!isDesktopRuntime()) {
     return [...SUPPORTED_APPS]
   }
 
-  return invoke<SupportedApp[]>('detect_installed_apps')
+  return invoke<SupportedApp[]>('detect_installed_apps', workspace ? { workspaceRoot: workspace.root } : undefined)
 }
 
-export async function getCurrentWorkspace(): Promise<WorkspaceContext> {
+export async function getCurrentWorkspace(root?: string): Promise<WorkspaceContext> {
   if (!isDesktopRuntime()) {
     return EMPTY_WORKSPACE
   }
 
-  return invoke<WorkspaceContext>('current_workspace')
+  return invoke<WorkspaceContext>('current_workspace', root === undefined ? undefined : { workspaceRoot: root })
 }

@@ -1,6 +1,13 @@
 import type { LocaleMessages } from './en-US'
 
 const koKR: LocaleMessages = {
+  projectSelection: "프로젝트 범위",
+  projectComputer: "내 컴퓨터",
+  projectChoose: "프로젝트 선택…",
+  projectRecent: "최근 프로젝트",
+  projectUnavailable: "프로젝트를 사용할 수 없음",
+  projectSelectionFailed: "프로젝트를 선택할 수 없습니다: {{error}}",
+  rollbackGlobal: "마지막 변경 실행 취소 (모든 프로젝트)",
   title: 'MCP Manager',
   add: '서버 추가',
   appScope: '클라이언트 범위',

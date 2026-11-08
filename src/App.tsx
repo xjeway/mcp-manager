@@ -4,6 +4,8 @@ import { useTranslation } from 'react-i18next'
 import { CLIENTS } from './components/clientMeta'
 import { ConfigProblemDialog } from './components/ConfigProblemDialog'
 import { Dashboard } from './components/Dashboard'
+import { ProjectSelector } from './components/ProjectSelector'
+import { configForProject, mergeProjectChange, readProjectSelection, readRecentProjects, saveProjectSelection } from './services/projectContext'
 import { MarketplacePage } from './components/MarketplacePage'
 import { SettingsPage } from './components/SettingsPage'
 import { ServerEditor } from './components/ServerEditor'
@@ -46,7 +48,7 @@ import {
 } from './services/configService'
 import { areConfigsEquivalent } from './services/configSync'
 import { openPath, openRepositoryLink } from './services/externalLinks'
-import { confirmDialog } from './services/nativeDialogs'
+import { chooseProjectDirectory, confirmDialog } from './services/nativeDialogs'
 import { mergeServerIntoConfig, shouldPromptForPendingChanges } from './services/pendingChanges'
 import { evaluateApplyRisks, sharedProjectSecretWarnings } from './services/risk'
 import { isDesktopRuntime } from './services/runtime'
@@ -129,6 +131,8 @@ function MainApp() {
   const [platform] = useState(detectPlatform)
   const [appVersion, setAppVersion] = useState(FALLBACK_APP_VERSION)
   const [currentWorkspace, setCurrentWorkspace] = useState<WorkspaceContext>(EMPTY_WORKSPACE)
+  const [recentProjects, setRecentProjects] = useState(readRecentProjects)
+  const [workspaceProblem, setWorkspaceProblem] = useState<string | null>(null)
   const [view, setView] = useState<View>('dashboard')
   const [actionState, setActionState] = useState<ActionState>('loading')
   const [config, setConfig] = useState<MCPConfig>({ version: 1, servers: [] })
@@ -281,6 +285,7 @@ function MainApp() {
     result: ImportDetectedResult,
     baselineConfig: MCPConfig,
     mode: 'manual' | 'startup',
+    importWorkspace: WorkspaceContext = currentWorkspace,
   ) => {
     const detectedCount = result.sources.filter((source) => source.exists).length
     const hasImportableServers = result.config.servers.length > 0
@@ -289,8 +294,9 @@ function MainApp() {
 
     if (hasChanged) {
       try {
-        await persistImportedConfig(result.config, saveConfig)
-        setConfig(result.config)
+        const imported = mergeProjectChange(baselineConfig, result.config, importWorkspace)
+        await persistImportedConfig(imported, (next) => saveConfig(next, importWorkspace))
+        setConfig(imported)
         pushFeedback(
           mode === 'manual' ? 'success' : 'info',
           t(mode === 'manual' ? 'importSummary' : 'autoImportSummary', {
@@ -334,9 +340,9 @@ function MainApp() {
   useEffect(() => {
     let alive = true
 
-    const refreshVisibleApps = async () => {
+    const refreshVisibleApps = async (project: WorkspaceContext) => {
       try {
-        const detected = await detectInstalledApps()
+        const detected = await detectInstalledApps(project)
         if (!alive) {
           return
         }
@@ -353,12 +359,17 @@ function MainApp() {
     const bootstrap = async () => {
       setActionState('loading')
       try {
-        await refreshVisibleApps()
+        let initialWorkspace = EMPTY_WORKSPACE
+        let projectAvailable = true
         try {
-          setCurrentWorkspace(await getCurrentWorkspace())
-        } catch {
-          setCurrentWorkspace(EMPTY_WORKSPACE)
+          initialWorkspace = await getCurrentWorkspace(readProjectSelection())
+          setCurrentWorkspace(initialWorkspace)
+        } catch (error) {
+          projectAvailable = false
+          setWorkspaceProblem(String(error))
+          pushFeedback('error', t('projectSelectionFailed', { error: String(error) }))
         }
+        await refreshVisibleApps(initialWorkspace)
         const loaded = await loadConfig()
         if (!alive) {
           return
@@ -367,17 +378,17 @@ function MainApp() {
         setFeedbacks([])
         void refreshRollbackDepth()
 
-        if (readAutoImportOnLaunchPreference()) {
+        if (projectAvailable && readAutoImportOnLaunchPreference()) {
           try {
             const result = await importConfigOnLaunch({
               autoImportOnLaunch: true,
-              importDetectedConfigs,
+              importDetectedConfigs: () => importDetectedConfigs(initialWorkspace),
             })
             if (!alive) {
               return
             }
             if (result) {
-              await applyImportResult(result, loaded, 'startup')
+              await applyImportResult(result, loaded, 'startup', initialWorkspace)
             }
           } catch (error) {
             if (!alive) {
@@ -549,13 +560,35 @@ function MainApp() {
     }
   }, [])
 
-  const workspace = useMemo(() => mapConfigToWorkspaceView(config, visibleApps, t), [config, t, visibleApps])
+  const projectConfig = useMemo(() => configForProject(config, currentWorkspace), [config, currentWorkspace])
+  const workspace = useMemo(() => mapConfigToWorkspaceView(projectConfig, visibleApps, t), [projectConfig, t, visibleApps])
+
+  const selectProject = async (root?: string) => {
+    if (configCommitInFlightRef.current || actionState !== 'idle') return
+    configCommitInFlightRef.current = true
+    setActionState('loading')
+    try {
+      const selected = root ?? await chooseProjectDirectory(t('projectChoose'))
+      if (selected === null) return
+      const next = await getCurrentWorkspace(selected)
+      saveProjectSelection(next.root)
+      setCurrentWorkspace(next)
+      setWorkspaceProblem(null)
+      setRecentProjects(readRecentProjects())
+      try { setVisibleApps(deriveVisibleApps(await detectInstalledApps(next))) }
+      catch { setVisibleApps([...SUPPORTED_APPS]) }
+    } catch (error) {
+      pushFeedback('error', t('projectSelectionFailed', { error: String(error) }))
+    } finally {
+      configCommitInFlightRef.current = false
+      setActionState('idle')
+    }
+  }
 
   const commitConfigChange = async ({
     nextConfig,
     successKind = 'success',
     successMessage,
-    editedServerIds = [],
   }: {
     nextConfig: MCPConfig
     successKind?: FeedbackItem['kind']
@@ -563,14 +596,14 @@ function MainApp() {
     editedServerIds?: string[]
   }): Promise<boolean> => {
     if (configCommitInFlightRef.current) return false
+    if (workspaceProblem) { pushFeedback('error', t('projectSelectionFailed', { error: workspaceProblem })); return false }
     configCommitInFlightRef.current = true
     try {
       let workspaceForSave = currentWorkspace
       try {
-        if (editedServerIds.length > 0 || nextConfig.servers.some((server) => server.placements?.some((placement) => placement.app === 'miMoCode' && placement.scope === 'workspace' && placement.managed !== false))) {
-          workspaceForSave = await getCurrentWorkspace()
-          nextConfig = refreshMiMoProjectPaths(nextConfig, currentWorkspace, workspaceForSave, nextConfig.servers.map((server) => server.id))
-        }
+        workspaceForSave = await getCurrentWorkspace(currentWorkspace.root)
+        nextConfig = refreshMiMoProjectPaths(nextConfig, currentWorkspace, workspaceForSave, nextConfig.servers.map((server) => server.id))
+        nextConfig = mergeProjectChange(config, nextConfig, workspaceForSave)
       } catch (error) {
         pushFeedback('error', String(error))
         return false
@@ -580,7 +613,8 @@ function MainApp() {
         pushFeedback('warning', t('inheritedAgentsReadOnly', { path: inheritedPath }))
         return false
       }
-      const summary = evaluateApplyRisks(nextConfig.servers)
+      const scopedNext = configForProject(nextConfig, workspaceForSave)
+      const summary = evaluateApplyRisks(scopedNext.servers)
       if (summary.blockingErrors.length > 0) {
         for (const error of summary.blockingErrors) {
           pushFeedback('error', error)
@@ -588,9 +622,9 @@ function MainApp() {
         return false
       }
 
-      const secretWarnings = sharedProjectSecretWarnings(nextConfig.servers, workspaceForSave, t)
+      const secretWarnings = sharedProjectSecretWarnings(scopedNext.servers, workspaceForSave, t)
       try {
-        for (const warning of await projectSecretWarnings(nextConfig)) {
+        for (const warning of await projectSecretWarnings(nextConfig, workspaceForSave)) {
           const message = t('sharedProjectSecretWarning', {
             server: nextConfig.servers.find((server) => server.id === warning.serverId)?.name || warning.serverId,
             client: CLIENTS.find((client) => client.id === warning.app)?.label ?? warning.app, path: warning.path, key: warning.key,
@@ -618,7 +652,7 @@ function MainApp() {
           applyConfig: (next, previous) => applyConfig(next, previous, workspaceForSave, currentWorkspace),
           nextConfig,
           previousConfig: config,
-          saveConfig,
+          saveConfig: (next) => saveConfig(next, workspaceForSave),
           workspace: workspaceForSave,
         })
         setConfig(nextConfig)
@@ -664,7 +698,7 @@ function MainApp() {
   }
 
   const openEdit = (serverId: string) => {
-    const server = config.servers.find((item) => item.id === serverId)
+    const server = projectConfig.servers.find((item) => item.id === serverId)
     if (!server) {
       return
     }
@@ -679,19 +713,24 @@ function MainApp() {
       return
     }
 
-    const confirmed = await confirmDialog({
+    if (configCommitInFlightRef.current) return
+    configCommitInFlightRef.current = true
+    let confirmed = false
+    try {
+      confirmed = await confirmDialog({
       cancelLabel: t('cancel'),
       kind: 'warning',
       message: t('deleteConfirm', { name: row.name }),
       okLabel: t('delete'),
       title: t('delete'),
-    })
+      })
+    } finally { configCommitInFlightRef.current = false }
     if (!confirmed) {
       return
     }
 
     const saved = await commitConfigChange({
-      nextConfig: deleteServerFromConfig(config, serverId),
+      nextConfig: deleteServerFromConfig(projectConfig, serverId),
       successMessage: t('serverDeleted', { name: row.name }),
     })
     if (saved) {
@@ -701,14 +740,14 @@ function MainApp() {
 
   const handleToggleApp = async (serverId: string, app: SupportedApp) => {
     await commitConfigChange({
-      nextConfig: toggleServerAppInConfig(config, serverId, app),
+      nextConfig: toggleServerAppInConfig(projectConfig, serverId, app),
     })
   }
 
   const handleBatchSetApp = async (serverIds: string[], app: SupportedApp, enabled: boolean) => {
     const client = CLIENTS.find((item) => item.id === app)?.label ?? app
     await commitConfigChange({
-      nextConfig: setServersAppInConfig(config, serverIds, app, enabled),
+      nextConfig: setServersAppInConfig(projectConfig, serverIds, app, enabled),
       successMessage: t(enabled ? 'batchEnabledSummary' : 'batchDisabledSummary', {
         client,
         count: serverIds.length,
@@ -717,21 +756,24 @@ function MainApp() {
   }
 
   const handleImport = async () => {
+    if (configCommitInFlightRef.current || workspaceProblem) return
+    configCommitInFlightRef.current = true
     setActionState('importing')
     try {
       try {
-        const detected = await detectInstalledApps()
+        const detected = await detectInstalledApps(currentWorkspace)
         setVisibleApps(deriveVisibleApps(detected))
       } catch (error) {
         setVisibleApps([...SUPPORTED_APPS])
         pushFeedback('warning', t('detectInstalledAppsFailedDetail', { error: String(error) }))
       }
 
-      const result = await importDetectedConfigs()
+      const result = await importDetectedConfigs(currentWorkspace)
       await applyImportResult(result, config, 'manual')
     } catch (error) {
       pushFeedback('error', t('importFailedDetail', { error: String(error) }))
     } finally {
+      configCommitInFlightRef.current = false
       setActionState('idle')
     }
   }
@@ -787,6 +829,8 @@ function MainApp() {
       return
     }
 
+    if (configCommitInFlightRef.current) return
+    configCommitInFlightRef.current = true
     setActionState('rolling-back')
     try {
       await rollback()
@@ -795,6 +839,7 @@ function MainApp() {
       pushFeedback('error', t('rollbackFailedDetail', { error: String(error) }))
     } finally {
       await refreshRollbackDepth()
+      configCommitInFlightRef.current = false
       setActionState('idle')
     }
   }
@@ -831,7 +876,7 @@ function MainApp() {
   }
 
   const handleSaveServer = async (server: MCPServer) => {
-    const nextConfig = mergeServerIntoConfig(config, editingServer?.id, server)
+    const nextConfig = mergeServerIntoConfig(projectConfig, editingServer?.id, server)
     const saved = await commitConfigChange({
       nextConfig,
       successMessage: t(editingServer ? 'serverUpdated' : 'serverCreated', { name: server.name }),
@@ -847,7 +892,7 @@ function MainApp() {
   }
 
   const handleSaveServers = async (servers: MCPServer[]) => {
-    const { config: nextConfig, added, updated } = importServersIntoConfig(config, servers)
+    const { config: nextConfig, added, updated } = importServersIntoConfig(projectConfig, servers)
     const saved = await commitConfigChange({
       nextConfig,
       successMessage: t('batchImportSummary', { added: added.length, updated: updated.length }),
@@ -959,6 +1004,7 @@ function MainApp() {
       ) : (
         <Dashboard
           workspace={workspace}
+          projectSelector={<ProjectSelector workspace={currentWorkspace} recent={recentProjects} disabled={isBusy} problem={workspaceProblem} onSelect={(root) => void selectProject(root)} />}
           busy={actionState}
           canRollback={rollbackDepth > 0}
           visibleApps={visibleApps}
