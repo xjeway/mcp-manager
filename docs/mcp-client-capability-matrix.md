@@ -292,7 +292,7 @@ writes. Same-batch Agents updates are projected into first-write ZCode migration
 These inputs are rechecked
 at validation and before each write. Batch writes to one target compare against
 the exact bytes committed by the batch, never a reread that could bless an external
-revision. Rollback restores only still-owned versions and preserves external edits
+revision. Rollback restores only still-owned versions and preserves external edits detected at the ownership check
 even when failure occurred in a different dependency. Retained project parameters/environment values are included
 in redacted secret warnings before CLI or desktop confirmation.
 

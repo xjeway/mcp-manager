@@ -336,7 +336,20 @@ impl Snapshot {
     fn restore_owned_with(
         &self,
         written: &std::collections::BTreeMap<PathBuf, Vec<u8>>,
+        before: impl FnMut(&Path),
+    ) -> Result<Vec<PathBuf>, String> {
+        self.restore_owned_using(written, before, |path, original| match original {
+            Some(content) => atomic_write_bytes(path, content),
+            None => fs::remove_file(path).map_err(|e| e.to_string()),
+        })
+    }
+
+    /// Keep ownership checks and combined reporting shared with deterministic restore-failure tests.
+    fn restore_owned_using(
+        &self,
+        written: &std::collections::BTreeMap<PathBuf, Vec<u8>>,
         mut before: impl FnMut(&Path),
+        mut restore: impl FnMut(&Path, &Option<Vec<u8>>) -> Result<(), String>,
     ) -> Result<Vec<PathBuf>, String> {
         let mut failures = Vec::new();
         let mut skipped = Vec::new();
@@ -349,10 +362,7 @@ impl Snapshot {
                 skipped.push(path.clone());
                 continue;
             }
-            let result = match original {
-                Some(content) => atomic_write_bytes(path, content),
-                None => fs::remove_file(path).map_err(|e| e.to_string()),
-            };
+            let result = restore(path, original);
             if let Err(error) = result {
                 failures.push(format!("{}: {error}", path.display()));
             }
@@ -361,6 +371,16 @@ impl Snapshot {
         if failures.is_empty() {
             Ok(skipped)
         } else {
+            if !skipped.is_empty() {
+                failures.push(format!(
+                    "external edits were preserved in {}",
+                    skipped
+                        .iter()
+                        .map(|p| p.display().to_string())
+                        .collect::<Vec<_>>()
+                        .join(", ")
+                ));
+            }
             Err(failures.join("; "))
         }
     }
@@ -1603,6 +1623,36 @@ mod tests {
             .unwrap();
         assert_eq!(fs::read_to_string(a).unwrap(), "external");
         assert_eq!(fs::read_to_string(b).unwrap(), "original-b");
+    }
+
+    #[test]
+    fn compensation_reports_both_skipped_external_edits_and_restore_failures() {
+        let temp = tempfile::tempdir().unwrap();
+        let external = temp.path().join("external.json");
+        let failed = temp.path().join("failed.json");
+        fs::write(&external, "original").unwrap();
+        fs::write(&failed, "original").unwrap();
+        let mut snapshot = super::Snapshot::default();
+        snapshot.capture(&external).unwrap();
+        snapshot.capture(&failed).unwrap();
+        let written = snapshot
+            .paths()
+            .map(|p| (p.to_path_buf(), b"owned".to_vec()))
+            .collect();
+        fs::write(&external, "external edit").unwrap();
+        fs::write(&failed, "owned").unwrap();
+        let error = snapshot
+            .restore_owned_using(
+                &written,
+                |_| {},
+                |_, _| Err("injected restoration failure".into()),
+            )
+            .unwrap_err();
+        assert!(error.contains("external.json"), "{error}");
+        assert!(error.contains("external edits were preserved"));
+        assert!(error.contains("failed.json"));
+        assert!(error.contains("injected restoration failure"));
+        assert_eq!(fs::read_to_string(external).unwrap(), "external edit");
     }
 
     #[test]
