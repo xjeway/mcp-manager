@@ -331,7 +331,7 @@ mod tests {
             20,
             r#"{"mcpServers":{"api":{"transport":"http","url":"https://example.com"}}}"#,
         );
-        let config = MCPConfig {
+        let mut config = MCPConfig {
             version: 1,
             servers: parsed
                 .servers
@@ -339,6 +339,11 @@ mod tests {
                 .map(|(server, _)| server)
                 .collect(),
         };
+        config.servers[0].apps.insert(SupportedApp::Cursor, true);
+        let cursor = ctx.user_app_config_path(SupportedApp::Cursor);
+        fs::create_dir_all(cursor.parent().unwrap()).unwrap();
+        let cursor_before = r#"{"mcpServers":{"untouched":{"command":"keep"}}}"#;
+        fs::write(&cursor, cursor_before).unwrap();
         fs::create_dir_all(path.parent().unwrap()).unwrap();
         for text in [
             "{ // not strict JSON\n\"mcpServers\":{}}",
@@ -348,6 +353,7 @@ mod tests {
             assert!(crate::workflow::prepare(&ctx, &config, None).is_err());
             assert!(crate::workflow::apply(&ctx, &config, None).is_err());
             assert_eq!(fs::read_to_string(&path).unwrap(), text);
+            assert_eq!(fs::read_to_string(&cursor).unwrap(), cursor_before);
         }
     }
     #[test]

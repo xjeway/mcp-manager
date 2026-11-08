@@ -31,6 +31,18 @@ struct Report<'a> {
 
 /// Returns whether anything was written.
 pub fn commit(session: &Session, change: Change, dry_run: bool) -> Outcome<bool> {
+    commit_with_confirmation(session, change, dry_run, |_| {
+        session.confirm("Apply these changes?")
+    })
+}
+
+/// Keep one explicit confirmation boundary before any shared-store or native-file write.
+fn commit_with_confirmation(
+    session: &Session,
+    change: Change,
+    dry_run: bool,
+    confirm: impl FnOnce(&[ApplyWarning]) -> Outcome<()>,
+) -> Outcome<bool> {
     let blocking = validate(&change.after).blocking_errors;
     if !blocking.is_empty() {
         let lines = blocking.iter().map(describe_issue).collect::<Vec<_>>();
@@ -85,7 +97,7 @@ pub fn commit(session: &Session, change: Change, dry_run: bool) -> Outcome<bool>
         return Ok(false);
     }
 
-    session.confirm("Apply these changes?")?;
+    confirm(&warnings)?;
 
     let Change { before, after, .. } = change;
 
@@ -309,4 +321,67 @@ fn summary(session: &Session, changes: &[PlannedChange]) -> String {
         short_path(session, &backups.to_string_lossy())
     ));
     lines.join("\n")
+}
+
+#[cfg(test)]
+mod confirmation_tests {
+    use super::*;
+    use mcp_manager_core::adapters::{AppAdapter, ZCodeAdapter};
+    use mcp_manager_core::platform::{PlatformContext, PlatformOs};
+    use std::fs;
+
+    #[test]
+    fn retained_secret_warning_reaches_confirmation_before_any_write() {
+        let temp = tempfile::tempdir().unwrap();
+        let ctx = PlatformContext {
+            os: PlatformOs::MacOS,
+            home_dir: temp.path().join("home"),
+            workspace_root: temp.path().join("project"),
+        };
+        let fallback = ctx.workspace_file(".agents/mcp.json");
+        fs::create_dir_all(fallback.parent().unwrap()).unwrap();
+        let content = r#"{"mcpServers":{"api":{"command":"node","params":{"api_key":"pre-confirmation-secret"}}}}"#;
+        fs::write(&fallback, content).unwrap();
+        let parsed = ZCodeAdapter.parse_source(&ctx, fallback.to_str().unwrap(), 9, content);
+        let change = Change {
+            before: MCPConfig {
+                version: 1,
+                servers: vec![],
+            },
+            after: MCPConfig {
+                version: 1,
+                servers: parsed
+                    .servers
+                    .into_iter()
+                    .map(|(server, _)| server)
+                    .collect(),
+            },
+            focus: vec!["api".into()],
+        };
+        let session = Session {
+            ctx,
+            interactive: false,
+            yes: false,
+            json: true,
+            agent: None,
+        };
+        let native = session.ctx.workspace_file(".zcode/config.json");
+        let reached = Cell::new(false);
+        let result = commit_with_confirmation(&session, change, false, |warnings| {
+            reached.set(true);
+            assert!(warnings
+                .iter()
+                .any(|warning| warning.key.as_deref() == Some("params.api_key")));
+            assert!(!serde_json::to_string(warnings)
+                .unwrap()
+                .contains("pre-confirmation-secret"));
+            assert!(!native.exists());
+            assert!(!store::config_path(&session.ctx).exists());
+            Err(Failure::Cancelled)
+        });
+        assert!(matches!(result, Err(Failure::Cancelled)));
+        assert!(reached.get());
+        assert!(!native.exists());
+        assert_eq!(fs::read_to_string(fallback).unwrap(), content);
+    }
 }

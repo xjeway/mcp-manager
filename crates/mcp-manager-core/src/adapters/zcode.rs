@@ -110,11 +110,15 @@ fn projected_fallback(
 ) -> Option<Map<String, Value>> {
     let path = fallback_for(ctx, native);
     let mut entries = match fs::read_to_string(&path) {
-        Ok(content) => parse_jsonc(&content)
-            .ok()?
-            .get("mcpServers")?
-            .as_object()?
-            .clone(),
+        Ok(content) => {
+            let root = parse_jsonc(&content).ok()?;
+            root.as_object()?;
+            match root.get("mcpServers") {
+                None => Map::new(),
+                Some(Value::Object(entries)) => entries.clone(),
+                _ => return None,
+            }
+        }
         Err(error) if error.kind() == std::io::ErrorKind::NotFound => Map::new(),
         Err(_) => return None,
     };
